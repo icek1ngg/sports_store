@@ -1,11 +1,19 @@
 # Miscellaneous
 *.class
 *.lock
+!pubspec.lock
 *.log
 *.pyc
 *.swp
 .buildlog/
 .history
+
+# Local editor and configuration files
+.idea/
+*.iml
+.env
+.env.*
+config/*.local.json
 
 
 
