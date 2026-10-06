@@ -19,7 +19,9 @@ Android manifest chính đã khai báo `android.permission.INTERNET` để truy 
 
 ## Phạm vi hiện tại
 
-Base đã có cấu hình và SDK để kết nối project. Chưa tạo bảng, migration, RLS policy, tài khoản, Storage bucket, RPC hoặc màn hình đăng nhập. Việc đọc/ghi bảng phải chờ schema và quyền nghiệp vụ được thống nhất. Việc kiểm tra endpoint thành công không xác nhận RLS hay quyền của từng vai trò.
+Base đã có cấu hình và SDK để kết nối project. Schema nền tảng, migration, RLS và Storage được mô tả tại [database.md](database.md); kết quả áp dụng cloud và kiểm tra database được ghi trong tài liệu đó. Chưa có màn hình đăng nhập, tài khoản manager/shipper hoặc RPC giao dịch nghiệp vụ.
+
+Repository dùng tên bảng/cột theo migration và [api_contracts.md](api_contracts.md). Các thao tác tồn kho, đặt/hủy đơn, giao nhận, COD và trả/hoàn hàng cần RPC phía server; quyền client hiện chặn ghi trực tiếp các bảng này. Vai trò trong app lấy từ `profiles.role`, chỉ được quản trị qua công cụ server đáng tin cậy.
 
 Chưa cấu hình OAuth/magic link hoặc redirect đăng nhập trên dashboard. Khi triển khai các luồng này, cần thiết lập callback theo nền tảng và kiểm tra session thực tế.
 

@@ -34,3 +34,9 @@ flutter build web --dart-define-from-file=config/supabase.json
 Script kết nối thực hiện GET tới Supabase Auth settings và Data API bằng publishable key; không tạo tài khoản, đọc bản ghi hoặc ghi dữ liệu. Data API được kiểm tra bằng tên bảng probe với `limit=0`; lỗi bảng không tồn tại `PGRST205` là phản hồi mong đợi cho phép kiểm tra này. Có thể truyền đường dẫn file cấu hình khác làm tham số đầu tiên.
 
 Chi tiết khởi tạo client dùng chung và hướng dẫn cho thành viên: [docs/supabase_setup.md](docs/supabase_setup.md).
+
+## Database dùng chung
+
+Database cloud có 18 bảng nền tảng phục vụ phạm vi MH01–MH20. Schema và quyền Supabase được version trong `supabase/migrations/`; khi dựng mới phải chạy cả ba migration theo thứ tự. Xem [docs/database.md](docs/database.md) để biết bảng, RLS, Storage, kết quả áp dụng cloud và các luồng RPC còn cần triển khai. [docs/business_states.md](docs/business_states.md), [docs/api_contracts.md](docs/api_contracts.md) và [docs/screen_mapping.md](docs/screen_mapping.md) là hợp đồng dùng chung cho các thành viên.
+
+`supabase/tests/database_security.sql` kiểm tra quyền và constraint bằng fixture trong transaction, kết thúc bằng ROLLBACK. Chạy nguyên file qua kết nối quản trị có quyền phù hợp; không dùng `db reset --linked` trên project dùng chung.
