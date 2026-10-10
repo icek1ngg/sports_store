@@ -56,6 +56,9 @@ class OrderFeed extends StatelessWidget {
     this.emptyActionLabel,
     this.onEmptyAction,
     this.scrollController,
+    this.itemBuilder,
+    this.listPadding,
+    this.listFooter,
     super.key,
   });
 
@@ -82,6 +85,9 @@ class OrderFeed extends StatelessWidget {
   final String? emptyActionLabel;
   final VoidCallback? onEmptyAction;
   final ScrollController? scrollController;
+  final Widget Function(BuildContext, OrderSummary)? itemBuilder;
+  final EdgeInsets? listPadding;
+  final Widget? listFooter;
 
   @override
   Widget build(BuildContext context) {
@@ -124,6 +130,9 @@ class OrderFeed extends StatelessWidget {
         mutationOrderIds: mutationOrderIds,
         isStale: snapshot.stale,
         scrollController: scrollController,
+        itemBuilder: itemBuilder,
+        listPadding: listPadding,
+        listFooter: listFooter,
       ),
     );
   }
@@ -150,6 +159,9 @@ class _OrderFeedList extends StatelessWidget {
     required this.mutationOrderIds,
     required this.isStale,
     required this.scrollController,
+    required this.itemBuilder,
+    required this.listPadding,
+    required this.listFooter,
   });
 
   final List<OrderSummary> orders;
@@ -171,37 +183,44 @@ class _OrderFeedList extends StatelessWidget {
   final Set<String> mutationOrderIds;
   final bool isStale;
   final ScrollController? scrollController;
+  final Widget Function(BuildContext, OrderSummary)? itemBuilder;
+  final EdgeInsets? listPadding;
+  final Widget? listFooter;
 
   @override
   Widget build(BuildContext context) {
     final footerCount = loadingMore || moreFailure != null || canLoadMore
         ? 1
         : 0;
-    final itemCount = orders.length + footerCount;
+    final itemCount =
+        orders.length + footerCount + (listFooter == null ? 0 : 1);
     final list = ListView.builder(
       controller: scrollController,
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      padding: listPadding ?? const EdgeInsets.fromLTRB(16, 12, 16, 24),
       itemCount: itemCount,
       itemBuilder: (context, index) {
+        if (listFooter != null && index == itemCount - 1) return listFooter!;
         if (index >= orders.length) return _buildFooter(context);
         final summary = orders[index];
         return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: _OrderFeedItem(
-            summary: summary,
-            showManagerContext: showManagerContext,
-            isStale: isStale,
-            mutationInProgress: mutationOrderIds.contains(summary.order.id),
-            onOpenOrder: onOpenOrder,
-            onCustomerCancel: onCustomerCancel,
-            onConfirm: onConfirm,
-            onReject: onReject,
-            onCreateReturn: onCreateReturn,
-            onOpenReturn: onOpenReturn,
-            actionPredicate: actionPredicate,
-            returnCreationPredicate: returnCreationPredicate,
-          ),
+          padding: EdgeInsets.only(bottom: itemBuilder == null ? 12 : 16),
+          child:
+              itemBuilder?.call(context, summary) ??
+              _OrderFeedItem(
+                summary: summary,
+                showManagerContext: showManagerContext,
+                isStale: isStale,
+                mutationInProgress: mutationOrderIds.contains(summary.order.id),
+                onOpenOrder: onOpenOrder,
+                onCustomerCancel: onCustomerCancel,
+                onConfirm: onConfirm,
+                onReject: onReject,
+                onCreateReturn: onCreateReturn,
+                onOpenReturn: onOpenReturn,
+                actionPredicate: actionPredicate,
+                returnCreationPredicate: returnCreationPredicate,
+              ),
         );
       },
     );

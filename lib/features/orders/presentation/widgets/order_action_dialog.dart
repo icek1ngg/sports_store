@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/errors/app_failure.dart';
 import '../../../../core/errors/presentation_failure_message.dart';
 import '../../../../core/state/foundation_providers.dart';
+import '../../../../core/state/epoch_cache.dart';
 import '../../../../core/state/session_scope.dart';
 import '../../../../shared/widgets/feature_access_gate.dart';
 import '../../domain/models/model_validators.dart';
@@ -19,12 +20,17 @@ class OrderActionDialog extends ConsumerStatefulWidget {
     required this.operation,
     required this.isStillAllowed,
     required this.submittedScope,
+    this.sourceCache,
     super.key,
   });
   final String orderId;
   final OrderOperation operation;
   final bool Function() isStillAllowed;
   final SessionScope submittedScope;
+
+  /// Detail sheets can own a session-bound cache below the root Navigator.
+  /// Observe the decision's cache without reparenting a live modal scope.
+  final EpochCache? sourceCache;
 
   @override
   ConsumerState<OrderActionDialog> createState() => _OrderActionDialogState();
@@ -62,7 +68,8 @@ class _OrderActionDialogState extends ConsumerState<OrderActionDialog> {
         _failure = null;
       }
     });
-    final cache = ref.read(epochCacheProvider);
+    final EpochCache cache =
+        widget.sourceCache ?? ref.read<EpochCache>(epochCacheProvider);
     _cancelPrivateData = cache.listen((resource) {
       if (!cache.canRead && mounted) {
         _reason.clear();

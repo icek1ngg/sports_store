@@ -9,6 +9,7 @@ import 'package:sports_store/core/state/foundation_providers.dart';
 import 'package:sports_store/core/state/session_scope.dart';
 import 'package:sports_store/features/orders/domain/models/order_status.dart';
 import 'package:sports_store/features/orders/domain/models/order_page.dart';
+import 'package:sports_store/features/orders/domain/models/order_query.dart';
 import 'package:sports_store/features/orders/presentation/pages/customer_orders_page.dart';
 import 'package:sports_store/features/orders/presentation/view_models/order_providers.dart';
 import 'package:sports_store/shared/widgets/async_content.dart';
@@ -69,6 +70,18 @@ Future<void> _pumpPage(
   CustomerOrdersPage page,
 ) async {
   await tester.pumpWidget(_host(container, page));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _requestCustomerLoadMoreIfVisible(WidgetTester tester) async {
+  await tester.drag(find.byType(ListView).last, const Offset(0, -420));
+  await tester.pump();
+  final button = find.text('Tải thêm đơn hàng');
+  if (button.evaluate().isNotEmpty) {
+    await tester.ensureVisible(button);
+    await tester.pump();
+    if (button.evaluate().isNotEmpty) await tester.tap(button);
+  }
   await tester.pumpAndSettle();
 }
 
@@ -140,7 +153,7 @@ void main() {
     await tester.tap(find.byTooltip('Làm mới đơn hàng'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 1));
-    expect(find.text('Đơn hàng $listFixtureOrderId'), findsOneWidget);
+    expect(find.text(listFixtureOrderId), findsOneWidget);
     expect(find.text('3 đơn hàng'), findsOneWidget);
     expect(find.text('Dữ liệu có thể chưa cập nhật'), findsAtLeastNWidgets(1));
     await _finish(tester, container);
@@ -220,14 +233,174 @@ void main() {
       container,
       const CustomerOrdersPage(enablePolling: false),
     );
-    await tester.tap(find.text('Tải thêm đơn hàng'));
+    await _requestCustomerLoadMoreIfVisible(tester);
     await tester.pumpAndSettle();
-    expect(find.text('Đơn hàng $listFixtureSecondOrderId'), findsOneWidget);
+    expect(find.text(listFixtureSecondOrderId), findsOneWidget);
     expect(find.text('4 đơn hàng'), findsOneWidget);
     expect(
       repository.customerQueries.map((query) => query.cursor),
       contains('cursor-1'),
     );
+    await _finish(tester, container);
+  });
+
+  testWidgets('clears customer rows when the next page loses private access', (
+    tester,
+  ) async {
+    final repository = OrderListFixtureRepository(
+      customerPageLoader: (query) {
+        if (query.cursor != null) {
+          throw const AppFailure(code: AppFailure.forbiddenOrUnavailable);
+        }
+        return listFixturePage(
+          items: [
+            listFixtureSummary(
+              capabilities: listFixtureCapabilities(canCancelCustomer: true),
+            ),
+          ],
+          nextCursor: 'cursor-private',
+          counts: listFixtureCounts(pending: 1),
+        );
+      },
+    );
+    final container = _container(repository);
+    _disposeAfterPump(tester, container);
+    await _pumpPage(
+      tester,
+      container,
+      const CustomerOrdersPage(enablePolling: false),
+    );
+
+    await _requestCustomerLoadMoreIfVisible(tester);
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byType(SessionUnavailableState), findsOneWidget);
+    expect(find.text(listFixtureOrderId), findsNothing);
+    expect(find.text('1 đơn hàng'), findsNothing);
+    expect(find.text('Hủy đơn'), findsNothing);
+    expect(find.text('Tải lại trang tiếp theo'), findsNothing);
+    await _finish(tester, container);
+  });
+
+  testWidgets(
+    'does not restore rows from a head read already in flight after access loss',
+    (tester) async {
+      final lateHead = Completer<OrderPage>();
+      final nextPage = Completer<OrderPage>();
+      var canonicalReads = 0;
+      final repository = OrderListFixtureRepository(
+        customerPageLoader: (query) {
+          if (query.cursor != null) return nextPage.future;
+          canonicalReads++;
+          if (canonicalReads == 1) {
+            return listFixturePage(nextCursor: 'cursor-race');
+          }
+          return lateHead.future;
+        },
+      );
+      final container = _container(repository);
+      _disposeAfterPump(tester, container);
+      await _pumpPage(
+        tester,
+        container,
+        const CustomerOrdersPage(enablePolling: false),
+      );
+
+      await tester.drag(find.byType(ListView).last, const Offset(0, -420));
+      await tester.pump();
+      final loadMore = find.text('Tải thêm đơn hàng');
+      if (loadMore.evaluate().isNotEmpty) {
+        await tester.ensureVisible(loadMore);
+        await tester.pump();
+        if (loadMore.evaluate().isNotEmpty) await tester.tap(loadMore);
+      }
+      await tester.pump();
+
+      final canonicalProvider = orderListFoundationProvider(OrderQuery());
+      unawaited(container.read(canonicalProvider.notifier).refresh());
+      await tester.pump();
+      nextPage.completeError(
+        const AppFailure(code: AppFailure.forbiddenOrUnavailable),
+      );
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byType(SessionUnavailableState), findsOneWidget);
+      lateHead.complete(listFixturePage(nextCursor: 'cursor-race'));
+      await tester.pumpAndSettle();
+
+      expect(canonicalReads, greaterThanOrEqualTo(2));
+      expect(find.byType(SessionUnavailableState), findsOneWidget);
+      expect(find.text(listFixtureOrderId), findsNothing);
+      await _finish(tester, container);
+    },
+  );
+
+  testWidgets('resets an invalid customer cursor to the canonical head', (
+    tester,
+  ) async {
+    var canonicalReads = 0;
+    final repository = OrderListFixtureRepository(
+      customerPageLoader: (query) {
+        if (query.cursor != null) {
+          throw const AppFailure(code: AppFailure.invalidCursor);
+        }
+        canonicalReads++;
+        return listFixturePage(
+          nextCursor: canonicalReads == 1 ? 'cursor-invalid' : null,
+        );
+      },
+    );
+    final container = _container(repository);
+    _disposeAfterPump(tester, container);
+    await _pumpPage(
+      tester,
+      container,
+      const CustomerOrdersPage(enablePolling: false),
+    );
+
+    await _requestCustomerLoadMoreIfVisible(tester);
+
+    expect(
+      repository.customerQueries.where((query) => query.cursor != null),
+      hasLength(1),
+    );
+    expect(repository.customerQueries.last.cursor, isNull);
+    await _finish(tester, container);
+  });
+
+  testWidgets('keeps pagination enabled when refresh returns the same page', (
+    tester,
+  ) async {
+    final page = listFixturePage(nextCursor: 'cursor-same');
+    final repository = OrderListFixtureRepository(
+      customerPageLoader: (query) {
+        if (query.cursor != null) {
+          throw const AppFailure(
+            code: AppFailure.externalDependencyUnavailable,
+          );
+        }
+        return page;
+      },
+    );
+    final container = _container(repository);
+    _disposeAfterPump(tester, container);
+    await _pumpPage(
+      tester,
+      container,
+      const CustomerOrdersPage(enablePolling: false),
+    );
+    await _requestCustomerLoadMoreIfVisible(tester);
+    expect(find.text('Tải lại trang tiếp theo'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Làm mới đơn hàng'));
+    await tester.pumpAndSettle();
+
+    await _requestCustomerLoadMoreIfVisible(tester);
+
+    expect(find.text('Tải lại trang tiếp theo'), findsOneWidget);
     await _finish(tester, container);
   });
 
@@ -255,7 +428,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.byType(SessionUnavailableState), findsOneWidget);
-    expect(find.text('Đơn hàng $listFixtureOrderId'), findsNothing);
+    expect(find.text(listFixtureOrderId), findsNothing);
     await _finish(tester, container);
   });
 
@@ -285,7 +458,7 @@ void main() {
         const CustomerOrdersPage(enablePolling: false),
       );
       expect(find.text('Yêu cầu trả hàng chưa khả dụng'), findsOneWidget);
-      await tester.tap(find.text('Đơn hàng $listFixtureOrderId'));
+      await tester.tap(find.text(listFixtureOrderId));
       await tester.pumpAndSettle();
       expect(find.textContaining('Chi tiết đơn hàng'), findsOneWidget);
       expect(find.text('Địa chỉ nhận hàng'), findsOneWidget);
@@ -320,6 +493,8 @@ void main() {
         onOpenReturn: (returnId) => openedReturnId = returnId,
       ),
     );
+    await tester.ensureVisible(find.text('Xem yêu cầu trả hàng'));
+    await tester.pump();
     await tester.tap(find.text('Xem yêu cầu trả hàng'));
     expect(openedReturnId, listFixtureReturnId);
     await _finish(tester, container);
@@ -343,9 +518,9 @@ void main() {
     await tester.enterText(find.byType(TextField), 'giày');
     await tester.pump(const Duration(milliseconds: 350));
     await tester.pumpAndSettle();
-    expect(find.text('Đơn hàng $listFixtureOrderId'), findsOneWidget);
+    expect(find.text(listFixtureOrderId), findsOneWidget);
 
-    await tester.tap(find.text('Đơn hàng $listFixtureOrderId'));
+    await tester.tap(find.text(listFixtureOrderId));
     await tester.pumpAndSettle();
     final detailContext = tester.element(
       find.textContaining('Chi tiết đơn hàng'),
@@ -380,7 +555,7 @@ void main() {
       container,
       const CustomerOrdersPage(enablePolling: false),
     );
-    await tester.tap(find.text('Đơn hàng $listFixtureOrderId'));
+    await tester.tap(find.text(listFixtureOrderId));
     await tester.pumpAndSettle();
     expect(find.textContaining('Chi tiết đơn hàng'), findsOneWidget);
     expect(repository.detailIds, [listFixtureOrderId]);
@@ -402,6 +577,96 @@ void main() {
   });
 
   testWidgets(
+    'return creation rechecks a fresh detail snapshot before navigation',
+    (tester) async {
+      String? openedOrderId;
+      final deliveredCapabilities = listFixtureCapabilities(
+        canOpenReturnCreation: true,
+      );
+      final repository = OrderListFixtureRepository(
+        customerPage: listFixturePage(
+          items: [
+            listFixtureSummary(
+              status: OrderStatus.delivered,
+              capabilities: deliveredCapabilities,
+            ),
+          ],
+          counts: listFixtureCounts(delivered: 1),
+        ),
+        details: listFixtureDetails(
+          status: OrderStatus.delivered,
+          capabilities: deliveredCapabilities,
+        ),
+      );
+      final container = _container(repository);
+      _disposeAfterPump(tester, container);
+      await _pumpPage(
+        tester,
+        container,
+        CustomerOrdersPage(
+          enablePolling: false,
+          onCreateReturn: (orderId) => openedOrderId = orderId,
+        ),
+      );
+      await tester.tap(find.text(listFixtureOrderId));
+      await tester.pumpAndSettle();
+      final eligibleReturn = find.descendant(
+        of: find.byType(ListView).last,
+        matching: find.text('Yêu cầu trả hàng'),
+      );
+      await tester.scrollUntilVisible(
+        eligibleReturn,
+        300,
+        scrollable: find
+            .descendant(
+              of: find.byType(ListView).last,
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      expect(eligibleReturn, findsOneWidget);
+
+      repository.detailFailure = const AppFailure(
+        code: AppFailure.externalDependencyUnavailable,
+      );
+      final detailContainer = ProviderScope.containerOf(
+        tester.element(find.byType(ListView).last),
+      );
+      detailContainer
+          .read(epochCacheProvider)
+          .invalidate('orders/detail/$listFixtureOrderId');
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView).last, const Offset(0, -500));
+      await tester.pumpAndSettle();
+
+      final unavailable = find.descendant(
+        of: find.byType(ListView).last,
+        matching: find.widgetWithText(
+          OutlinedButton,
+          'Yêu cầu trả hàng chưa khả dụng',
+        ),
+      );
+      await tester.scrollUntilVisible(
+        unavailable,
+        300,
+        scrollable: find
+            .descendant(
+              of: find.byType(ListView).last,
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      expect(unavailable, findsOneWidget);
+      expect(tester.widget<OutlinedButton>(unavailable).onPressed, isNull);
+      await tester.tap(unavailable);
+      expect(openedOrderId, isNull);
+      await _finish(tester, container);
+    },
+  );
+
+  testWidgets(
     'action dialog rechecks capability after canonical invalidation',
     (tester) async {
       final repository = OrderListFixtureRepository(
@@ -421,6 +686,8 @@ void main() {
         container,
         const CustomerOrdersPage(enablePolling: false),
       );
+      await tester.ensureVisible(find.text('Hủy đơn'));
+      await tester.pump();
       await tester.tap(find.text('Hủy đơn'));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('order-action-submit')), findsOneWidget);
