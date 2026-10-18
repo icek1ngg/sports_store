@@ -1,0 +1,140 @@
+{
+  "baseline": {
+    "feed_top": {
+      "left": 0.0,
+      "top": 306.0,
+      "width": 390.0,
+      "height": 538.0
+    },
+    "header": {
+      "left": 0.0,
+      "top": 0.0,
+      "width": 390.0,
+      "height": 64.0
+    },
+    "search": {
+      "left": 20.0,
+      "top": 68.0,
+      "width": 294.0,
+      "height": 48.0
+    },
+    "kpi": {
+      "left": 20.0,
+      "top": 132.0,
+      "width": 350.0,
+      "height": 82.0
+    },
+    "chips": {
+      "left": 20.0,
+      "top": 250.0,
+      "width": 350.0,
+      "height": 52.0
+    },
+    "first_card": {
+      "left": 20.0,
+      "top": 318.0,
+      "width": 350.0,
+      "height": 580.0
+    },
+    "buyer": {
+      "left": 36.0,
+      "top": 408.0,
+      "width": 318.0,
+      "height": 142.0
+    },
+    "item_preview": {
+      "left": 36.0,
+      "top": 558.0,
+      "width": 318.0,
+      "height": 148.0
+    },
+    "payment": {
+      "left": 36.0,
+      "top": 718.0,
+      "width": 318.0,
+      "height": 48.0
+    },
+    "actions": {
+      "left": 36.0,
+      "top": 778.0,
+      "width": 318.0,
+      "height": 48.0
+    },
+    "details": {
+      "left": 36.0,
+      "top": 834.0,
+      "width": 318.0,
+      "height": 48.0
+    }
+  },
+  "refined": {
+    "feed_top": {
+      "left": 0.0,
+      "top": 265.0,
+      "width": 390.0,
+      "height": 579.0
+    },
+    "header": {
+      "left": 0.0,
+      "top": 0.0,
+      "width": 390.0,
+      "height": 64.0
+    },
+    "search": {
+      "left": 20.0,
+      "top": 68.0,
+      "width": 294.0,
+      "height": 48.0
+    },
+    "kpi": {
+      "left": 20.0,
+      "top": 124.0,
+      "width": 350.0,
+      "height": 81.0
+    },
+    "chips": {
+      "left": 20.0,
+      "top": 213.0,
+      "width": 350.0,
+      "height": 48.0
+    },
+    "first_card": {
+      "left": 20.0,
+      "top": 277.0,
+      "width": 350.0,
+      "height": 476.0
+    },
+    "buyer": {
+      "left": 36.0,
+      "top": 351.0,
+      "width": 318.0,
+      "height": 106.0
+    },
+    "item_preview": {
+      "left": 36.0,
+      "top": 465.0,
+      "width": 318.0,
+      "height": 104.0
+    },
+    "payment": {
+      "left": 36.0,
+      "top": 577.0,
+      "width": 318.0,
+      "height": 48.0
+    },
+    "actions": {
+      "left": 36.0,
+      "top": 633.0,
+      "width": 318.0,
+      "height": 48.0
+    },
+    "details": {
+      "left": 36.0,
+      "top": 689.0,
+      "width": 318.0,
+      "height": 48.0
+    }
+  },
+  "card_height_reduction": 104.0,
+  "card_height_reduction_percent": 17.93
+}

@@ -1,0 +1,81 @@
+[
+  {
+    "scenario": "empty",
+    "labels": [
+      "DEMO UI · dữ liệu kiểm thử",
+      "Chọn màn hình",
+      "Chọn trạng thái",
+      "DEMO: lỗi trang tiếp theo",
+      "VN ATHLETICS",
+      "ĐƠN HÀNG",
+      "Làm mới đơn hàng",
+      "Lọc theo trạng thái",
+      "Chờ xác nhận",
+      "Đang giao",
+      "Chờ xác nhận: 0",
+      "Đang giao: 0",
+      "Cần xử lý ngay",
+      "Trên đường đi",
+      "0 đơn hàng",
+      "Tất cả",
+      "Chờ xác nhận",
+      "Đang chuẩn bị",
+      "Chưa có đơn hàng cần xử lý"
+    ]
+  },
+  {
+    "scenario": "error",
+    "labels": [
+      "DEMO UI · dữ liệu kiểm thử",
+      "Chọn màn hình",
+      "Chọn trạng thái",
+      "DEMO: lỗi trang tiếp theo",
+      "VN ATHLETICS",
+      "ĐƠN HÀNG",
+      "Làm mới đơn hàng",
+      "Lọc theo trạng thái",
+      "Chờ xác nhận",
+      "Đang giao",
+      "Chờ xác nhận: Chưa có dữ liệu",
+      "Đang giao: Chưa có dữ liệu",
+      "Cần xử lý ngay",
+      "Trên đường đi",
+      "Đang cập nhật số lượng đơn",
+      "Tất cả",
+      "Chờ xác nhận",
+      "Không thể tải dữ liệu",
+      "Không thể kết nối. Kiểm tra mạng và thử lại.",
+      "Thử lại"
+    ]
+  },
+  {
+    "scenario": "stale",
+    "labels": [
+      "DEMO UI · dữ liệu kiểm thử",
+      "Chọn màn hình",
+      "Chọn trạng thái",
+      "DEMO: lỗi trang tiếp theo",
+      "VN ATHLETICS",
+      "ĐƠN HÀNG",
+      "Làm mới đơn hàng",
+      "Lọc theo trạng thái",
+      "Chờ xác nhận",
+      "Đang giao",
+      "Chờ xác nhận: 2",
+      "Đang giao: 2",
+      "Cần xử lý ngay",
+      "Trên đường đi",
+      "10 đơn hàng",
+      "Tất cả",
+      "Chờ xác nhận",
+      "Đang chuẩn bị",
+      "Dữ liệu có thể chưa cập nhật",
+      "Đơn hàng 30000000-0000-4000-8000-000000019999",
+      "Trạng thái đơn: Chờ xác nhận",
+      "Không có ảnh sản phẩm",
+      "Không có ảnh sản phẩm",
+      "Từ chối",
+      "Xác nhận"
+    ]
+  }
+]

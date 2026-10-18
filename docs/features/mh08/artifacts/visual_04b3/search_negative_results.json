@@ -1,0 +1,14 @@
+[
+  {
+    "query": "NoSuchCustomer",
+    "privateRows": 0,
+    "total": 0,
+    "pass": true
+  },
+  {
+    "query": "AirFlex",
+    "privateRows": 0,
+    "total": 0,
+    "pass": true
+  }
+]

@@ -1,0 +1,140 @@
+{
+  "task": "MH08-02",
+  "status": "COMPONENTS IMPLEMENTED, READY FOR INTEGRATION REVIEW",
+  "verifiedAt": "2026-10-15T18:36:48.4929196+07:00",
+  "components": 10,
+  "protectedFiles": 121,
+  "protectedHashMismatches": 0,
+  "newCodeFiles": 15,
+  "addedCodeOutsideAllowedScope": [],
+  "componentTestsPassed": 45,
+  "existingMh08TestsPassed": 10,
+  "focusedTestsTotal": 55,
+  "focusedTestExitCode": 0,
+  "analyze": "No issues found",
+  "analyzeExitCode": 0,
+  "format": "PASS: 15 files, final run 0 changes",
+  "gitDiffCheckExitCode": 0,
+  "localDocLinksChecked": 43,
+  "brokenDocLinks": [],
+  "trailingWhitespaceCount": 0,
+  "newAndFeatureDocLocViolations": 0,
+  "wholeFeatureLocGate": "NOT YET PASSED: unchanged legacy page768/test480",
+  "independentReview": "Completed; busy visibility, disabled reason, KPI unknown semantics corrected and retested",
+  "fullSuite": "NOT RUN",
+  "android": "NOT RUN",
+  "freshFlutterScreenshot": "NOT RUN",
+  "integration": "NOT PERFORMED",
+  "files": [
+    {
+      "path": "lib/features/orders/presentation/widgets/mh08/mh08_buyer_section.dart",
+      "loc": 127,
+      "limit": 180
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/mh08/mh08_card_actions.dart",
+      "loc": 104,
+      "limit": 180
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/mh08/mh08_header.dart",
+      "loc": 118,
+      "limit": 180
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/mh08/mh08_item_preview.dart",
+      "loc": 126,
+      "limit": 180
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/mh08/mh08_kpi_strip.dart",
+      "loc": 95,
+      "limit": 180
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/mh08/mh08_operational_notice.dart",
+      "loc": 66,
+      "limit": 180
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/mh08/mh08_order_card.dart",
+      "loc": 159,
+      "limit": 180
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/mh08/mh08_payment_section.dart",
+      "loc": 132,
+      "limit": 180
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/mh08/mh08_search_section.dart",
+      "loc": 113,
+      "limit": 180
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/mh08/mh08_status_chips.dart",
+      "loc": 108,
+      "limit": 180
+    },
+    {
+      "path": "test/features/orders/presentation/widgets/mh08/mh08_card_actions_test.dart",
+      "loc": 150,
+      "limit": 400
+    },
+    {
+      "path": "test/features/orders/presentation/widgets/mh08/mh08_controls_test.dart",
+      "loc": 262,
+      "limit": 400
+    },
+    {
+      "path": "test/features/orders/presentation/widgets/mh08/mh08_order_card_test.dart",
+      "loc": 183,
+      "limit": 400
+    },
+    {
+      "path": "test/features/orders/presentation/widgets/mh08/mh08_sections_test.dart",
+      "loc": 210,
+      "limit": 400
+    },
+    {
+      "path": "test/features/orders/presentation/widgets/mh08/mh08_test_support.dart",
+      "loc": 113,
+      "limit": 150
+    },
+    {
+      "path": "docs/features/mh08/BEHAVIOR_CONTRACT.md",
+      "loc": 91,
+      "limit": 200
+    },
+    {
+      "path": "docs/features/mh08/ENGINEERING_RULES.md",
+      "loc": 73,
+      "limit": 200
+    },
+    {
+      "path": "docs/features/mh08/HANDOFF.md",
+      "loc": 80,
+      "limit": 100
+    },
+    {
+      "path": "docs/features/mh08/MANUAL_REVIEW.md",
+      "loc": 86,
+      "limit": 200
+    },
+    {
+      "path": "docs/features/mh08/README.md",
+      "loc": 112,
+      "limit": 200
+    },
+    {
+      "path": "docs/features/mh08/TEST_PLAN.md",
+      "loc": 115,
+      "limit": 200
+    },
+    {
+      "path": "docs/features/mh08/UI_SPEC.md",
+      "loc": 109,
+      "limit": 200
+    }
+  ]
+}

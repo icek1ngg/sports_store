@@ -197,7 +197,7 @@ class _OrderFeedList extends StatelessWidget {
     final list = ListView.builder(
       controller: scrollController,
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: listPadding ?? const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      padding: listPadding ?? const EdgeInsets.fromLTRB(20, 12, 20, 24),
       itemCount: itemCount,
       itemBuilder: (context, index) {
         if (listFooter != null && index == itemCount - 1) return listFooter!;

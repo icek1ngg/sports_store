@@ -1,0 +1,71 @@
+{
+  "task": "MH08-01",
+  "verifiedAt": "2026-10-15T18:12:00.3488125+07:00",
+  "sourceHashChecks": 120,
+  "sourceHashMismatches": 0,
+  "focusedTestCommand": "flutter test --no-pub test/features/orders/presentation/pages/manager_orders_page_test.dart test/visual_refinement/preview_app_test.dart --reporter expanded",
+  "focusedTests": {
+    "passed": 13,
+    "failed": 0,
+    "exitCode": 0
+  },
+  "docsLocalLinksChecked": 41,
+  "docsBrokenLinks": 0,
+  "rendererSyntaxCheck": "PASS",
+  "newFileTrailingWhitespaceCheck": "PASS",
+  "gitDiffCheck": "PASS",
+  "wholeFeatureLocGate": "NOT PASSED: unchanged legacy page 768 and page test 480",
+  "fullSuite": "NOT RUN",
+  "analyze": "NOT RUN",
+  "android": "NOT RUN",
+  "files": [
+    {
+      "path": "docs/features/mh08/BEHAVIOR_CONTRACT.md",
+      "loc": 91,
+      "limit": 200
+    },
+    {
+      "path": "docs/features/mh08/ENGINEERING_RULES.md",
+      "loc": 72,
+      "limit": 200
+    },
+    {
+      "path": "docs/features/mh08/HANDOFF.md",
+      "loc": 61,
+      "limit": 100
+    },
+    {
+      "path": "docs/features/mh08/MANUAL_REVIEW.md",
+      "loc": 86,
+      "limit": 200
+    },
+    {
+      "path": "docs/features/mh08/README.md",
+      "loc": 101,
+      "limit": 200
+    },
+    {
+      "path": "docs/features/mh08/TEST_PLAN.md",
+      "loc": 85,
+      "limit": 200
+    },
+    {
+      "path": "docs/features/mh08/UI_SPEC.md",
+      "loc": 98,
+      "limit": 200
+    },
+    {
+      "path": "tool/ui_preview/render_mh08_reference.cjs",
+      "loc": 97,
+      "limit": 150
+    }
+  ],
+  "rendererProvenance": {
+    "sha256": "909c9f7797653c58003a277b0bc55adb879c70ece60e8884ae5e0e35291b036c",
+    "matchesRenderManifest": true,
+    "excludedFromProtectedBaseline": true,
+    "reason": "New MH08-01 audit output, not pre-existing project source",
+    "htmlUnchangedDuringRender": true
+  },
+  "independentReview": "Completed; provenance and artifact inventory findings corrected"
+}

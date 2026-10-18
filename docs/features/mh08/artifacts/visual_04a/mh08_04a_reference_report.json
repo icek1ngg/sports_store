@@ -1,0 +1,212 @@
+{
+  "task": "MH08-04A",
+  "renderer": "Mh08PreviewApp(showControls: false)",
+  "expectedCommand": "flutter test --no-pub test/visual_refinement/mh08_04a_*_test.dart",
+  "outputFlag": "MH08_04A_OUTPUT=1",
+  "cases": [
+    {
+      "name": "mh08_04a_390_reference_data",
+      "viewport": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "textScale": 1.0,
+      "checks": [
+        {
+          "name": "390 reference loads ten rows",
+          "pass": true
+        },
+        {
+          "name": "390 long text is rendered",
+          "pass": true
+        },
+        {
+          "name": "confirm dialog title",
+          "pass": true
+        },
+        {
+          "name": "reject reason field",
+          "pass": true
+        },
+        {
+          "name": "390 keyboard hides KPI",
+          "pass": false
+        }
+      ],
+      "failures": [
+        "390 keyboard hides KPI"
+      ],
+      "screenshots": [
+        "mh08_04a_390_top",
+        "mh08_04a_390_firstcard",
+        "mh08_04a_390_middle",
+        "mh08_04a_390_longtext",
+        "mh08_04a_390_bottom",
+        "mh08_04a_390_confirm",
+        "mh08_04a_390_reject",
+        "mh08_04a_390_keyboard"
+      ],
+      "regions": {
+        "header": {
+          "left": 0.0,
+          "top": 0.0,
+          "width": 390.0,
+          "height": 64.0
+        },
+        "search": {
+          "left": 20.0,
+          "top": 68.0,
+          "width": 294.0,
+          "height": 48.0
+        },
+        "kpi": {
+          "left": 20.0,
+          "top": 132.0,
+          "width": 350.0,
+          "height": 82.0
+        },
+        "chips": {
+          "left": 20.0,
+          "top": 250.0,
+          "width": 350.0,
+          "height": 52.0
+        },
+        "card": {
+          "left": 20.0,
+          "top": 318.0,
+          "width": 350.0,
+          "height": 580.0
+        },
+        "item_preview": {
+          "left": 36.0,
+          "top": 558.0,
+          "width": 318.0,
+          "height": 148.0
+        },
+        "actions": {
+          "left": 36.0,
+          "top": 778.0,
+          "width": 318.0,
+          "height": 48.0
+        },
+        "details": {
+          "left": 36.0,
+          "top": 834.0,
+          "width": 318.0,
+          "height": 48.0
+        },
+        "buyer": {
+          "left": 36.0,
+          "top": 408.0,
+          "width": 318.0,
+          "height": 142.0
+        },
+        "payment": {
+          "left": 36.0,
+          "top": 718.0,
+          "width": 318.0,
+          "height": 48.0
+        }
+      },
+      "styles": {
+        "header_title": {
+          "fontFamily": "BarlowCondensed",
+          "fontSize": 28.0,
+          "fontWeight": 700,
+          "height": 1.15,
+          "letterSpacing": 0.0
+        },
+        "brand": {
+          "fontFamily": "BarlowCondensed",
+          "fontSize": 14.0,
+          "fontWeight": 700,
+          "height": 1.0,
+          "letterSpacing": 1.12
+        }
+      }
+    },
+    {
+      "name": "mh08_04a_390_reference_loading",
+      "viewport": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "textScale": 1.0,
+      "checks": [
+        {
+          "name": "loading state is visible",
+          "pass": true
+        }
+      ],
+      "failures": [],
+      "screenshots": [
+        "mh08_04a_390_loading"
+      ],
+      "regions": {},
+      "styles": {}
+    },
+    {
+      "name": "mh08_04a_390_reference_empty",
+      "viewport": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "textScale": 1.0,
+      "checks": [
+        {
+          "name": "empty state is visible",
+          "pass": true
+        }
+      ],
+      "failures": [],
+      "screenshots": [
+        "mh08_04a_390_empty"
+      ],
+      "regions": {},
+      "styles": {}
+    },
+    {
+      "name": "mh08_04a_390_reference_error",
+      "viewport": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "textScale": 1.0,
+      "checks": [
+        {
+          "name": "error state is visible",
+          "pass": true
+        }
+      ],
+      "failures": [],
+      "screenshots": [
+        "mh08_04a_390_error"
+      ],
+      "regions": {},
+      "styles": {}
+    },
+    {
+      "name": "mh08_04a_390_reference_stale",
+      "viewport": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "textScale": 1.0,
+      "checks": [
+        {
+          "name": "stale state is visible",
+          "pass": true
+        }
+      ],
+      "failures": [],
+      "screenshots": [
+        "mh08_04a_390_stale"
+      ],
+      "regions": {},
+      "styles": {}
+    }
+  ],
+  "failures": [
+    "mh08_04a_390_reference_data: 390 keyboard hides KPI"
+  ]
+}

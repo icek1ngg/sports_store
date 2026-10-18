@@ -1,0 +1,9 @@
+{
+  "font_scale": "1.0",
+  "accelerometer_rotation": "1",
+  "user_rotation": "0",
+  "accessibility_enabled": "0",
+  "enabled_accessibility_services": "null",
+  "default_input_method": "com.google.android.inputmethod.latin/com.android.inputmethod.latin.LatinIME",
+  "show_ime_with_hard_keyboard": "1"
+}
