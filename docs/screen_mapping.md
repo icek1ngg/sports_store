@@ -64,3 +64,47 @@ Route đề xuất trong kế hoạch (`/shipper/tasks`, `/shipper/tasks/:taskId
 bên dưới ghi trạng thái mới sau tích hợp router.
 P00.2 bên dưới xác định phạm vi MH18 theo yêu cầu hiện tại; provider bản đồ
 vẫn chưa chọn và không được coi đã chốt qua bảng trạng thái P00.1.
+
+## P00.2 — Route, quyền và hợp đồng tích hợp đề xuất
+
+Tại P00.2, ngoại trừ `/`, các route dưới **chưa đăng ký**. Khi đó chờ Dung An tích hợp
+router/go_router dùng chung; không tạo router, Supabase client hoặc theme riêng.
+UUID lấy từ đối tượng thật, không dùng mã demo. `taskId`, `orderId`,
+`returnRequestId` phải parse thành UUID trước truy vấn; sai định dạng hiển thị
+lỗi đầu vào, không query; UUID hợp lệ vẫn phải qua kiểm tra quyền server.
+
+| Màn / route đề xuất | Guard và nguồn dữ liệu / action |
+| --- | --- |
+| MH10 `/shipper/tasks` | Shipper từ profiles.role; list_my_delivery_tasks; lịch sử chỉ qua S4 nếu được duyệt |
+| MH11 `/shipper/tasks/:taskId` | Shipper đang được phân công; get_my_delivery_task; allowed_actions theo kind/state, mọi write kiểm tra lại server |
+| MH18 `/shipper/tasks/:taskId/map` | Cùng kiểm tra quyền live task MH11; destination_* đã lưu; history không cấp quyền map |
+| MH12 `/cod` và query tùy chọn `orderId=UUID` | Shipper chỉ khoản của mình; manager được filter và confirm_cod_received; không customer; COD PK là order_id |
+| MH09 `/manager/orders/:orderId` | Đề xuất phối hợp Bảo/Dung An; manager; create/assign/decide/receive_failed/inspect trong hợp đồng orders/task |
+| MH15 `/manager/returns/:returnRequestId` | Đề xuất phối hợp Sơn/Dung An; manager; receipt/inspection/request và task cùng transaction server |
+| MH17 `/notifications` | Authenticated theo quyền; link resolve bằng subject_type/id, chọn route theo role rồi đọc lại quyền đích |
+
+Các tên API là đề xuất trong [api_contracts.md](api_contracts.md), không phải
+endpoint đang có. Guard phải chờ session và role tải xong; lỗi/mất role không
+render dữ liệu cũ. Logout/đổi user hủy subscription và invalidate cache scoped
+theo user; đổi phân công reload quyền, xóa dữ liệu không còn được phép.
+Back navigation hoặc notification cũ không khôi phục quyền task. Thiếu quyền
+trả trạng thái lỗi/không truy cập, không chuyển sang demo success.
+
+MH18 tập trung **điểm đến nhiệm vụ đã lưu**, không bắt buộc pin cửa hàng,
+không chọn địa chỉ thay MH16, không GPS tracking. Không truyền contact/địa chỉ
+qua route URL. Đọc task lại bằng UUID; thiếu tọa độ hoặc map/directions lỗi
+thì giữ địa chỉ được phép đọc và báo lỗi/thử lại, không tạo tọa độ giả.
+Provider, platform, license/key và interface maps với Văn Đức còn chờ chốt.
+NT25 theo mô tả pin cửa hàng gốc cần điều chỉnh theo phạm vi yêu cầu này;
+không khẳng định đã kiểm chứng toàn văn báo cáo gốc.
+
+Theo đề xuất quyền P00.2, MH18 chỉ mở khi task đang được phân công hiện tại
+và có status `assigned/accepted/in_transit`; task terminal chuyển sang history
+tối thiểu và không mở bản đồ/contact. Task `failed/manager_action_required`
+chỉ còn thao tác xử lý custody phù hợp, không giữ PII đích theo mặc định.
+Đây là quyền đề xuất cần migration review; baseline chưa có bộ lọc status này.
+
+Các screen-owned wrappers của Bảo/Sơn gọi nghiệp vụ task nội bộ trong một
+transaction server, không gọi hai RPC client liên tiếp để giả transaction.
+Auth/router, inventory, event recipients, returns/custody và schema S1–S4
+còn chờ owner duyệt; xem bảng bàn giao P00.2 trong api_contracts.md.
