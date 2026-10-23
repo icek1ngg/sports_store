@@ -308,3 +308,50 @@ server execution riêng. Nếu thật sự cần definer, phase triển khai ph�
 trình phạm vi, kiểm tra identity/role/object, search_path cố định và EXECUTE
 tối thiểu; không thêm definer chỉ để bỏ qua lỗi RLS. Tài liệu này không cấp
 quyền EXECUTE hoặc thay bất kỳ grant/policy nào.
+
+## P01.1 — Read projection đã có trong migration repository
+
+Migration `20261023104903_secure_delivery_read_projections.sql` bổ sung **hai
+RPC đọc bên dưới**. Đây là code trong repo; trạng thái áp dụng/test local được
+ghi trong database.md, không đồng nghĩa đã deploy cloud. Các write RPC và
+list/get/filter/cursor/version đầy đủ ở P00.2 vẫn là đề xuất, chưa triển khai.
+
+| RPC trong migration | Input / caller | Output / phạm vi |
+| --- | --- | --- |
+| `read_my_delivery_tasks` | `p_task_id uuid DEFAULT NULL`; authenticated có profiles.role=shipper; NULL liệt kê trong scope hiện tại, UUID lọc đúng task | SETOF row: task_id/kind/status/attempt_number/snapshot_scope/completed_at/item_source; chỉ scope current có order_id/return_request_id/amount_to_collect_vnd/destination_* và assigned_at/accepted_at/started_at. Không có failure_reason/cancel_reason/customer_id/ghi chú/ảnh/allowed_actions/version. Sort created_at,id giảm dần; chưa có pagination/count/search contract P00.2. |
+| `read_my_delivery_task_items` | `p_task_id uuid` bắt buộc; cùng caller; NULL trả 0 dòng | SETOF row: item_id/item_source/product_name/variant_label/attributes/quantity/quantity_collected/unit_price_vnd/line_total_vnd. Outbound từ order_items của đúng task; pickup từ return_items của đúng request trên task; redelivery trả 0 dòng với dependency minh bạch ở task.item_source. Sort item_id tăng dần. |
+
+Quy tắc scope và hành vi deep link:
+
+- `current`: assigned/accepted/in_transit, task.assigned_shipper_id đúng session.
+  Chỉ đây mới có contact/địa chỉ/tọa độ và item. Pickup chỉ trả tên hàng thực
+  tế, lượng cần lấy/đã lấy; không trả kết luận chất lượng, bank/video/evidence.
+- `history`: delivered/cancelled/returned_to_store; `restricted`: các trạng
+  thái còn lại, gồm failed và manager_action_required. Cả hai chỉ có trường
+  tối thiểu nêu trên; toàn bộ order/request/amount/contact/tọa độ và mốc nhận/
+  start đều NULL, item_source=`unavailable`, item RPC trả 0 dòng.
+- Task cũ vẫn gán A có thể trả row history tối thiểu cho A khi task mới cùng
+  order/request gán B. Row cũ không cấp quyền tới bất kỳ task/item mới nào.
+  Đổi chính task từ A sang B hoặc bỏ phân công thu hồi toàn bộ row của A ngay
+  ở lần đọc tiếp theo; không có bảng lịch sử assignment bất biến/backfill.
+- ID không tồn tại/không thuộc quyền: 0 dòng cho cả hai RPC, không phân biệt
+  để dò ID. Customer/manager qua RPC này cũng 0 dòng, vẫn giữ quyền bảng gốc
+  của họ; anon bị chặn EXECUTE (`42501`). UUID sai định dạng lỗi cast `22P02`.
+  Không ghi dữ liệu, không cần request_id; retry là đọc snapshot mới.
+
+Không cho shipper SELECT trực tiếp task/order_items/return_items/attempts/
+business_events nữa. Orders/return_requests/Storage riêng tư không được mở
+quyền. COD giữ nguyên policy, không nằm trong thay đổi này. Các hàm definer
+chạy dưới role chuyên biệt NOLOGIN/NOINHERIT/NOBYPASSRLS chỉ có column SELECT
+và policy theo auth.uid + profiles.role; không chạy với quyền bỏ qua RLS của
+postgres. API roles không là member của role đọc. `search_path=''`, SQL cố
+định/schema-qualified, EXECUTE chỉ authenticated; không có dynamic SQL/input
+role/shipper_id. Vì table RLS không thể che cột theo status, definer được dùng
+chỉ để đọc các cột đã cấp qua RLS riêng và tạo projection, không cấp broad reads.
+
+`order_snapshot` là snapshot đặt hàng hiện có; `return_plan` vẫn là kế hoạch
+return_items hiện có, không phải snapshot assignment bất biến. Không tự tạo
+plan redelivery: task current trả item_source=`unavailable_redelivery_plan`;
+live item integration với Sơn còn bị chặn. Note/ảnh/custody/version không được
+bịa. Số COD đọc nguyên task.amount_to_collect_vnd; đối chiếu tổng đơn và quyền
+ghi vẫn thuộc phase transaction sau, chưa được read layer chứng minh.

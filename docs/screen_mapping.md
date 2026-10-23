@@ -108,3 +108,21 @@ Các screen-owned wrappers của Bảo/Sơn gọi nghiệp vụ task nội bộ 
 transaction server, không gọi hai RPC client liên tiếp để giả transaction.
 Auth/router, inventory, event recipients, returns/custody và schema S1–S4
 còn chờ owner duyệt; xem bảng bàn giao P00.2 trong api_contracts.md.
+
+## P01.1 — Nguồn đọc task đã triển khai trong migration
+
+MH10/MH11 dùng projection `read_my_delivery_tasks(p_task_id uuid DEFAULT NULL)`;
+item MH11 dùng `read_my_delivery_task_items(p_task_id uuid)`. Đây mới là lớp
+SQL trong repository, chưa có UI/repository Flutter hoặc route nghiệp vụ.
+Các list/get/pagination/version đầy đủ ở P00.2 chưa được triển khai.
+
+MH18 chỉ nhận destination khi snapshot_scope=current (assigned/accepted/
+in_transit đúng người). History/restricted có destination NULL nên không thể
+dùng deep link để đọc vị trí. ID ngoài quyền trả 0 row, không dùng dữ liệu
+route/cache cũ làm fallback. Đổi người/null trên cùng task thu hồi quyền ở
+lần đọc tiếp theo; task cũ còn gán user chỉ mở projection lịch sử tối thiểu,
+không mở item hoặc task mới cùng order/request. Plan item redelivery còn chờ
+Sơn; source flag báo rõ chưa sẵn sàng, không giả hàng từ toàn bộ đơn.
+
+Chi tiết quyền bảng gốc và giới hạn snapshot xem mục P01.1 trong
+[api_contracts.md](api_contracts.md) và [database.md](database.md).

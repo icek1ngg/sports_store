@@ -340,3 +340,106 @@ Các mã dưới đây lấy từ P00.1 và vẫn là câu hỏi mở, chưa đ�
 Cho đến khi các quyết định trên được chốt và migration/RPC tương ứng được
 review, không coi các cột hiện tại là bằng chứng của custody, lịch sử bất biến,
 idempotency end-to-end hoặc snapshot an toàn theo shipper.
+
+## P01.1 — Migration lớp đọc task/item an toàn
+
+File `supabase/migrations/20261023104903_secure_delivery_read_projections.sql`
+được tạo bằng `npx --yes supabase@2.119.0 migration new secure_delivery_read_projections`.
+Migration mới, không sửa/xóa ba migration nền, không đổi enum/table/cột nghiệp
+vụ hoặc triển khai bất kỳ thao tác phân công, custody, dispatch, COD hay trả hàng.
+
+| Thay đổi | Quyền sau migration |
+| --- | --- |
+| `tasks_read` | Bảng gốc chỉ manager. Shipper đi qua read_my_delivery_tasks; customer vẫn không đọc task trực tiếp. |
+| `order_items_read`, `return_items_read`, `attempts_read` | Giữ manager/customer-own scopes, bỏ nhánh shipper theo bất kỳ task cùng order/request. Không có grant order/return mới cho shipper. |
+| `business_events_read` | Manager đọc; bỏ shipper đọc incident/raw reason theo task mutable. Chưa tạo incident projection trong phase này. |
+| `cod_read`, Storage và các policy ngoài bảng trên | Giữ nguyên. COD vẫn độc lập nhiệm vụ/returns; không xử lý dependency COD S3 trong read-task phase. |
+| `sports_store_delivery_reader` | Role nội bộ NOLOGIN/NOINHERIT/NOBYPASSRLS, không là owner bảng; chỉ SELECT một số cột profiles/tasks/order_items/return_items, không quyền ghi hoặc đọc orders/return_requests/COD. Chỉ postgres được cấp membership để chuyển ownership function; API roles không là member. |
+| Bốn policy `delivery_reader_*` | Chỉ áp dụng cho role đọc; profile chỉ own auth.uid; task phải đúng assigned_shipper_id và profiles.role=shipper; item chỉ qua task đúng kind và assigned/accepted/in_transit. |
+| Hai read function | Stable SQL, search_path rỗng, SECURITY DEFINER dưới role đọc chịu RLS; EXECUTE chỉ authenticated, không PUBLIC/anon/service_role. Schema public CREATE được cấp tạm để chuyển owner rồi thu hồi. |
+
+Role là cluster-wide nên local reset có thể giữ role sau khi dựng lại database.
+Migration chỉ tái sử dụng role có marker của P01.1 và thuộc tính khóa đúng;
+gặp role cùng tên không phù hợp thì dừng, không đổi quyền role ngoài ý muốn.
+Không disable RLS hay dùng postgres-owned definer để vượt policy.
+
+Projection mask theo status: current (`assigned/accepted/in_transit`) có
+destination_* và amount_to_collect_vnd lấy nguyên task; history
+(`delivered/cancelled/returned_to_store`) và restricted (các trạng thái còn
+lại) chỉ task_id/kind/status/attempt_number/completed_at/scope/item_source,
+không order/request ID, tiền, địa chỉ/contact, thời điểm nhận/start hoặc item.
+History chỉ là phép chiếu tối thiểu của task còn assigned cho user hiện tại,
+không hứa lịch sử assignment bất biến. Đổi cùng task sang người khác/null
+thu hồi quyền người cũ; task lịch sử không mở task mới hoặc item theo order.
+Đây là quyết định read-layer tối thiểu trong P01.1, không mặc định các hợp
+đồng custody/history S2/S4 đã được nhóm chốt.
+
+Nguồn item chỉ outbound/order_items và pickup/return_items đúng task, không
+join nguyên orders/return_requests. Không trả quality/bank/video/refund
+evidence. Redelivery chưa có plan được Sơn xác nhận: item_source báo
+`unavailable_redelivery_plan`, item RPC rỗng; tích hợp item redelivery còn chặn.
+Ảnh/note/version và snapshot assignment bất biến chưa triển khai.
+
+Kiểm thử: `supabase/tests/delivery_read_security.sql` dùng fixture trong
+transaction và ROLLBACK, kiểm tra role/ownership, mọi nhóm status, các deep
+link ngoài quyền, đổi người/cùng order/request, masking lịch sử, base-table
+closure và ACL/owner của function. `database_security.sql` được sửa kỳ vọng
+shipper sang projection mới; không còn kỳ vọng raw task/item/event access.
+Khi chạy SQL trực tiếp phải dùng `psql -v ON_ERROR_STOP=1` để lỗi không bị bỏ
+qua và kết quả PASS chỉ xuất sau tất cả assert; không dùng fixture làm demo.
+
+### Kết quả kiểm chứng P01.1 ngày 23/10/2026
+
+- `git diff --check`: PASS.
+- `flutter analyze`: `No issues found!`; không sửa dependency/lockfile.
+- `node --check supabase/tests/run_delivery_read_fixture.mjs`: PASS.
+- `node supabase/tests/run_delivery_read_fixture.mjs p011_read_verified`:
+  PASS trên PostgreSQL **17.10 native**, áp dụng đủ bốn migration trong một
+  database cô lập mới; cả `database_security.sql` và
+  `delivery_read_security.sql` PASS + ROLLBACK. Truy vấn sau test xác nhận
+  0 Auth users, orders, tasks và Storage objects. Các fixture không được giữ
+  làm dữ liệu nghiệp vụ.
+- Lần chạy đầu đã phát hiện assertion catalog so sánh cách Postgres lưu
+  search_path chưa đúng (`search_path=""`); sửa assertion và chạy lại trên
+  database fixture mới như trên. Không sửa migration để làm yếu kiểm tra.
+- `npx --yes supabase@2.119.0 db start`: không hoàn tất môi trường Supabase;
+  gặp lỗi bootstrap container `exit 125`, sau đó Docker Desktop engine không
+  sẵn sàng/khởi động bị treo. Không có kết quả Supabase/PostgREST hoặc cloud
+  được xác nhận trong phase này. Các lệnh khởi tạo bị treo đã được hủy.
+
+`fixtures/p011_auth_storage.sql.fixture` chỉ tạo **SQL stubs tối thiểu** cho
+auth.uid, auth.users và Storage để thử PostgreSQL RLS, không phải Supabase
+Auth/Storage thật hoặc migration triển khai. Runner chỉ kết nối localhost
+port 55439, kiểm tra data_directory đúng `.temp/p011_native_data` của repo,
+tạo database mới tên `p011_*` và từ chối tên/database đã có. Không có DROP,
+reset, secret/service-role key hoặc kết nối cloud. Đuôi `.sql.fixture` tránh
+coi bootstrap là SQL test tự chạy trên database Supabase thật.
+
+Cách dựng lại môi trường fixture (PowerShell, từ project root; runtime/data
+trong `.temp` bị gitignore, không là dependency của ứng dụng):
+
+```powershell
+npm install --prefix supabase/.temp/p011_pg_runtime --no-save --no-package-lock embedded-postgres@17.10.0-beta.17
+$pgBin = Join-Path (Get-Location) 'supabase/.temp/p011_pg_runtime/node_modules/@embedded-postgres/windows-x64/native/bin'
+$pgData = Join-Path (Get-Location) 'supabase/.temp/p011_native_data'
+# Chỉ initialise khi thư mục data chưa tồn tại; không xóa/reset data cũ.
+& (Join-Path $pgBin 'initdb.exe') -D $pgData -U postgres --auth=trust --encoding=UTF8 --locale=C
+Start-Process -FilePath (Join-Path $pgBin 'postgres.exe') -ArgumentList @('-D', $pgData, '-p', '55439', '-h', '127.0.0.1') -WindowStyle Hidden
+# Chọn tên p011_* mới nếu database fixture tên này đã tồn tại.
+node supabase/tests/run_delivery_read_fixture.mjs p011_read_verified
+& (Join-Path $pgBin 'pg_ctl.exe') -D $pgData stop -m fast
+```
+
+Trong Supabase thật, áp dụng đủ migration bằng workflow migration của nhóm
+rồi chạy nguyên hai file SQL test với quyền quản trị trên môi trường test
+và ON_ERROR_STOP; không chạy bootstrap fixture. Cần kiểm chứng thêm EXECUTE,
+PostgREST/JWT, RLS và Storage với hạ tầng Supabase thực trước nghiệm thu live.
+Item redelivery còn chờ plan của Sơn; không đánh dấu S1/S2/S4 toàn bộ hay
+P01 foundation tổng thể hoàn tất chỉ vì lớp SQL đọc outbound/pickup đã pass.
+
+Sau kiểm thử đã dừng PostgreSQL native bằng pg_ctl (`server stopped`), giữ
+database fixture trong `.temp` để không xóa dữ liệu tự động. Engine Docker
+vẫn không phản hồi khi thử dừng container thử `sports_store_p011_test`; lệnh
+cleanup CLI đã được hủy sau timeout, không dừng/xóa container hoặc volume của
+dự án khác. Khi Docker phục hồi có thể dừng đúng container thử này; không
+dùng `db reset --linked` hoặc cleanup diện rộng.
