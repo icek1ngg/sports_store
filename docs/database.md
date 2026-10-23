@@ -1,5 +1,9 @@
 # Database Sports Store
 
+Mô tả baseline/P00.2 bên dưới là lịch sử thiết kế. P01.1 cuối file ghi thay
+đổi read projection và policy mới; không dùng predicate shipper của baseline
+như quyền hiện hành sau khi áp dụng migration P01.1.
+
 Schema nền tảng gọn gồm 18 bảng cho báo cáo nghiệp vụ v3.0 ngày 29/09/2026, giữ đủ phạm vi 20 màn hình và một cửa hàng ở Hà Nội. Project Supabase dùng chung có ref `bqoyfytmrtvjwrpshuhh`.
 
 ## Quy ước dữ liệu
@@ -100,3 +104,365 @@ Ngày 06/10/2026 đã chạy nguyên file bằng MCP trên cloud và nhận `dat
 Các test baseline xác minh quyền/constraint, không chứng minh mọi kịch bản NT01–NT30 đã hoàn thành. Các test đặt hàng đồng thời, hủy/xác nhận đua nhau và idempotent workflow chỉ có ý nghĩa sau khi RPC tương ứng được triển khai.
 
 Tham khảo: [Supabase RLS](https://supabase.com/docs/guides/database/postgres/row-level-security), [Storage access control](https://supabase.com/docs/guides/storage/security/access-control), [Auth profiles](https://supabase.com/docs/guides/auth/managing-user-data).
+
+## P00.2 — Kiểm kê schema giao nhận/COD và khoảng trống (23/10/2026)
+
+Phần này đối chiếu trực tiếp ba migration trong repo theo thứ tự
+`20261006034251_sports_store_schema.sql`,
+`20261006034259_sports_store_access.sql` và
+`20261006040019_simplify_sports_store.sql`. “Hiện tại” bên dưới chỉ mô tả
+schema/RLS được các migration tạo ra; enum, constraint và policy không phải là
+bằng chứng rằng RPC hay tác vụ server đã tồn tại. “Đề xuất” là yêu cầu cho
+phase API/migration sau. Các tên bảng/cột đề xuất trong phần đó chỉ là tên gợi
+ý, **chưa tồn tại và chưa được deploy**.
+
+### Schema hiện tại của giao nhận
+
+Các enum hiện có là `delivery_task_kind` (`outbound`, `return_pickup`,
+`redelivery`), `delivery_task_status` (`pending_assignment`, `assigned`,
+`accepted`, `in_transit`, `delivered`, `failed`, `returned_to_store`,
+`cancelled`, `manager_action_required`), `delivery_attempt_result`
+(`success`, `failed`) và `delivery_incident_kind` (`damaged`, `lost`, `other`).
+
+| Bảng | Cột và ràng buộc đang có |
+|---|---|
+| `delivery_tasks` | `id`, `order_id`, `return_request_id`, `kind`, `assigned_shipper_id`, `assigned_by`, `status`, `attempt_number`, thông tin điểm đến (`destination_name`, `destination_phone`, `destination_address`, `destination_latitude`, `destination_longitude`), `amount_to_collect_vnd`, các mốc `assigned_at`, `accepted_at`, `started_at`, `completed_at`, `failure_reason`, `cancel_reason`, `created_at`, `updated_at`. Đơn outbound có `attempt_number` từ 1 đến 2; pickup/redelivery bắt buộc là 1. Pickup/redelivery phải có `return_request_id`; outbound không được có. Nhiệm vụ không phải outbound có `amount_to_collect_vnd = 0`. Có FK ghép `(return_request_id, order_id)` về `return_requests` và index chỉ cho một outbound active theo `order_id`, một pickup/redelivery active theo `return_request_id`. |
+| `delivery_attempts` | Mỗi task tối đa một dòng nhờ `unique(task_id)`, và mỗi đơn tối đa một dòng cho cùng `attempt_number` nhờ `unique(order_id, attempt_number)`. Có FK ghép `(task_id, order_id, attempt_number, task_kind)` về task, `task_kind` hiện bị CHECK là `outbound`, `result`, `reason`, `occurred_at`, `shipper_id`. Result `failed` bắt buộc có lý do không rỗng. Đây là bản ghi kết quả cuối, không phải lịch sử mọi chuyển trạng thái. |
+| `orders` / `order_items` | `orders` giữ snapshot người nhận/địa chỉ/tọa độ, `subtotal_vnd`, phí cố định 30.000 VND, `total_cod_vnd` sinh từ hai khoản và `delivery_attempt_count` trong 0..2. `order_items` giữ `product_name`, `variant_label`, `attributes`, `unit_price_vnd`, `quantity`, `line_total_vnd` tại thời điểm đặt; vẫn giữ FK đến product/variant hiện tại. |
+| `return_items` | Gắn với `return_request_id` và `order_id`; `order_item_id` và `variant_id` có thể null để ghi nhận hàng thực tế giao sai hoặc thiếu. Có `actual_item_name`, `quantity_to_collect`, `quantity_collected`, `sellable_quantity`, `damaged_quantity`; chưa có bản ghi custody riêng cho từng lần nhận/bàn giao. |
+| `business_events` | Sau simplification, incident không còn bảng riêng. Bảng có `subject_type`, `subject_id`, `from_state`, `to_state`, `reason`, `actor_id`, thêm `task_id`, `incident_kind`, `request_id`. Khi `incident_kind` khác null, CHECK bắt buộc subject là `delivery_task`, `subject_id = task_id`, có actor, request ID và lý do không rỗng; `request_id` unique nhưng nullable. Event trạng thái chung vẫn có thể có các cột incident null. |
+
+Index partial hiện tại chỉ coi các trạng thái `pending_assignment`, `assigned`,
+`accepted`, `in_transit` là outbound active. Với pickup/redelivery,
+`manager_action_required` cũng giữ slot active; `failed` không giữ slot active.
+Vì vậy constraint hiện tại chưa ngăn tạo task mới khi một task thất bại vẫn
+có hàng đang được shipper giữ.
+
+### Schema hiện tại của COD
+
+`cod_collections` là một dòng cho mỗi đơn (`order_id` là PK và FK đến
+`orders`). Các cột chính là `shipper_id` nullable, `status` gồm
+`uncollected`, `collected`, `received`, `expected_amount_vnd`,
+`collected_amount_vnd`, `received_amount_vnd`, các mốc và actor
+`collected_at`/`collected_by`, `handed_over_at`,
+`received_at`/`received_by`, cùng `created_at`/`updated_at`.
+
+Các CHECK hiện tại bảo đảm `expected_amount_vnd > 0`, số tiền không âm,
+`received_amount_vnd <= collected_amount_vnd <= expected_amount_vnd`, và
+không ghi nhận một phần: `uncollected` phải có collected bằng 0;
+`collected`/`received` phải có collected bằng expected; `received` phải có
+received bằng expected còn hai trạng thái trước phải có received bằng 0.
+Schema chưa có FK/CHECK buộc `expected_amount_vnd` bằng
+`orders.total_cod_vnd`, chưa có actor cho `handed_over_at`, chưa có lịch sử
+chuyển trạng thái, evidence hoặc request ID cho action COD. Việc hoàn tiền
+không được biểu diễn bằng cách giảm nghĩa vụ trong dòng COD.
+
+### RLS và quyền đọc hiện tại
+
+Migration đầu bật RLS cho mọi bảng public còn lại; migration access cấp
+`SELECT` trên toàn bộ bảng public cho `authenticated`, sau đó policy giới hạn
+dòng. Không có grant `INSERT`/`UPDATE`/`DELETE` cho `authenticated` trên
+`delivery_tasks`, `delivery_attempts`, `cod_collections`, `business_events`,
+`orders`, `order_items` hoặc `return_items`; các thay đổi phải đi qua cơ chế
+server có kiểm tra quyền và transaction. Policy thực tế liên quan giao nhận
+và COD là:
+
+| Policy / đối tượng | Predicate thực tế sau migration cuối |
+|---|---|
+| `tasks_read` / `delivery_tasks` | Manager đọc mọi dòng; shipper đọc khi `assigned_shipper_id = auth.uid()`. Không có điều kiện status. |
+| `attempts_read` / `delivery_attempts` | Manager đọc mọi dòng; customer đọc khi task thuộc đơn của mình; shipper đọc khi tồn tại task có `t.id = task_id` và `t.assigned_shipper_id = auth.uid()`. |
+| `order_items_read` / `order_items` | Manager đọc mọi dòng; customer đọc dòng thuộc đơn của mình; shipper đọc khi tồn tại bất kỳ task nào của cùng `order_id` đang có `assigned_shipper_id = auth.uid()`. Shipper không có policy đọc `orders`. |
+| `return_items_read` / `return_items` | Manager đọc mọi dòng; customer đọc theo `return_requests.customer_id = auth.uid()`; shipper đọc khi tồn tại task có `t.return_request_id = return_items.return_request_id` và `t.assigned_shipper_id = auth.uid()`. Shipper không có policy đọc `return_requests`. |
+| `business_events_read` / `business_events` | Manager đọc mọi event. Shipper chỉ đọc khi `incident_kind IS NOT NULL`, `actor_id = auth.uid()` và tồn tại task có `t.id = task_id` cùng `t.assigned_shipper_id = auth.uid()`. Vì vậy đây là quyền đọc **incident do chính shipper tạo trên task đang được gán**, không phải quyền đọc generic state history. |
+| `cod_read` / `cod_collections` | Manager đọc mọi dòng; shipper đọc khi `shipper_id = auth.uid()`; customer đọc khi tồn tại order có `o.id = order_id` và `o.customer_id = auth.uid()`. Policy này không kiểm tra `delivery_tasks`, status task, hay trạng thái return. |
+
+Do `tasks_read`, `attempts_read`, `order_items_read` và `return_items_read`
+chỉ dựa vào `assigned_shipper_id` và không lọc trạng thái, shipper hiện tại
+vẫn đọc được task đã `delivered`, `failed`, `returned_to_store` hoặc `cancelled`
+miễn là cột phân công vẫn giữ UUID của họ. Khi task bị gán cho người khác hoặc
+bị set null, quyền đọc theo task đó mất đi. Đây là quan hệ **phân công hiện
+tại**, chưa phải lịch sử người từng tham gia.
+
+COD có quyền đọc độc lập với quan hệ task nói trên: shipper còn đọc được dòng
+COD nếu `cod_collections.shipper_id` vẫn là UUID của họ, kể cả sau khi task
+kết thúc, đơn có yêu cầu trả hàng hoặc shipper không còn là người được gán
+task hiện tại. Quyền này cũng không cho shipper đọc bank details/return request
+và không cấp quyền ghi. Generic `business_events` không được shipper đọc;
+chỉ nhánh incident thỏa đúng predicate trên được đọc. `service_role` có grant
+riêng trong migration nhưng không được dùng trong Flutter.
+
+### Khoảng trống cần xử lý
+
+- **Idempotency:** `orders.request_id`, `inventory_movements.event_id` theo
+  biến thể, `messages.client_message_id` và `notifications(recipient_id,
+  event_id)` có chống trùng ở các phạm vi riêng. Delivery action không có
+  request ID; `delivery_attempts` chỉ chặn hai bản ghi kết quả cho một task/số
+  lần. COD không có request ID. Không có payload hash, kết quả đã commit hoặc
+  quy tắc retry cùng key phải trả cùng kết quả.
+- **Custody và lịch sử:** Task chỉ có các mốc đơn (`accepted_at`,
+  `started_at`, `completed_at`) và các cột phân công có thể bị ghi đè. Chưa có
+  actor nhận hàng, holder trước/sau, số lượng thực nhận, receipt của manager,
+  handover event, inspection event, hay lịch sử shipper cũ/mới bất biến.
+  `business_events` có thể chứa event chung nhưng chưa có CHECK bảo vệ thứ tự
+  chuyển trạng thái và shipper không được đọc event chung.
+- **Snapshot theo task/assignment:** `orders` và `order_items` có snapshot đặt
+  hàng; `delivery_tasks` có bản sao destination/amount tại task. Tuy nhiên
+  chưa có item snapshot riêng cho task, snapshot hàng thực tế của pickup,
+  version/immutable marker theo assignment, hoặc liên kết snapshot với người
+  giữ hàng. RLS hiện tại còn cho shipper đọc toàn bộ `order_items` của đơn khi
+  có bất kỳ task nào của họ, dựa trên task mutable.
+- **Transaction và giới hạn lần giao:** Constraint không tự thực hiện các
+  bước nhận hàng, dispatch, start, tăng `delivery_attempt_count`, thu đủ COD,
+  nhận hàng về kho, inspection hay restock. Không có khóa/transition guard
+  cho race giữa hủy, phân công, nhận và đổi người. Task return `failed` có thể
+  rơi khỏi partial unique index dù custody cũ chưa giải quyết.
+- **COD:** Các CHECK bảo vệ hình dạng số tiền nhưng chưa bảo vệ action chỉ do
+  shipper/manager hợp lệ thực hiện, thứ tự đơn điệu, đối chiếu amount với đơn,
+  hoặc việc ghi nhận cùng một lần thu/bàn giao/nhận lại khi retry. Quyền đọc
+  trực tiếp theo `shipper_id` cần giữ độc lập với return và task, nhưng cần
+  chốt rõ `shipper_id` là người thu ban đầu hay holder hiện tại.
+- **Incident và bằng chứng:** Incident đã nhập vào `business_events`, nhưng
+  không có bảng/payload chuyên biệt cho ảnh, biên bản bàn giao, số lượng thực
+  nhận hoặc bằng chứng manager nhận. Policy cố ý không mở generic history cho
+  shipper; dữ liệu lịch sử an toàn cần một projection có phạm vi tối thiểu.
+
+### Yêu cầu schema đề xuất — chưa triển khai
+
+Các yêu cầu sau là đầu vào cho migration/RPC tương lai; không mô tả endpoint đã
+có:
+
+1. Mỗi action làm thay đổi task, custody, attempt hoặc COD phải mang một
+   `request_id` do caller tạo. Nên có một ledger idempotency (tên ví dụ như
+   `operation_requests`, **chưa tồn tại**) lưu operation, subject, actor,
+   payload hash, trạng thái xử lý, kết quả/tham chiếu bản ghi và timestamp,
+   với unique key phù hợp. Retry cùng key và cùng payload phải trả kết quả đã
+   commit; cùng key khác payload phải bị từ chối. Việc ghi ledger, state,
+   inventory, COD, event và notification liên quan phải nằm trong cùng
+   transaction.
+2. Bổ sung lịch sử append-only cho assignment/state/custody (tên ví dụ
+   `delivery_task_history` hoặc `delivery_task_assignments`, **chưa tồn tại**).
+   Mỗi dòng cần task, order/return request, actor, shipper, holder trước/sau,
+   state trước/sau, số lần, thời gian server, `request_id`, payload tối thiểu
+   và evidence/tham chiếu nếu có. Phân công lại phải đóng assignment cũ và
+   tạo assignment mới, không ghi đè lịch sử. Receipt của manager phải là mốc
+   riêng với report bàn giao của shipper; inspection phải là mốc riêng với
+   receipt.
+3. Tạo snapshot bất biến theo task và assignment (tên ví dụ
+   `delivery_task_snapshots`/`delivery_task_item_snapshots`, **chưa tồn tại**)
+   cho recipient, destination, amount, item/quantity hoặc return item thực tế
+   cần xử lý. Snapshot phải được chốt tại mốc nghiệp vụ đã owner xác nhận và
+   không bị thay bởi việc đổi shipper hay cập nhật đơn. Shipper từng tham gia
+   chỉ được thấy snapshot tối thiểu gắn với assignment/custody của chính họ;
+   dữ liệu recipient/đơn mới không được suy ra từ task mutable hoặc từ
+   `order_items` toàn đơn.
+4. Giữ `cod_collections` là subject độc lập ở cấp order. Bổ sung ledger sự
+   kiện COD bất biến (tên ví dụ `cod_events`, **chưa tồn tại**) cho collect,
+   hand-over và manager receive, gồm actor, amount, server time, request ID,
+   evidence và kết quả. Server phải đối chiếu expected amount với snapshot
+   tổng đơn, chỉ cho chuyển trạng thái khi đủ toàn bộ tiền, không ghi partial,
+   không giảm nghĩa vụ do refund, và không cho retry tạo lần thu/bàn giao thứ
+   hai. RLS đọc của shipper vẫn dựa trên quyền COD/collector đã được chốt,
+   độc lập với RLS task và return; ghi chỉ qua transaction server với manager
+   xác nhận nhận đủ.
+5. Giữ policy hiện tại cho live task theo assignment hiện tại, nhưng thêm
+   đường đọc lịch sử qua assignment/snapshot bất biến với dữ liệu tối thiểu.
+   Không dùng một `assigned_shipper_id` có thể đổi để chứng minh custody cũ.
+   `business_events` tiếp tục chỉ cho shipper đọc incident của chính họ trong
+   phạm vi task được phép; nếu cần xem lịch sử xử lý, dùng projection lịch sử
+   được giới hạn, không mở toàn bộ generic event ledger.
+6. Transaction server phải khóa đúng order/task/COD theo thứ tự thống nhất,
+   kiểm tra precondition và trạng thái trước đó, bảo đảm một outbound active,
+   tối đa hai lần giao đi, dispatch/receipt/restock một lần, và chặn task mới
+   khi custody cũ chưa được manager giải quyết. Đây là yêu cầu triển khai,
+   không phải hành vi hiện có của constraint/RLS.
+
+### Mã dependency P00.2 dùng trong API
+
+Các mã sau gom các yêu cầu đánh số phía trên để tra cứu từ api_contracts.md;
+tất cả vẫn là đề xuất chờ duyệt, không là tên migration đã tồn tại:
+
+| Mã | Thay đổi schema/quyền bắt buộc trước triển khai |
+| --- | --- |
+| S1 — snapshot | Yêu cầu 3: projection/item snapshot theo kind; nguồn note/ảnh còn thiếu; danh sách giao lại thực tế và điểm đến theo task cần Sơn/Văn Đức chốt. Chốt mốc đóng băng snapshot với Bảo/Sơn; không lấy catalog hiện tại để thay lịch sử. |
+| S2 — giao dịch và truy vết | Yêu cầu 1/2/6: request ledger unique `(actor_id,request_id)` kèm operation/target/hash/result, receipt/inspection/custody theo item và lịch sử assignment/event_type/payload. Có quantity received/lost hoặc ledger tương đương; không dùng `quantity_collected` thay receipt. Retry/khóa theo L ở api_contracts.md; không tạo bảng trong phase này. |
+| S3 — COD | Yêu cầu 4: chốt tạo uncollected, collector/holder và amount đối chiếu đơn; đề xuất shipper_id cố định bằng người thu khi collected, không thay theo task sau đó. Chưa có RPC shipper báo nộp tiền riêng: đề xuất manager confirm ghi handed_over_at cùng received_at nếu thực giao/nhận đồng thời; nếu muốn mốc báo độc lập cần hợp đồng mới, chưa đoán actor/thời gian quá khứ. |
+| S4 — history, version và quyền | Yêu cầu 5 và bổ sung version bigint tăng đơn điệu trên order/request/task/COD, chưa có ở schema. History projection chỉ task_id/kind/status/result/attempt_number/completed_at gắn người thực hiện, không PII hoặc quyền vào task mới. Chốt grants/projection để quyền đọc trực tiếp không vượt dữ liệu tối thiểu; không cho shipper đọc orders/return_requests để giải quyết join. |
+
+Chưa chọn cấu trúc vật lý cuối cùng (bảng mới hay mở rộng event ledger),
+index/grants/EXECUTE và migration filename; phase triển khai mới dùng CLI
+tạo migration thật, review quyền tối thiểu và chạy allowed/denied tests.
+
+Chi tiết bổ sung sau review P00.2: S2 phải phân biệt client request ID theo
+actor và event ID. `business_events.request_id` hiện unique toàn cục nên
+không thể gán trực tiếp UUID client cho nhiều event hoặc hai actor cùng UUID.
+Đề xuất FK operation_request_id về ledger server và event token riêng; cần
+đổi constraint/mapping incident qua migration được duyệt, chưa triển khai.
+S3 cần review nhánh customer của cod_read: RPC từ chối customer không thu hẹp
+quyền SELECT nguyên dòng hiện có. Projection customer tối thiểu không cần UUID
+nhân viên/mốc đối soát; chờ owner duyệt cách thu hẹp grants/policy.
+S4 đề xuất chuyển task terminal (`delivered/cancelled/returned_to_store`) sang
+history tối thiểu, không contact/destination/map; direct Data API phải được
+review tương ứng, không chỉ giới hạn DTO. Chi tiết tập vận hành và ma trận
+kiểm chứng tương lai nằm trong api_contracts.md; các kiểm chứng đó chưa chạy.
+
+### Xác nhận owner còn thiếu cho P00.2
+
+Các mã dưới đây lấy từ P00.1 và vẫn là câu hỏi mở, chưa được coi là contract:
+
+- **D1 — Bảo + Minh Đức:** thời điểm đơn chuyển `awaiting_pickup`, ý nghĩa
+  chính xác của `accepted_at`, ranh giới khóa hủy và có cần mốc nhận việc
+  riêng; chốt nhận hàng và bắt đầu giao là hai action hay một.
+- **D2 — Bảo, Sơn + Minh Đức:** schema receipt/inspection/custody/handover,
+  evidence, request payload chống trùng và lịch sử shipper cũ/mới; report của
+  shipper không thay receipt của manager.
+- **D3 — Bảo + Minh Đức:** lần giao thứ hai giữ hàng ở shipper cũ, chuyển trực
+  tiếp hay qua cửa hàng; khi nào được đổi người sau custody.
+- **D4 — Văn Đức + Bảo/Sơn:** transaction dispatch và inventory idempotency;
+  cách ngăn dispatch hai lần cho outbound lần hai/redelivery; receipt khác
+  inspection và chỉ restock lượng đạt.
+- **D5 — Bảo:** cách ghi nhận hàng giao thất bại quay về, hàng thiếu/hỏng/mất,
+  thời điểm order kết thúc và xử lý task lần hai đã tạo nhưng chưa start.
+- **D6 — Bảo, Sơn + Minh Đức:** sự cố trước/sau start, hủy sau nhận hàng,
+  gián đoạn khi đang đi; khi nào được ghi result `failed` và khi nào chỉ ghi
+  incident chờ manager.
+- **D7 — Bảo:** event/recipient/thời điểm tạo notification và cách deep link
+  kiểm tra lại quyền hiện tại.
+- **D8 — Sơn + Minh Đức, Văn Đức cho tồn:** item/quantity thực nhận của
+  return pickup, start riêng hay gộp với nhận, pickup thất bại/hẹn lại,
+  receipt/inspection và đổi người/hủy trước custody.
+- **D9 — Sơn + Minh Đức:** redelivery failure dùng `redelivery_failed` hay
+  `manager_action_required`, task nào giữ active, cách manager đóng/mở lại
+  trước khi tạo task mới; không tự đóng return request khi giao lại thất bại.
+- **COD với owner orders/deliveries:** thời điểm tạo dòng `uncollected`, ý
+  nghĩa lâu dài của `cod_collections.shipper_id`, actor của hand-over và
+  policy đọc của shipper sau đổi người/return phải khớp với ledger custody.
+
+Cho đến khi các quyết định trên được chốt và migration/RPC tương ứng được
+review, không coi các cột hiện tại là bằng chứng của custody, lịch sử bất biến,
+idempotency end-to-end hoặc snapshot an toàn theo shipper.
+
+## P01.1 — Migration lớp đọc task/item an toàn
+
+File `supabase/migrations/20261023104903_secure_delivery_read_projections.sql`
+được tạo bằng `npx --yes supabase@2.119.0 migration new secure_delivery_read_projections`.
+Migration mới, không sửa/xóa ba migration nền, không đổi enum/table/cột nghiệp
+vụ hoặc triển khai bất kỳ thao tác phân công, custody, dispatch, COD hay trả hàng.
+
+| Thay đổi | Quyền sau migration |
+| --- | --- |
+| `tasks_read` | Bảng gốc chỉ manager. Shipper đi qua read_my_delivery_tasks; customer vẫn không đọc task trực tiếp. |
+| `order_items_read`, `return_items_read`, `attempts_read` | Giữ manager/customer-own scopes, bỏ nhánh shipper theo bất kỳ task cùng order/request. Không có grant order/return mới cho shipper. |
+| `business_events_read` | Manager đọc; bỏ shipper đọc incident/raw reason theo task mutable. Chưa tạo incident projection trong phase này. |
+| `cod_read`, Storage và các policy ngoài bảng trên | Giữ nguyên. COD vẫn độc lập nhiệm vụ/returns; không xử lý dependency COD S3 trong read-task phase. |
+| `sports_store_delivery_reader` | Role nội bộ NOLOGIN/NOINHERIT/NOBYPASSRLS, không là owner bảng; chỉ SELECT một số cột profiles/tasks/order_items/return_items, không quyền ghi hoặc đọc orders/return_requests/COD. Chỉ postgres được cấp membership để chuyển ownership function; API roles không là member. |
+| Bốn policy `delivery_reader_*` | Chỉ áp dụng cho role đọc; profile chỉ own auth.uid; task phải đúng assigned_shipper_id và profiles.role=shipper; item chỉ qua task đúng kind và assigned/accepted/in_transit. |
+| Hai read function | Stable SQL, search_path rỗng, SECURITY DEFINER dưới role đọc chịu RLS; EXECUTE chỉ authenticated, không PUBLIC/anon/service_role. Schema public CREATE được cấp tạm để chuyển owner rồi thu hồi. |
+
+Role là cluster-wide nên local reset có thể giữ role sau khi dựng lại database.
+Migration chỉ tái sử dụng role có marker của P01.1 và thuộc tính khóa đúng;
+gặp role cùng tên không phù hợp thì dừng, không đổi quyền role ngoài ý muốn.
+Không disable RLS hay dùng postgres-owned definer để vượt policy.
+
+Projection mask theo status: current (`assigned/accepted/in_transit`) có
+destination_* và amount_to_collect_vnd lấy nguyên task; history
+(`delivered/cancelled/returned_to_store`) và restricted (các trạng thái còn
+lại) chỉ task_id/kind/status/attempt_number/completed_at/scope/item_source,
+không order/request ID, tiền, địa chỉ/contact, thời điểm nhận/start hoặc item.
+History chỉ là phép chiếu tối thiểu của task còn assigned cho user hiện tại,
+không hứa lịch sử assignment bất biến. Đổi cùng task sang người khác/null
+thu hồi quyền người cũ; task lịch sử không mở task mới hoặc item theo order.
+Đây là quyết định read-layer tối thiểu trong P01.1, không mặc định các hợp
+đồng custody/history S2/S4 đã được nhóm chốt.
+
+Nguồn item chỉ outbound/order_items và pickup/return_items đúng task, không
+join nguyên orders/return_requests. Không trả quality/bank/video/refund
+evidence. Redelivery chưa có plan được Sơn xác nhận: item_source báo
+`unavailable_redelivery_plan`, item RPC rỗng; tích hợp item redelivery còn chặn.
+Ảnh/note/version và snapshot assignment bất biến chưa triển khai.
+
+Kiểm thử: `supabase/tests/delivery_read_security.sql` dùng fixture trong
+transaction và ROLLBACK, kiểm tra role/ownership, mọi nhóm status, các deep
+link ngoài quyền, đổi người/cùng order/request, masking lịch sử, base-table
+closure và ACL/owner của function. `database_security.sql` được sửa kỳ vọng
+shipper sang projection mới; không còn kỳ vọng raw task/item/event access.
+Khi chạy SQL trực tiếp phải dùng `psql -v ON_ERROR_STOP=1` để lỗi không bị bỏ
+qua và kết quả PASS chỉ xuất sau tất cả assert; không dùng fixture làm demo.
+
+### Kết quả kiểm chứng P01.1 ngày 23/10/2026
+
+- `git diff --check`: PASS.
+- `flutter analyze`: `No issues found!`; không sửa dependency/lockfile.
+- `node --check supabase/tests/run_delivery_read_fixture.mjs`: PASS.
+- `node supabase/tests/run_delivery_read_fixture.mjs p011_read_verified`:
+  PASS trên PostgreSQL **17.10 native**, áp dụng đủ bốn migration trong một
+  database cô lập mới; cả `database_security.sql` và
+  `delivery_read_security.sql` PASS + ROLLBACK. Truy vấn sau test xác nhận
+  0 Auth users, orders, tasks và Storage objects. Các fixture không được giữ
+  làm dữ liệu nghiệp vụ.
+- Lần chạy đầu đã phát hiện assertion catalog so sánh cách Postgres lưu
+  search_path chưa đúng (`search_path=""`); sửa assertion và chạy lại trên
+  database fixture mới như trên. Không sửa migration để làm yếu kiểm tra.
+- `npx --yes supabase@2.119.0 db start`: không hoàn tất môi trường Supabase;
+  gặp lỗi bootstrap container `exit 125`, sau đó Docker Desktop engine không
+  sẵn sàng/khởi động bị treo. Không có kết quả Supabase/PostgREST hoặc cloud
+  được xác nhận trong phase này. Các lệnh khởi tạo bị treo đã được hủy.
+
+`fixtures/p011_auth_storage.sql.fixture` chỉ tạo **SQL stubs tối thiểu** cho
+auth.uid, auth.users và Storage để thử PostgreSQL RLS, không phải Supabase
+Auth/Storage thật hoặc migration triển khai. Runner chỉ kết nối localhost
+port 55439, kiểm tra data_directory đúng `.temp/p011_native_data` của repo,
+tạo database mới tên `p011_*` và từ chối tên/database đã có. Không có DROP,
+reset, secret/service-role key hoặc kết nối cloud. Đuôi `.sql.fixture` tránh
+coi bootstrap là SQL test tự chạy trên database Supabase thật.
+
+Cách dựng lại môi trường fixture (PowerShell, từ project root; runtime/data
+trong `.temp` bị gitignore, không là dependency của ứng dụng):
+
+```powershell
+npm install --prefix supabase/.temp/p011_pg_runtime --no-save --no-package-lock embedded-postgres@17.10.0-beta.17
+$pgBin = Join-Path (Get-Location) 'supabase/.temp/p011_pg_runtime/node_modules/@embedded-postgres/windows-x64/native/bin'
+$pgData = Join-Path (Get-Location) 'supabase/.temp/p011_native_data'
+# Chỉ initialise khi thư mục data chưa tồn tại; không xóa/reset data cũ.
+& (Join-Path $pgBin 'initdb.exe') -D $pgData -U postgres --auth=trust --encoding=UTF8 --locale=C
+Start-Process -FilePath (Join-Path $pgBin 'postgres.exe') -ArgumentList @('-D', $pgData, '-p', '55439', '-h', '127.0.0.1') -WindowStyle Hidden
+# Chọn tên p011_* mới nếu database fixture tên này đã tồn tại.
+node supabase/tests/run_delivery_read_fixture.mjs p011_read_verified
+& (Join-Path $pgBin 'pg_ctl.exe') -D $pgData stop -m fast
+```
+
+Trong Supabase thật, áp dụng đủ migration bằng workflow migration của nhóm
+rồi chạy nguyên hai file SQL test với quyền quản trị trên môi trường test
+và ON_ERROR_STOP; không chạy bootstrap fixture. Cần kiểm chứng thêm EXECUTE,
+PostgREST/JWT, RLS và Storage với hạ tầng Supabase thực trước nghiệm thu live.
+Item redelivery còn chờ plan của Sơn; không đánh dấu S1/S2/S4 toàn bộ hay
+P01 foundation tổng thể hoàn tất chỉ vì lớp SQL đọc outbound/pickup đã pass.
+
+Sau kiểm thử đã dừng PostgreSQL native bằng pg_ctl (`server stopped`), giữ
+database fixture trong `.temp` để không xóa dữ liệu tự động. Engine Docker
+vẫn không phản hồi khi thử dừng container thử `sports_store_p011_test`; lệnh
+cleanup CLI đã được hủy sau timeout, không dừng/xóa container hoặc volume của
+dự án khác. Khi Docker phục hồi có thể dừng đúng container thử này; không
+dùng `db reset --linked` hoặc cleanup diện rộng.
+
+## P01.2 — Dart read adapters và giới hạn tích hợp
+
+P01.2 không thay schema/migration/RLS. Delivery adapter dùng hai read RPC
+P01.1 đã có trong repository; COD adapter dùng SELECT cột tường minh trên
+cod_collections theo RLS hiện có, không giả định RPC COD đã tồn tại.
+Model chỉ chứa snapshot/task/item/COD và UUID tham chiếu, không sao chép Order
+hoặc return request chứa thông tin ngân hàng/bằng chứng.
+
+Models/DTO/repository/provider và chi tiết retry/session được ghi ở mục
+P01.2 của [api_contracts.md](api_contracts.md). Model money dùng int VND,
+timestamp UTC; DTO từ chối tiền vượt integer chính xác trên Flutter web,
+không chuyển sang double hoặc thay đơn vị tiền. Pagination client dùng
+keyset với filter/order/limit có sẵn, không thêm API ghi hay snapshot version
+chưa có; đọc nhiều trang vẫn không là transaction snapshot bất biến.
+
+Kiểm chứng Dart dùng transport MockClient + session/JWT **fixture chỉ trong
+test**, không truy cập cloud hoặc tự báo backend thành công. Các adapter
+production không import fixture và không có demo fallback. Live integration
+vẫn cần xác nhận P01.1 đã áp dụng trên môi trường đích và chạy Auth/RLS thật;
+redelivery item plan còn phụ thuộc Sơn (itemsAvailable=false), note/ảnh/
+version và các API ghi chưa thuộc phase này. Không chạy lại SQL migration
+hoặc thay fixture SQL của P01.1 trong P01.2.

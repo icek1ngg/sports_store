@@ -103,6 +103,204 @@ kèm task_id, actor_id là shipper đang tạo sự cố, subject_type là
 business_events. Shipper chỉ đọc được sự cố của nhiệm vụ đang được phân công
 cho chính mình.
 
+## P00.1 — Hợp đồng chuyển trạng thái giao nhận (23/10/2026)
+
+### Căn cứ, mức xác nhận và giới hạn
+
+- **DB**: đối chiếu `../supabase/migrations/20261006034251_sports_store_schema.sql`
+  (enum, bảng và unique index), `20261006034259_sports_store_access.sql`
+  (grants/RLS) và `20261006040019_simplify_sports_store.sql` (sự cố trong
+  `business_events`). Đây là bằng chứng mã nguồn, không phải kiểm tra cloud hôm nay.
+- **NV**: quy tắc nghiệp vụ v3.0 được ghi lại trong `../AGENTS.md` và các mục
+  Đơn hàng, COD, Yêu cầu trả hàng ở tài liệu này. Chưa có bản báo cáo gốc v3.0
+  để kiểm tra trực tiếp số mục/NT; không khẳng định đã đối chiếu toàn văn báo cáo.
+- **KH**: `minh_duc_implementation_plan.md`, Phase 0, 2, 4, 5 là kế hoạch và
+  đề xuất tích hợp, không phải bằng chứng nhóm đã đồng ý. File đính kèm
+  `01_P00_1.md` không có tại đường dẫn được cung cấp khi thực hiện P00.1.
+- **ĐX**: các bảng dưới là đặc tả đề xuất P00.1 dùng đúng enum DB. Các hàng
+  có mã D cần người sở hữu xác nhận trước khi triển khai; không có xác nhận
+  stakeholder nào được ghi nhận trong lần thay đổi này. Không thêm enum/RPC.
+  RPC giao nhận/COD vẫn chưa tồn tại trong các migration đã kiểm tra;
+  xem [phạm vi API hiện có](api_contracts.md).
+
+### Các mốc độc lập và quy tắc chung (ĐX, KH)
+
+`assigned` chỉ là manager phân công, không chứng minh shipper đã nhận việc
+hoặc đang giữ hàng. DB không có mốc riêng cho shipper xác nhận nhận việc;
+nếu cần phải chốt D1, không dùng `accepted_at` cho hai nghĩa.
+`accepted`/`accepted_at` dành cho **thực nhận hàng**: tại cửa hàng với outbound
+và redelivery, tại khách với return_pickup. `in_transit`/`started_at` là
+bắt đầu vận chuyển sau thực nhận. Nhận hàng trả và bắt đầu vận chuyển về
+có thể là hai hành động liên tiếp; không suy ra đã đi từ việc được phân công.
+
+Shipper báo bàn giao cửa hàng là sự kiện, chưa phải `returned_to_store`.
+Đề xuất lưu trong `business_events` với actor, task, request ID, giờ server,
+trạng thái trước/sau giữ nguyên; không gán `incident_kind` cho bàn giao bình thường.
+DB chưa có cột mốc bàn giao/custody hoặc cơ chế idempotency tổng quát cho mọi
+action; cần thiết kế cách lưu payload/đối chiếu retry ở phase API (D2).
+RLS hiện chỉ cho shipper đọc event sự cố do mình tạo trên task đang được
+phân công; event bàn giao bình thường không thuộc quyền đọc đó. Cách trả
+kết quả/retry hoặc projection bàn giao cần hợp đồng server riêng, không
+gán giả `incident_kind` hay mở rộng policy trong P00.1.
+Chỉ manager thực nhận mới đổi task thành `returned_to_store`; kết luận chất
+lượng và nhập tồn phải có kết quả kiểm tra riêng, không suy ra từ trạng thái task.
+
+Mỗi hàng chuyển trạng thái bên dưới cần transaction server kiểm tra role,
+phân công hiện tại, liên kết order/request/task, trạng thái và khóa các bản ghi
+liên quan theo cùng quy ước với owner. Giờ lấy từ server. Ghi event và thông
+báo đúng người theo `(recipient_id, event_id)` trong cùng transaction khi có
+thông báo; danh sách recipient phải chốt với Bảo (D7). Retry cùng request ID
+và payload trả kết quả cũ; payload khác bị từ chối; hai kết quả đối nghịch chỉ
+một được commit. Đây là yêu cầu tương lai, constraint nền chưa thực thi đủ.
+
+### Giao đi — `outbound`
+
+Trong bảng: O = `orders.status`, T = `delivery_tasks.status`.
+Mỗi dòng nêu trạng thái đích của cùng task trừ khi ghi rõ tạo task mới.
+
+| ID / căn cứ | Actor, hành động | Tiền điều kiện | Chuyển trạng thái | Tác dụng phụ / quyết định còn mở |
+| --- | --- | --- | --- | --- |
+| O1 / DB, KH | Manager chuẩn bị và phân công MH09 | O=`preparing`; snapshot hợp lệ; shipper hợp lệ; không có outbound active; count < 2 | T mới `pending_assignment` → `assigned`; O → `awaiting_pickup` | Gán số dự kiến count + 1; chưa tăng count, chưa xuất tồn, chưa có attempt result. Thời điểm chuyển O khi tạo task chưa phân công cần Bảo chốt D1. |
+| O2 / KH | Manager đổi người trước nhận hàng | T=`assigned`; chưa `accepted_at`/`started_at`; không có custody | T giữ `assigned`, thay phân công | Lưu lịch sử người cũ/mới; không đổi số lần. Sau thực nhận bị chặn cho đến khi có hợp đồng D3. |
+| O3 / KH, NV | Shipper thực nhận hàng tại cửa hàng MH11 | Đúng người; T=`assigned`; O=`awaiting_pickup`; chưa hủy; đủ hàng | T → `accepted`; O giữ `awaiting_pickup` | Ghi `accepted_at`, custody và dispatch tồn đúng một lần trong transaction. Chưa tăng count. Khóa cạnh tranh với hủy; manager không hủy ngoại lệ sau mốc này. D1, D4. |
+| O4 / KH | Shipper bắt đầu giao MH11 | T=`accepted`; có custody; O hợp lệ; số dự kiến = count + 1 ≤ 2 | T → `in_transit`; O → `delivering` | Ghi `started_at`, tăng count đúng một lần; chưa ghi `delivery_attempts`. Không dispatch lại. |
+| O5 / NV, DB, KH | Shipper giao thành công | T=`in_transit`; khách nhận toàn bộ; thu đủ tổng COD từ server | T → `delivered`; O → `delivered` | Một transaction ghi attempt `success`, thời điểm kết quả, COD `uncollected` → `collected` và người thu. Không chấp nhận thu thiếu. |
+| O6 / NV, KH | Shipper báo thất bại lần 1 | T=`in_transit`; count=1; lý do không rỗng; chưa có kết quả | T → `failed`; O → `awaiting_redelivery` | Ghi attempt `failed`, lý do, shipper và giờ server; không ghi thu COD, không nhập tồn. Chờ quyết định manager. |
+| O7 / NV, KH | Manager cho giao lần 2 MH09 | O=`awaiting_redelivery`; kết quả lần 1 thất bại; count=1 | Giữ task cũ `failed`; tạo T mới `pending_assignment` → `assigned`, số 2; O → `awaiting_pickup` (ĐX) | Thực nhận/custody phải xác minh lại rồi mới start; không dispatch cùng hàng lần hai. Không tái mở task lần 1. D1, D3, D4 chặn tích hợp. |
+| O8 / NV, KH | Manager yêu cầu hoàn sớm | O=`awaiting_redelivery`, kết quả lần 1 thất bại; không task mới đang vận chuyển | T cũ giữ `failed`; O → `awaiting_store_return` | Ghi quyết định hoàn; không tạo lần 2, không hoàn tồn. Nếu đã tạo task 2 nhưng chưa start cần xử lý custody/hủy theo D3, D5. |
+| O9 / NV, KH | Shipper báo thất bại lần 2 | T=`in_transit`; count=2; lý do hợp lệ | T → `failed`; O → `awaiting_store_return` | Ghi attempt `failed`; từ chối lần 3 dù đổi shipper/task; không thu COD hoặc tự restock. |
+| O10 / KH | Shipper báo bàn giao hàng về | O=`awaiting_store_return`; T=`failed`; shipper đang giữ hàng, bàn giao thực tế | T giữ `failed`; O giữ nguyên | Chỉ event báo bàn giao, không coi cửa hàng đã nhận/kiểm tra; D2. |
+| O11 / NV, KH | Manager nhận hàng rồi kiểm tra MH09 | Có hàng thực tế và đối chiếu bàn giao; đúng nhánh hoàn thất bại | Khi nhận: T `failed` → `returned_to_store`, O giữ `awaiting_store_return`; khi kiểm tra xong: O → `undeliverable_returned` | Hai mốc nghiệp vụ tách biệt; chỉ lượng đạt kiểm tra mới restock một lần; hỏng/mất xử lý riêng. Cách lưu receipt/inspection và transaction tồn cần Bảo + Văn Đức chốt D4, D5. |
+| O12 / NV, KH | Manager hủy ngoại lệ / khách hủy trước xác nhận | Khách chỉ O=`pending_confirmation`; manager trước thực nhận, theo hợp đồng orders | Task chưa nhận (nếu có) → `cancelled`; O → `cancelled` | Không tăng count/ghi attempt nếu chưa start. Giải phóng tồn giữ một lần theo owner; tranh chấp với O3 chỉ một thắng. D1, D4. |
+
+### Số lần giao, kết quả và retry (ĐX dựa DB, KH)
+
+Các hàng gộp O1/P1/R1 ở trên biểu diễn chuỗi tạo rồi phân công, không bắt
+buộc một thao tác nguyên tử. Đặc tả từng mốc thay thế như sau (ĐX):
+
+| ID | Actor và tiền điều kiện | Chuyển trạng thái | Tác dụng phụ / điểm mở |
+| --- | --- | --- | --- |
+| O1a | Manager; điều kiện O1 | Chưa có task → `pending_assignment`; O giữ `preparing` | Gán số dự kiến; `amount_to_collect_vnd = orders.total_cod_vnd`; chưa gán người hoặc tăng count. D1 chốt thời điểm O. |
+| O1b | Manager; T=`pending_assignment`, shipper hợp lệ | T → `assigned`; O → `awaiting_pickup` | Ghi `assigned_shipper_id`, `assigned_by`, `assigned_at`; không custody/dispatch. |
+| P1a | Manager duyệt lấy; điều kiện P1 | T mới `pending_assignment`; R → `awaiting_return_pickup` | Chưa phân công; amount=0, số=1; chưa thực nhận. D8. |
+| P1b | Manager; T=`pending_assignment`, shipper hợp lệ | T → `assigned`; R giữ nguyên | Ghi người được phân công/người phân công/giờ server. D8. |
+| R1a | Manager quyết định sau kiểm tra; điều kiện R1 | T mới `pending_assignment`; R → `awaiting_redelivery` | amount=0, số=1; chưa phân công. D9. |
+| R1b | Manager; T=`pending_assignment`, shipper hợp lệ | T → `assigned`; R giữ nguyên | Ghi người được phân công/người phân công/giờ server. D9. |
+| O11a | Manager; có hàng thực tế, O=`awaiting_store_return`, T=`failed`; đối chiếu người đang giữ hàng | T → `returned_to_store`; O giữ nguyên | Ghi receipt, chưa restock/kết luận chất lượng. Báo bàn giao của shipper không thay bằng chứng thực nhận. D2/D5. |
+| O11b | Manager; đã có receipt O11a, hoàn tất kiểm tra số lượng/chất lượng | T giữ `returned_to_store`; O → `undeliverable_returned` | Ghi inspection riêng; restock chỉ lượng đạt, xử lý hỏng/mất theo D4/D5. |
+
+O11a/O11b thay hàng tổng quan O11; không gọi một action client để ngầm hoàn
+tất cả hai mốc. Khi tạo outbound, nghĩa vụ COD dự kiến phải bằng tổng đơn;
+O5 kiểm tra đồng thời task amount, `cod_collections.expected_amount_vnd`
+và `orders.total_cod_vnd` bằng nhau. Thời điểm tạo khoản `uncollected` cần
+chốt với owner đơn hàng, không giả định đã có khoản trong DB.
+
+- `delivery_tasks.attempt_number` là số **dự kiến cố định của task**, được gán
+  khi tạo outbound bằng `orders.delivery_attempt_count + 1`; không tăng tại
+  accept/start và không sửa task cũ từ 1 thành 2. Chính **count của order**
+  tăng tại O4 (`accepted` → `in_transit`) trong cùng transaction, tối đa 2.
+- `delivery_attempts` chỉ được INSERT khi O5/O6/O9 có kết quả; DB chỉ có
+  result `success`/`failed`, không có bản ghi “đang giao”. Trong lúc vận
+  chuyển count có thể lớn hơn số dòng kết quả; đây không phải mất dữ liệu.
+  Unique `task_id`, `(order_id, attempt_number)` và FK bốn cột bảo vệ quan hệ;
+  server vẫn phải kiểm tra count, trạng thái và shipper.
+- Timeout/bấm lặp start, success, fail hoặc đổi người không phải lần mới.
+  Request mới cũng không được start lại task đang đi hoặc ghi kết quả thứ hai.
+  Lần mới chỉ do manager cho phép sau kết quả thất bại lần 1, tạo task số 2;
+  giữ nguyên task/attempt lịch sử và shipper đã thực hiện kết quả.
+- Task bị hủy trước start không tiêu thụ lần giao, không ghi result. Task
+  thay thế có thể dùng cùng số dự kiến chưa dùng; DB không unique số dự kiến
+  giữa các task, nhưng chỉ cho một outbound active. Sau start không reset
+  count/hủy để né giới hạn; sự cố không có kết quả giao rõ ràng chờ D6.
+- `return_pickup`/`redelivery` luôn `attempt_number=1` theo CHECK DB, count
+  outbound giữ nguyên và không ghi `delivery_attempts`. Số 1 không phải hạn
+  mức số lần lấy/giao lại; không tự suy ra chính sách retry vật lý cho hai loại này.
+
+### Thu hồi — `return_pickup`
+
+R = `return_requests.status`. O đã `delivered` luôn giữ nguyên; COD đã thu
+vẫn phải nộp đủ dù hàng đang trả hoặc đã hoàn tiền. Tất cả task loại này có
+`amount_to_collect_vnd=0`, cùng order với request, không dispatch hàng của đơn.
+
+| ID / căn cứ | Actor, hành động | Tiền điều kiện | Chuyển trạng thái | Tác dụng phụ / quyết định còn mở |
+| --- | --- | --- | --- | --- |
+| P1 / NV, DB, KH | Manager duyệt lấy/phân công MH15 | R=`pending_review` hợp lệ; duyệt thu hồi; chưa có task return active | R → `awaiting_return_pickup`; T mới `pending_assignment` → `assigned` | Snapshot hàng thực tế cần lấy và điểm khách; không duyệt hoàn tiền. Sơn chốt số lượng D8. |
+| P2 / KH | Shipper thực nhận tại khách MH11 | T=`assigned`; R=`awaiting_return_pickup`; xác nhận hàng/số lượng thực nhận | T → `accepted`; R → `returning_to_store` | Ghi `accepted_at`, custody và hàng thực nhận; R biểu thị hàng đã ở shipper, chưa khẳng định task bắt đầu chạy. Chưa nhập tồn; D8. |
+| P3 / KH | Shipper bắt đầu vận chuyển về | T=`accepted`; đã nhận hàng thực tế | T → `in_transit`; R giữ `returning_to_store` | Ghi `started_at`; không thay count hoặc COD. Việc gộp P2/P3 thành một transaction là lựa chọn cần Sơn chốt D8. |
+| P4 / KH | Shipper lấy không thành công | T=`assigned`, chưa nhận hàng; lý do hợp lệ | T → `failed`; R giữ `awaiting_return_pickup` (ĐX) | Báo manager; không có attempt outbound; manager quyết định hẹn/phân công task mới. D8; không tự áp trần hai lần. |
+| P5 / KH | Shipper báo bàn giao tại cửa hàng | T=`in_transit`; có hàng bàn giao | T giữ `in_transit`; R giữ `returning_to_store` | Chỉ event bàn giao D2; không đặt `delivered`, không tự restock/hoàn tiền. |
+| P6 / NV, KH | Manager nhận hàng MH15 | Có hàng thực tế; kiểm tra số lượng bàn giao; T=`in_transit` | T → `returned_to_store`; R → `under_inspection` | Cùng transaction receipt/task/request; chưa kết luận chất lượng, không tự restock. Kiểm tra/nhập tồn/hoàn tiền là bước riêng của Sơn + inventory D4, D8. |
+| P7 / NV, KH | Shipper báo hỏng/mất/sai lệch sau nhận | T=`accepted` hoặc `in_transit`; lý do/sự cố và custody rõ | Đề xuất T → `manager_action_required`; R → `manager_action_required` | Không coi là lấy thất bại trước nhận, không xóa custody; manager giải quyết D6, D8. |
+
+### Giao lại miễn phí sau kiểm tra — `redelivery`
+
+Phân biệt với outbound lần 2: đây là hàng của yêu cầu trả bị từ chối sau kiểm
+tra. O giữ `delivered`; COD/count outbound giữ nguyên; số tiền task bằng 0.
+
+| ID / căn cứ | Actor, hành động | Tiền điều kiện | Chuyển trạng thái | Tác dụng phụ / quyết định còn mở |
+| --- | --- | --- | --- | --- |
+| R1 / NV, DB, KH | Manager quyết định từ chối sau kiểm tra, phân công MH15 | R=`under_inspection`; có kết luận; không task return active | R → `awaiting_redelivery`; T mới `pending_assignment` → `assigned` | Chưa dùng R=`rejected_after_inspection` để đóng trước giao lại; lưu quyết định qua event; D9. |
+| R2 / KH | Shipper nhận hàng tại cửa hàng | T=`assigned`; đúng hàng/custody của request | T → `accepted`; R giữ `awaiting_redelivery` | Ghi `accepted_at`, custody; không xuất lại stock outbound, không COD. D4, D8. |
+| R3 / KH | Shipper bắt đầu giao lại | T=`accepted`, thực nhận đủ hàng | T → `in_transit`; R giữ `awaiting_redelivery` | Ghi `started_at`; không tăng count, không ghi `delivery_attempts`. |
+| R4 / NV, KH | Shipper giao lại thành công | T=`in_transit`; khách nhận đủ hàng giao lại | T → `delivered`; R → `rejected_after_inspection` | Ghi kết quả và đóng yêu cầu cùng transaction; không thu COD mới/không giảm COD cũ. D9. |
+| R5 / NV, KH | Shipper giao lại thất bại | T=`in_transit`; lý do hợp lệ | ĐX T → `manager_action_required`; R → `manager_action_required` | Không đóng request; lựa chọn thay thế T=`failed`, R=`redelivery_failed` cũng có enum, chưa được Sơn chốt D9. Không tự tạo lần tiếp theo. |
+| R6 / KH | Shipper báo bàn giao sau thất bại; manager nhận | R5 đã xảy ra; có hàng thực tế | Báo: giữ nguyên trạng thái; nhận: ĐX T → `returned_to_store`, R giữ `manager_action_required` | Không hoàn tất kết quả từ chối; không tự restock. Manager quyết định xử lý/giao lại; D2, D9. |
+
+### Ngoại lệ và quyết định cần phối hợp
+
+R6 ở bảng tổng quan phải tách thành hai chuyển độc lập (ĐX, D2/D9):
+
+| ID | Actor và tiền điều kiện | Chuyển trạng thái | Tác dụng phụ |
+| --- | --- | --- | --- |
+| R6a | Shipper đang giữ hàng; đã R5; bàn giao thực tế | T/R giữ `manager_action_required` theo mapping đề xuất R5 | Chỉ ghi report event/giờ server; không receipt, không restock. |
+| R6b | Manager; có hàng thực tế, đối chiếu custody và số lượng sau R5 | T → `returned_to_store`; R giữ `manager_action_required` | Ghi receipt độc lập; kiểm tra/xử lý tiếp theo D9, không tự đóng yêu cầu. Report không đủ để chứng minh receipt. |
+
+Quy tắc trường lifecycle đề xuất áp dụng cho tất cả bảng trên (cần owner
+xác nhận cùng D1/D2/D8/D9): tạo pending để `assigned_*`, `accepted_at`,
+`started_at`, `completed_at` rỗng; phân công ghi `assigned_*`; đổi người
+trước custody ghi đè `assigned_at` bằng giờ phân công mới, lịch sử cũ phải
+được lưu riêng theo D2. `accepted_at` chỉ ghi một lần tại thực nhận;
+`started_at` chỉ ghi một lần tại start. `delivered`, `failed`, `cancelled`
+ghi `completed_at` khi có kết quả; `failed` ghi `failure_reason`, `cancelled`
+ghi `cancel_reason` không rỗng. Không dùng `completed_at` làm receipt:
+task `failed` về `returned_to_store` giữ giờ kết quả thất bại, receipt có
+mốc riêng D2. Pickup từ `in_transit` về `returned_to_store` ghi `completed_at`
+tại receipt. `manager_action_required` chưa là hoàn tất nên giữ
+`completed_at` rỗng và ghi lý do trong event; nếu R6b kết thúc task thì ghi
+`completed_at` tại receipt. Các lý do đã ghi không bị xóa bởi bàn giao/retry.
+Không có mốc inspection trên task hiện tại; D2 phải chốt cách lưu riêng.
+
+Không có chuyển trạng thái ngầm ngoài các hàng trên. Với pickup/redelivery,
+đổi người khi T=`assigned` và chưa custody có thể dùng quy tắc O2; hủy trước
+nhận, thu hồi phân công, đổi người sau nhận, phục hồi `manager_action_required`
+và tình huống thiếu/hỏng/mất không được tự áp quy tắc outbound. Giữ nguyên
+dữ liệu, báo manager và chờ hợp đồng tương ứng; không mở quyền RLS để đi vòng.
+
+| Mã | Cần người sở hữu | Quyết định chưa có xác nhận / điều kiện mở tích hợp |
+| --- | --- | --- |
+| D1 | Bảo + Minh Đức | Xác nhận O1–O4/O12: thời điểm `awaiting_pickup`, ý nghĩa thực nhận của `accepted_at`, mốc chặn hủy, precondition/khóa chung; có cần mốc nhận việc riêng hay không. |
+| D2 | Bảo, Sơn + Minh Đức | Cách lưu receipt, inspection, custody, handover event, payload chống trùng, lịch sử shipper cũ/mới và bằng chứng thực nhận; DB chưa có mốc/payload chuyên biệt. Không coi report của shipper là receipt của manager. |
+| D3 | Bảo + Minh Đức | Lần 2 giữ hàng ở shipper cũ, chuyển trực tiếp hay bắt buộc qua cửa hàng; ai xác nhận giao/nhận và khi nào được đổi người. Chặn tự động đổi sau custody khi chưa chốt. |
+| D4 | Văn Đức + Bảo/Sơn | Dispatch tại O3, hợp đồng tồn/idempotency, khóa đồng nhất; cách ghi nhận hàng lần 2/redelivery không xuất hai lần; receipt khác inspection và chỉ restock lượng đạt. |
+| D5 | Bảo | Xác nhận O8/O11, cách lưu nhận trước kiểm tra, hàng thiếu/hỏng/mất và khi nào O kết thúc; hủy task 2 đã tạo nhưng chưa bắt đầu không làm mất custody. |
+| D6 | Bảo, Sơn + Minh Đức | Sự cố trước/sau start, hủy sau thực nhận, task đang đi bị gián đoạn: có được ghi result `failed` hay cần chờ manager; không giả lập kết quả khách từ chối để lấp chỗ trống. Count đã start không giảm. |
+| D7 | Bảo | Event/recipient/thời điểm thông báo ở từng hàng, mở deep link kiểm tra lại quyền; không nhúng dữ liệu riêng tư. |
+| D8 | Sơn + Minh Đức; Văn Đức cho phần tồn | Chốt P1–P7: hàng/số lượng thực nhận, thiếu/sai món, start riêng hay gộp nhận hàng, pickup thất bại/hẹn lại, receipt/inspection, đổi người/hủy trước nhận và cách giữ custody. Không bắt khách trả món chưa nhận. |
+| D9 | Sơn + Minh Đức | Chốt R1–R6, đặc biệt R5 dùng `redelivery_failed` hay `manager_action_required`, task nào giữ active và cách manager mở lại/đóng task cũ trước tạo task mới; không tự đóng request khi thất bại. |
+| D10 | Nhóm / người giữ báo cáo | Cung cấp báo cáo v3.0 và file đính kèm còn thiếu để kiểm tra trực tiếp quy tắc/mã NT; không ghi nhận stakeholder agreement chỉ từ kế hoạch. |
+
+Lưu ý DB: unique active outbound chỉ bao gồm `pending_assignment`, `assigned`,
+`accepted`, `in_transit`; unique active return còn bao gồm
+`manager_action_required`. `failed` không giữ slot active, nên DB có thể cho
+tạo task mới dù custody cũ chưa giải quyết. R5 theo đề xuất giữ slot return;
+API tương lai phải chặn tạo mới đến khi manager xử lý và kết thúc task cũ.
+Constraint không tự bảo vệ thứ tự chuyển trạng thái hoặc lịch sử bàn giao.
+
+P00.1 đã có bảng đặc tả để review; **chưa là hợp đồng được các owner thống
+nhất** và chưa xác minh trực tiếp báo cáo gốc. Không đánh dấu Phase 0 tổng
+thể hoặc tích hợp live hoàn tất. Các phase API, migration, UI, map và test
+runtime nằm ngoài thay đổi tài liệu này.
+
 ## COD
 
 cod_collections.status tách khỏi trạng thái đơn:
