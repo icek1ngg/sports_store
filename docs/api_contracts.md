@@ -492,3 +492,68 @@ thêm tests và chạy lại các kiểm tra trên. Lượt review độc lập 
 thực hiện được vì reviewer bị giới hạn usage; không ghi là đã re-review sạch.
 Tests repository/provider là SDK thật với transport/session fixture, chưa
 chứng minh kết nối/backend Supabase live.
+
+## P01.3 — Hợp đồng điều hướng nền tảng
+
+Router duy nhất tại `lib/app/router/app_router.dart` đăng ký bốn route trong
+[screen_mapping.md](screen_mapping.md#p013--route-và-khung-điều-hướng-đã-tích-hợp).
+Không thêm RPC, migration, quyền RLS, dependency hoặc client Supabase.
+Guard dùng OperationalReadAccess của P01.2 để kiểm tra phiên và profiles.role;
+route task gọi DeliveryRepository.getTask với UUID chính xác, route COD có
+orderId gọi CodRepository.listCollections với bộ lọc đó. Đây là read contracts
+hiện có của P01.1/P01.2, không phải API ghi đã triển khai.
+
+`notificationRouteBuilderProvider` là điểm tích hợp WidgetBuilder tùy chọn
+của Bảo cho `/notifications`. Giá trị null hiển thị thông báo chưa tích hợp;
+không thay thế MH17 hoặc xác nhận quyền mở các business link bên trong MH17.
+Các link đó vẫn phải qua guard route đích và backend RLS.
+
+Guard gắn quyết định với URI đầy đủ và session epoch, bỏ kết quả async cũ,
+recheck khi navigation/pop/refresh phiên. Đổi user ID hủy navigation được bảo
+vệ về `/`; refresh cùng user kiểm tra lại quyền. Redirect chỉ dùng `/`, không
+tin query redirect/from. Invalid UUID không gọi read API. Lỗi backend không
+mở outlet hoặc trả fixture. Lifecycle cache/subscription tiếp tục theo P01.2.
+
+Dung An chưa cung cấp auth UI/guard/shell trong checkout hiện tại; adapter
+guard này không giả định route login hoặc home role. MH17, business screens
+và map provider vẫn chưa tích hợp. Các route pages chỉ là outlet ghi rõ tình
+trạng, không phải màn nghiệp vụ hoàn chỉnh. Không có thay đổi schema/API ghi
+hoặc tuyên bố kết nối Supabase live trong phase này.
+
+Tệp thuộc thay đổi P01.3 (các diff P00/P01.1/P01.2 có sẵn được giữ nguyên):
+
+```text
+lib/app/router/app_router.dart
+lib/app/router/operational_route_guard.dart
+lib/app/shells/shipper_shell.dart
+lib/features/deliveries/data/repositories/operational_read_access.dart
+lib/features/deliveries/presentation/pages/delivery_route_pages.dart
+lib/features/cod/presentation/pages/cod_route_page.dart
+test/app/router/operational_navigation_test.dart
+docs/screen_mapping.md
+docs/api_contracts.md
+```
+
+OperationalReadAccess chỉ thêm getter epoch read-only cho guard; không thêm
+auth client/listener độc lập. Kiểm thử điều hướng dùng Supabase SDK thật với
+transport/session fixture được ghi rõ, không chứng minh backend live.
+
+Kiểm tra P01.3 ngày 23/10/2026:
+
+- `dart format --output=none --set-exit-if-changed lib/app/router lib/app/shells lib/features/deliveries/presentation/pages lib/features/cod/presentation/pages lib/features/deliveries/data/repositories/operational_read_access.dart test/app/router`:
+  7 files, 0 changed.
+- `flutter analyze --no-pub`: No issues found.
+- `flutter test --no-pub test/app/router/operational_navigation_test.dart --timeout 20s`:
+  14 tests passed; role/UUID/deep link, COD filter, map scope, safe redirect,
+  lỗi network, slot MH17, pop sau thu hồi quyền, refresh role, A→B và late response.
+- `flutter test --no-pub`: 65 tests passed.
+- `flutter build web --no-pub`: Built build/web; Wasm dry run succeeded.
+  Warning CupertinoIcons font thiếu vẫn có như P01.2, không thêm dependency.
+- `git diff --check`: PASS.
+
+Lượt chạy test ban đầu lỗi/hang ở fixture async và kỳ vọng sai rằng `/cod`
+không filter phải fetch collections. Đã sửa setup/disposal với tester.runAsync
+và kỳ vọng chỉ role check; các kết quả đạt ở trên là sau sửa. Review độc lập
+source và ba regression pop/refresh/account switch không còn blocker.
+P01.3 hoàn tất phần foundation trong repository; nghiệm thu tích hợp live còn
+chặn bởi auth UI/guard cuối cùng của Dung An, MH17 của Bảo và backend live.

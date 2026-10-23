@@ -142,3 +142,44 @@ không hiện previous data khi provider đang tải lại hoặc session đổi
 provider này chỉ tải dữ liệu, không có nút/action accept/start/fail/complete/
 confirm COD trong phase này. Chi tiết model/null/source và API thật xem
 mục P01.2 trong [api_contracts.md](api_contracts.md).
+
+## P01.3 — Route và khung điều hướng đã tích hợp
+
+Đây là trạng thái hiện hành của router trong repository sau P01.3. Dùng duy
+nhất appRouterProvider/GoRouter trong `lib/app/router/app_router.dart`, theme
+hiện có và client/provider Supabase hiện có. Chưa có guard/shell auth của
+Dung An trong repo trước phase này, nên guard chung nối trực tiếp lifecycle
+P01.2 và profiles.role server; không dựng MH01/MH02 hay router auth thứ hai.
+
+| Màn / route đã đăng ký | Quyền và recheck | Trạng thái giao diện |
+| --- | --- | --- |
+| MH10 `/shipper/tasks` | Chỉ shipper, role đọc từ profiles qua OperationalReadAccess | Outlet nền tảng, chưa triển khai danh sách/tìm/lọc nhiệm vụ |
+| MH11 `/shipper/tasks/:taskId` | UUID hợp lệ, DeliveryRepository.getTask đọc đúng task qua P01.1/RLS; ID ngoài quyền hoặc task đổi người về `/` | Outlet chi tiết; history/restricted chỉ có quyền projection tối thiểu, không tự mở item/PII |
+| MH18 `/shipper/tasks/:taskId/map` | UUID + cùng quyền task; chỉ snapshot_scope=current và destination có dữ liệu | Outlet bản đồ, chưa có provider map; điểm đến đã lưu, không bắt buộc pin cửa hàng |
+| MH12 `/cod`, tùy chọn `?orderId=UUID` | Manager/shipper; nếu có orderId phải đọc được khoản COD đúng scope bằng CodRepository; rỗng/ngoài quyền về `/` | Outlet COD, chưa bảng tiền/đối soát hoặc thao tác xác nhận |
+| MH17 `/notifications` | Authenticated với role customer/manager/shipper, recheck profile khi vào | Slot notificationRouteBuilderProvider để Bảo tích hợp; mặc định ghi rõ chưa tích hợp, không mô phỏng nội dung thông báo |
+
+Một ShipperShell chung trong `lib/app/shells` có hai đích Nhiệm vụ/COD, dùng
+theme hiện tại. Manager vào COD không có tab chỉ dành cho shipper. Nút
+Thông báo giữ link `/notifications`; không tạo thêm mã màn hình. Child outlet
+của feature không tự dựng Scaffold/theme/client hoặc tải dữ liệu nghiệp vụ.
+
+Task UUID và query orderId được kiểm tra trước gọi backend; orderId lặp/không
+hợp lệ hoặc encoding không hợp lệ hiện trạng thái lỗi đầu vào, không mở
+outlet nghiệp vụ. Không truyền địa chỉ/contact/token qua URL. Không dùng
+`from`, `redirect`, URL tuyệt đối hoặc dữ liệu query làm đích redirect.
+Mất phiên/không đủ role/mất quyền task chỉ redirect về hằng local `/`.
+Chưa redirect `/login` hoặc home role vì màn/route đó chưa có hợp đồng live.
+
+Guard chạy lại theo navigation, refresh auth và sau imperative pop/back.
+Backend timeout/lỗi/quyền chưa xác định đóng outlet và hiện lỗi/thử lại,
+không chuyển sang fixture/demo. Khi user ID đổi (cả shipper A → shipper B),
+protected navigator bị đưa về `/`; token refresh cùng user recheck URL hiện
+tại. Boundary không render child nếu epoch không khớp. Providers P01.2 bỏ
+cache user cũ; auth listener được giữ để theo dõi đăng nhập tiếp theo và
+hủy khi router/container dispose. Chưa có Realtime subscription để giữ lại.
+
+Auth UI của Dung An, nội dung MH17 của Bảo, business UI MH10/MH11/MH12,
+map provider MH18 và backend live vẫn là dependency chưa nghiệm thu. Các
+outlet nền tảng không được báo là bốn màn hoàn chỉnh. API ghi/RLS/migration
+và dependency không đổi trong P01.3.

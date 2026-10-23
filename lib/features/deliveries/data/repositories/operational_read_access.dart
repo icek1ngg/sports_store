@@ -65,6 +65,9 @@ class OperationalReadAccess {
   int _generation = 0;
   bool _disposed = false;
 
+  /// Read-only epoch used by navigation to reject superseded authorizations.
+  OperationalSession get currentSession => _state;
+
   OperationalSession _fromSession(
     Session? session, {
     OperationalFailure? failure,
