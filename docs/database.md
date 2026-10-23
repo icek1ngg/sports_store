@@ -443,3 +443,26 @@ vẫn không phản hồi khi thử dừng container thử `sports_store_p011_te
 cleanup CLI đã được hủy sau timeout, không dừng/xóa container hoặc volume của
 dự án khác. Khi Docker phục hồi có thể dừng đúng container thử này; không
 dùng `db reset --linked` hoặc cleanup diện rộng.
+
+## P01.2 — Dart read adapters và giới hạn tích hợp
+
+P01.2 không thay schema/migration/RLS. Delivery adapter dùng hai read RPC
+P01.1 đã có trong repository; COD adapter dùng SELECT cột tường minh trên
+cod_collections theo RLS hiện có, không giả định RPC COD đã tồn tại.
+Model chỉ chứa snapshot/task/item/COD và UUID tham chiếu, không sao chép Order
+hoặc return request chứa thông tin ngân hàng/bằng chứng.
+
+Models/DTO/repository/provider và chi tiết retry/session được ghi ở mục
+P01.2 của [api_contracts.md](api_contracts.md). Model money dùng int VND,
+timestamp UTC; DTO từ chối tiền vượt integer chính xác trên Flutter web,
+không chuyển sang double hoặc thay đơn vị tiền. Pagination client dùng
+keyset với filter/order/limit có sẵn, không thêm API ghi hay snapshot version
+chưa có; đọc nhiều trang vẫn không là transaction snapshot bất biến.
+
+Kiểm chứng Dart dùng transport MockClient + session/JWT **fixture chỉ trong
+test**, không truy cập cloud hoặc tự báo backend thành công. Các adapter
+production không import fixture và không có demo fallback. Live integration
+vẫn cần xác nhận P01.1 đã áp dụng trên môi trường đích và chạy Auth/RLS thật;
+redelivery item plan còn phụ thuộc Sơn (itemsAvailable=false), note/ảnh/
+version và các API ghi chưa thuộc phase này. Không chạy lại SQL migration
+hoặc thay fixture SQL của P01.1 trong P01.2.

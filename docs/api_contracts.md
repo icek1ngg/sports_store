@@ -355,3 +355,140 @@ plan redelivery: task current trả item_source=`unavailable_redelivery_plan`;
 live item integration với Sơn còn bị chặn. Note/ảnh/custody/version không được
 bịa. Số COD đọc nguyên task.amount_to_collect_vnd; đối chiếu tổng đơn và quyền
 ghi vẫn thuộc phase transaction sau, chưa được read layer chứng minh.
+
+## P01.2 — Models, repositories và providers đọc
+
+Code Dart trong phase này chỉ đọc; không thêm RPC, migration, policy, UI hay
+route. Không có model Order dùng riêng cho shipper; deliveries/COD giữ UUID
+tham chiếu và projection của feature sở hữu. Auth/role/router của Dung An
+chưa có implementation nghiệp vụ; providers dưới đây dùng client chung và
+profiles.role hiện có, không tự tạo hệ thống đăng nhập/điều hướng khác.
+
+| Interface/provider trong repo | Hành vi đã triển khai |
+| --- | --- |
+| `DeliveryRepository.listTasks()` | Gọi đúng `read_my_delivery_tasks`, order task_id, limit 200 dòng/trang và seek task_id lớn hơn ID cuối trang trước; trả immutable list, kiểm tra duplicate ID; không dùng RPC list/filter/count đề xuất P00.2. |
+| `DeliveryRepository.getTask(String taskId)` | Validate UUID, gọi read_my_delivery_tasks(p_task_id); 0 row → staleAssignment (bao gồm ID không có quyền), nhiều row/sai ID → invalidData. Không suy đoán task có tồn tại. |
+| `DeliveryRepository.getTaskDetails(String taskId)` | Trả DeliveryTaskDetails gồm task + immutable items và itemsAvailable. Source unavailable/history/restricted không gọi item RPC. Current outbound/pickup gọi read_my_delivery_task_items theo đúng task ID và seek item_id, limit 200; đọc lại task trước publish, thay đổi snapshot/quyền → staleAssignment. Hai RPC vẫn không là một transaction snapshot backend. |
+| `CodRepository.listCollections({String? shipperId,String? orderId})` | SupabaseCodRepository đọc projection cột tường minh từ cod_collections, không gọi RPC COD chưa có. Chỉ manager/shipper; shipper luôn filter ID session và cấm filter shipper khác. Manager được filter shipper/order. Sort created_at DESC, order_id DESC, seek theo tuple (created_at,order_id) nhỏ hơn cursor, limit 200 dòng, phát hiện trùng order ID. Không có confirm receipt hoặc tính bù trừ refund. |
+| `deliveryRepositoryProvider`, `codRepositoryProvider` | Inject real Supabase repositories qua operationalReadAccessProvider và supabaseClientProvider hiện có. Không chọn demo adapter tự động. |
+| `deliveryTasksProvider`, `deliveryTaskDetailsProvider(taskId)` | AsyncValue loading/error/data; empty list là empty thật từ API, không phải fallback khi lỗi. Details masked giữ destination null, không gọi lại orders để bù dữ liệu. |
+| `codCollectionsProvider`, `filteredCodCollectionsProvider((shipperId:...,orderId:...))` | AsyncValue riêng theo filter/account epoch. Tổng nợ một khoản qua CodCollection.outstandingAmountVnd chỉ khác 0 khi collected, không cộng uncollected/received. Chưa có màn/tổng tài chính hoặc contract server aggregate. |
+
+Domain models thuần Dart: DeliveryTaskSnapshot/DeliveryDestination/
+DeliveryTaskItem/DeliveryTaskDetails và CodCollection; enum có wire value
+khớp DB. DTO từ chối enum/scope/source lạ, kiểu sai, PII xuất hiện trong
+projection masked, amount/quantity không nguyên hoặc âm, integer vượt
+9.007.199.254.740.991 (giới hạn chính xác Flutter web). Nhận integer string
+lossless nhưng không nhận double cho VND. Timestamp phải có timezone và ngày/
+giờ thực sự hợp lệ, normalize UTC; lifecycle nullable giữ null theo schema,
+không bịa thời điểm. Attributes JSON được copy/freeze để tránh sửa snapshot.
+
+`OperationalFailure` là hợp đồng lỗi đọc dùng chung do deliveries sở hữu,
+COD tái sử dụng; không phụ thuộc View/ViewModel. Mã gồm sessionExpired,
+permissionDenied, staleAssignment, invalidData, network, backendUnavailable,
+unexpected; message tiếng Việt cố định, không nhúng raw payload/token/địa chỉ.
+Auth/JWT hết hạn map sessionExpired, 42501 map permissionDenied, thiếu RPC
+P01.1 map backendUnavailable, ClientException/timeout map network. Không
+đổi lỗi API thành list rỗng hoặc thành công demo. Các lỗi khác không đoán
+thành “chưa có dữ liệu”.
+
+### Session/account cleanup và retry
+
+`OperationalReadAccess` cùng Riverpod infrastructure nằm trong
+`deliveries/data/repositories`; COD chỉ dùng hợp đồng này. Không sửa core
+auth của Dung An. Mỗi read kiểm tra session còn hạn, đọc profiles.role theo
+user ID từ server, kiểm tra lại user/token/generation sau await và từng
+page. Token chỉ dùng so sánh nội bộ, không nằm trong model public/log.
+Chuyển A → B → A vẫn làm response A trước đó vô hiệu. SDK replay sự kiện
+ban đầu trùng session được bỏ qua để không hủy lượt đọc đầu tiên; các sự
+kiện auth tiếp theo tạo epoch mới, kể cả refresh cùng user.
+
+Providers dùng family key chứa object epoch, autoDispose scope cũ và trả
+AsyncLoading/AsyncError mới không kèm previous data khi reload/error. Logout,
+switch account, lỗi auth stream hoặc expiry timer xóa khả năng đọc dữ liệu
+cũ; network error trên auth stream được đưa thành typed error thay vì lỗi
+zone chưa xử lý. Dispose hủy listener/timer riêng, không dispose client chung.
+Không có subscription Realtime trong phase này. Role không lấy từ metadata
+hoặc cache JWT; role bị đổi phía server được kiểm tra lại ở mỗi read, backend
+vẫn là nơi enforce quyền hiện thời.
+
+UI/ViewModel tương lai có thể gọi
+`ref.read(operationalReadAccessProvider).refreshSession()` để retry/refresh cả
+hai feature, tạo epoch mới và đọc lại role. `refreshOperationalReads(Ref)` là
+helper tương đương cho code provider. Riverpod automatic retry và SDK retry
+trong read adapters được tắt để lỗi quyền/API không bị che bởi retry ngầm;
+read timeout mặc định 20 giây. HTTP đang chạy có thể hoàn tất sau timeout/
+dispose nhưng kết quả cũ không được publish; chưa có cơ chế hủy network riêng.
+
+Paging keyset client chỉ dùng filter/order/limit trên API hiện có và max_rows=1000 trong config repo; đây
+không là cursor/count contract P00.2 hoặc snapshot nhiều trang cố định. Nếu
+phân công hoặc item thay đổi giữa trang vẫn cần refresh để có lượt đọc mới; keyset tránh bỏ sót row còn tồn tại chỉ vì trang trước bị xóa/chèn, nhưng không bảo đảm atomic snapshot. Duplicate ID bị từ chối,
+không báo một tổng server chưa được chứng minh. Item redelivery vẫn có
+itemsAvailable=false, chờ plan của Sơn; note/ảnh/version còn thiếu vẫn không
+được tự tạo. Remote cần áp dụng P01.1 trước khi dùng read repositories;
+không có xác nhận kết nối Supabase live trong tests transport giả lập.
+
+Tài liệu SDK đã đối chiếu cùng source package được khóa:
+[Supabase Flutter auth events](https://supabase.com/docs/reference/dart/auth-onauthstatechange).
+Không thêm một Supabase client/theme/router độc lập. `http` 1.6.0 chỉ chuyển
+từ transitive sang direct dependency để phân loại ClientException và dùng
+MockClient trong tests; không nâng phiên bản package.
+
+### Tệp bàn giao P01.2
+
+Các tệp Dart mới (không tính tệp từ P00.x/P01.1 đã có trong worktree):
+
+```text
+lib/features/deliveries/domain/models/delivery_task.dart
+lib/features/deliveries/domain/models/delivery_task_item.dart
+lib/features/deliveries/domain/models/delivery_task_details.dart
+lib/features/deliveries/domain/models/operational_failure.dart
+lib/features/deliveries/domain/repositories/delivery_repository.dart
+lib/features/deliveries/data/models/dto_readers.dart
+lib/features/deliveries/data/models/delivery_task_dto.dart
+lib/features/deliveries/data/models/delivery_task_item_dto.dart
+lib/features/deliveries/data/repositories/operational_read_access.dart
+lib/features/deliveries/data/repositories/operational_providers.dart
+lib/features/deliveries/data/repositories/supabase_delivery_repository.dart
+lib/features/deliveries/presentation/view_models/delivery_providers.dart
+lib/features/cod/domain/models/cod_collection.dart
+lib/features/cod/domain/repositories/cod_repository.dart
+lib/features/cod/data/models/cod_collection_dto.dart
+lib/features/cod/data/repositories/supabase_cod_repository.dart
+lib/features/cod/presentation/view_models/cod_providers.dart
+test/features/deliveries/delivery_mapper_test.dart
+test/features/deliveries/delivery_repository_test.dart
+test/features/deliveries/delivery_provider_test.dart
+test/features/deliveries/fixtures/delivery_dtos.dart
+test/features/cod/cod_mapper_test.dart
+test/features/cod/cod_repository_test.dart
+test/features/cod/cod_provider_test.dart
+test/features/support/operational_supabase_fixture.dart
+```
+
+Tệp chỉnh sửa trong phase: pubspec.yaml/pubspec.lock (http direct, cùng version),
+docs/api_contracts.md, docs/database.md, docs/screen_mapping.md. Không sửa
+core client, theme, router, business_states.md hoặc migration/SQL tests trong
+phase này; diff cũ của các phase trước được giữ nguyên.
+
+Kiểm tra đã chạy ngày 23/10/2026:
+
+- `flutter pub get`: thành công; chỉ http 1.6.0 từ transitive sang direct.
+- `dart format --output=none --set-exit-if-changed lib/features/deliveries lib/features/cod test/features`:
+  25 file, 0 thay đổi.
+- `flutter analyze --no-pub`: No issues found.
+- `flutter test --no-pub`: **51 tests passed**, gồm 44 tests feature mới và
+  7 tests config hiện có; realistic DTO/null/time/money, typed errors,
+  paging mutation, loading/error và account-switch/late response cleanup.
+- `git diff --check`: PASS.
+- `flutter build web --no-pub`: thành công (`Built build/web`, Wasm dry run
+  succeeded). Có warning thiếu font CupertinoIcons; phase này không thêm icon
+  hoặc UI và không thêm package để che warning. Build không chứng minh backend
+  kết nối thành công hoặc bốn màn đã được dựng.
+
+Review độc lập đã phát hiện hai điểm: offset pagination có thể bỏ sót row và
+mapper thiếu kiểm tra tổng dòng. Đã sửa sang keyset và BigInt invariant,
+thêm tests và chạy lại các kiểm tra trên. Lượt review độc lập sau sửa không
+thực hiện được vì reviewer bị giới hạn usage; không ghi là đã re-review sạch.
+Tests repository/provider là SDK thật với transport/session fixture, chưa
+chứng minh kết nối/backend Supabase live.

@@ -126,3 +126,19 @@ Sơn; source flag báo rõ chưa sẵn sàng, không giả hàng từ toàn bộ
 
 Chi tiết quyền bảng gốc và giới hạn snapshot xem mục P01.1 trong
 [api_contracts.md](api_contracts.md) và [database.md](database.md).
+
+## P01.2 — Providers cho màn hình tương lai
+
+Tại P01.2 đã có domain/DTO/read repository và Riverpod providers, chưa dựng
+màn hình hoặc đăng ký route. MH10 dùng deliveryTasksProvider; MH11 dùng
+deliveryTaskDetailsProvider(taskId); MH18 tương lai dùng destination của
+snapshot current từ chính task đã đọc, không dựng store pin giả.
+MH12 dùng codCollectionsProvider hoặc filteredCodCollectionsProvider với
+filter shipperId/orderId; manager/shipper được kiểm tra qua profiles.role
+trên server ở mỗi lượt đọc.
+
+Consumers xử lý AsyncLoading, AsyncError(OperationalFailure), empty và data;
+không hiện previous data khi provider đang tải lại hoặc session đổi. Các
+provider này chỉ tải dữ liệu, không có nút/action accept/start/fail/complete/
+confirm COD trong phase này. Chi tiết model/null/source và API thật xem
+mục P01.2 trong [api_contracts.md](api_contracts.md).
