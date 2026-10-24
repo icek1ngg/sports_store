@@ -4,6 +4,13 @@ Lưu ý phiên bản: baseline và P00.2 dưới đây ghi hiện trạng trư�
 Lớp đọc task mới và các quyền bị thu hẹp được mô tả tại mục P01.1 cuối file;
 không dùng nhánh shipper của baseline làm quyền truy cập hiện hành sau migration đó.
 
+P02.1 cuối file ghi contract list query đã triển khai trong repository;
+chữ ký list ở mục P00.2 là đề xuất lịch sử, không là chữ ký để client gọi.
+
+P03.1 cuối file ghi contract detail get_my_delivery_task; chữ ký get ở mục
+P00.2 là đề xuất lịch sử. API ghi/allowed_actions/version chưa được triển
+khai chỉ vì có read endpoint.
+
 ## Baseline Data API
 
 Ứng dụng lấy một client duy nhất từ `supabaseClientProvider`. Repository thuộc feature sở hữu dữ liệu thực hiện truy vấn; ViewModel gọi repository. Không dùng secret/service-role key trong Flutter.
@@ -557,3 +564,540 @@ và kỳ vọng chỉ role check; các kết quả đạt ở trên là sau sử
 source và ba regression pop/refresh/account switch không còn blocker.
 P01.3 hoàn tất phần foundation trong repository; nghiệm thu tích hợp live còn
 chặn bởi auth UI/guard cuối cùng của Dung An, MH17 của Bảo và backend live.
+
+## P02.1 — Task-list query API của MH10
+
+Contract thực thi dưới đây thay chữ ký list đề xuất ở P00.2; các write RPC,
+history archive S4 và API màn khác vẫn chưa được triển khai bởi phase này.
+Không có xác nhận stakeholder bổ sung đối với D1–D10. Không dựng UI MH10.
+
+```text
+list_my_delivery_tasks(
+  p_kind delivery_task_kind DEFAULT NULL,
+  p_state_group text DEFAULT NULL,
+  p_query text DEFAULT NULL,
+  p_limit integer DEFAULT 20,
+  p_cursor text DEFAULT NULL
+) -> jsonb {
+  items: TaskSnapshot[],
+  next_cursor: string | null,
+  filtered_total: integer,
+  counts: {waiting: integer, in_transit: integer,
+           completed: integer, ungrouped: integer},
+  as_of: timestamptz
+}
+```
+
+TaskSnapshot là đúng projection P01.1, không trả nguyên orders/returns hoặc
+thêm PII cho history. Caller phải authenticated và profiles.role=shipper do
+server quản lý; auth.uid quyết định scope. Không có tham số shipper/customer
+ID; role manager/customer không được đọc danh sách shipper bằng RPC này.
+Đổi assignment thu hồi row người cũ ngay ở lần đọc tiếp theo, kể cả history.
+Không hứa cho người từng được phân công đọc archive bất biến chưa tồn tại.
+
+| Tham số / kết quả | Quy tắc |
+| --- | --- |
+| p_kind | NULL là mọi kind; còn lại một enum thật outbound/return_pickup/redelivery. |
+| p_state_group | NULL/rỗng sau chuẩn hóa là Tất cả; lowercase và trim ASCII whitespace; chỉ waiting/in_transit/completed; mapping xem business_states.md, không dùng nhánh else=Completed. |
+| p_query | NULL/rỗng sau trim ASCII whitespace (HT/LF/VT/FF/CR/SPACE) là không search; literal substring không phân biệt hoa/thường, tối đa 200 Unicode codepoints sau chuẩn hóa. `%`/`_` không là wildcard. Chỉ so khớp order_id::text và destination_name **đã được projection cho phép**, không tìm hidden fields. |
+| Mã đơn | DB chưa có order_code; UUID đơn là display reference đã ghi tại P00.2. Mã dễ đọc/short code vẫn cần Bảo chốt schema/snapshot, không tự bịa DH001 hoặc đọc orders. UUID/tên đã mask không có quyền search/count oracle. |
+| p_limit | Integer 1..100, mặc định 20; không lấy tất cả về Flutter để lọc. |
+| p_cursor | NULL là trang đầu; token opaque tối đa 4096 ký tự, không có ASCII whitespace ở đầu/cuối, có version/tuple sort/fingerprint của caller/filter chuẩn hóa. Token khác user/kind/group/query hoặc sai cấu trúc bị từ chối. Không là chữ ký hay chứng cứ quyền; mỗi request đều recheck RLS. |
+| items | Scope P01.1 current/restricted/history còn assigned đúng caller; lọc kind/search/group trước limit. |
+| counts | Toàn tập có quyền sau kind/search, **trước** group/cursor/limit. Tổng bốn count là kích thước tập search/kind; khác filtered_total khi chọn group. |
+| filtered_total | Toàn tập sau kind/search/group, **trước** cursor/limit; page rỗng vẫn có total nếu cursor đã đi hết. |
+| next_cursor | Chỉ có nếu còn row sau trang hiện tại; client không parse token. |
+| as_of | Giờ server của request, không phải khóa snapshot cho request tiếp theo. |
+
+Sort `(created_at,task_id)` giảm dần; task UUID là tie-breaker. created_at chỉ
+là sort metadata nội bộ từ delivery_tasks đã chịu cùng RLS, không bổ sung
+vào item DTO. Data/count/page lấy trong cùng snapshot SQL. Không row lock,
+không ghi dữ liệu/notification, không request_id. Retry là lượt đọc mới có
+thể khác; thay đổi trạng thái/phân công giữa trang thì refresh từ trang đầu.
+Keyset tránh lỗi offset khi row trước bị xóa, không bảo đảm tập bất biến
+xuyên request hoặc phục hồi quyền cũ.
+
+Lỗi SQL: `42501` khi thiếu phiên/không phải shipper; `22023` cho input/cursor
+không hợp lệ; enum/UUID do PostgreSQL parse có thể trả `22P02`. Adapter dùng
+OperationalFailure: permissionDenied/invalidData tương ứng; lỗi thiếu RPC
+là backendUnavailable, network giữ network. Không tự trả empty/success sau
+lỗi API; không tự retry hay đổi cursor lỗi về trang đầu.
+
+Read-only owner dùng lại sports_store_delivery_reader NOBYPASSRLS của P01.1;
+không đổi policy/grant đọc bảng hoặc cấp quyền orders/return_requests.
+SECURITY DEFINER chỉ cung cấp quyền cột/projection đã có, search_path rỗng,
+EXECUTE chỉ authenticated, không PUBLIC/anon/service_role. Xem migration và
+kết quả kiểm chứng tại database.md.
+
+Dart API thêm `DeliveryRepository.queryTasks(DeliveryTaskQuery)` trả
+DeliveryTaskPage/DeliveryTaskCounts bất biến; DTO kiểm tra page size, cursor,
+total/count và item kind/state/scope, normalize timestamp UTC, giữ kiểm tra
+tiền/snapshot P01.2. Một lượt gọi list RPC cho một page, không tải toàn bộ về
+lọc; profile-role precheck của OperationalReadAccess vẫn có request riêng,
+backend vẫn enforce quyền. `22023` được map invalidData trong mapper lỗi dùng
+chung. Session epoch được kiểm tra trước/sau await; response user cũ bị loại.
+
+`listTasks()` và deliveryTasksProvider cũ giữ nguyên để không tự nối UI ở
+P02.1; phase MH10 UI sau phải dùng queryTasks cho filter/search/count/paging,
+không lấy listTasks rồi tính counts cục bộ. Không thêm provider UI mới,
+realtime, dependency hoặc thay core client/router/theme/COD trong phase này.
+
+### Bàn giao và kiểm chứng P02.1
+
+Tệp thêm/sửa trong phase (không gồm outputs/ có sẵn):
+
+```text
+supabase/migrations/20261023153729_list_my_delivery_tasks.sql
+supabase/tests/delivery_task_list.sql
+supabase/tests/run_delivery_read_fixture.mjs
+lib/features/deliveries/domain/models/delivery_task_query.dart
+lib/features/deliveries/domain/repositories/delivery_repository.dart
+lib/features/deliveries/data/models/delivery_task_page_dto.dart
+lib/features/deliveries/data/repositories/supabase_delivery_repository.dart
+lib/features/deliveries/data/repositories/operational_read_access.dart
+test/features/deliveries/delivery_task_query_test.dart
+test/features/deliveries/delivery_provider_test.dart
+docs/api_contracts.md
+docs/database.md
+docs/business_states.md
+docs/screen_mapping.md
+```
+
+Provider test fixture cũ chỉ bổ sung method interface chưa dùng, ném lỗi rõ
+ràng nếu gọi; không giả page thành công. Không đổi production provider sang
+query mới ở phase API này.
+
+Lệnh và kết quả cuối ngày 23/10/2026:
+
+- `npx --yes supabase@2.119.0 migration new list_my_delivery_tasks`: tạo file
+  migration thật như danh sách trên; không chạy push/reset cloud.
+- `node supabase/tests/run_delivery_read_fixture.mjs p011_p021_final9`:
+  áp dụng đủ 5 migration vào database cô lập mới, PostgreSQL 17.10;
+  database_security.sql, delivery_read_security.sql, delivery_task_list.sql
+  đều PASS + ROLLBACK; xác nhận không còn Auth user/order/task/Storage object
+  fixture. Đây là SQL Auth/Storage stub, chưa phải Supabase/PostgREST live.
+- `dart format --output=none --set-exit-if-changed lib/features/deliveries test/features/deliveries`:
+  20 files, 0 changed.
+- `flutter analyze --no-pub`: No issues found.
+- `flutter test --no-pub test/features/deliveries/delivery_task_query_test.dart --timeout 20s`:
+  11 tests passed.
+- `flutter test --no-pub`: 75 tests passed.
+- `node --check supabase/tests/run_delivery_read_fixture.mjs`: PASS.
+- `git diff --check`: PASS.
+
+SQL coverage: hai shipper, đổi assignment, mọi kind/status và nhóm tường
+minh; recipient/UUID/literal wildcard search, hidden-history non-oracle,
+counts trước group/page, sort hòa timestamp, duyệt hết các trang không bỏ
+sót/trùng, empty, cursor sai/null/cross-filter/cross-user, role/ACL denial.
+Repository tests bao phủ query/DTO, counts lớn hơn page, empty đầu/cuối,
+page/cursor invariant, typed permission/invalid/network và late account response.
+
+Review đã dẫn đến sửa cursor lấy dòng dư gây bỏ sót, counts sai tầng lọc,
+strict cursor validation và page invariant; đã thêm regression và chạy lại
+các lệnh cuối ở trên. Review độc lập sau sửa không còn finding. Không suy ra
+đã deploy hoặc tích hợp UI từ kết quả fixture.
+
+P02.1 hoàn tất phần query/API/repository trong repository. Nghiệm thu live
+còn chờ migration qua workflow nhóm và kiểm tra Supabase Auth/PostgREST/RLS
+thật; mã đơn hiển thị riêng vẫn cần Bảo chốt (hiện dùng UUID theo P00.2).
+Các quyết định custody/assignment archive S2/S4 và item redelivery của Sơn
+không được âm thầm xử lý bởi list query. MH10 UI là phase sau.
+
+## P02.3 — MH10 ViewModel, search/filter/paging/refresh
+
+DeliveryTaskListViewModel dùng trực tiếp DeliveryRepository.queryTasks của
+P02.1, không gọi listTasks rồi lọc/count cục bộ. Search submit-driven bằng
+Enter/nút tìm; kind/state group giữ các filter còn lại và tạo request trang
+đầu. resetFilters là một query nguyên tử ở mức ViewModel, không tuần tự ba
+lượt request có thể ghi đè lựa chọn mới. Không đổi RPC/schema/quyền/state.
+
+State chứa query gốc (cursor NULL), immutable items, nullable counts/total/
+asOf, nextCursor, loading đầu trang/loading thêm, lỗi đầu trang/lỗi thêm.
+Counts chưa có không bị hiển thị thành số 0 giả. Mọi số đếm lấy từ response
+server: counts sau search/kind trước group, filteredTotal sau group, trước
+cursor/limit. Snapshot masked không được ghép lại từ orders/returns; outbound
+amount NULL hiện thông tin bị giới hạn, không bị coi là không có nghĩa vụ COD.
+
+Mỗi filter/refresh tăng request generation và bỏ rows/count/cursor cũ trước
+khi query. Response chậm của filter/request trước bị loại. Load-more dùng
+cursor server; trang mới không được có ID trùng, cursor lặp, count/total
+drift hoặc số lượng lũy kế mâu thuẫn với terminal cursor. Khi phát hiện drift
+thì reset trang đầu giữ filter một lần; nếu tiếp tục gặp drift, đóng dữ liệu
+và báo invalidData, không tự retry vô hạn hoặc giả “đã tải hết”. Snapshot
+xuyên nhiều request vẫn không được đóng băng; refresh là cách đồng bộ lại.
+
+Lỗi network/backend khi load-more giữ các trang cùng query đã tải và cho
+retry tường minh; lỗi session/quyền/stale assignment bỏ rows/count/cursor.
+Lỗi đầu trang/refresh hiện error riêng, không fallback demo hoặc previous
+data. Backend báo sessionExpired cũng xóa query/draft ngay cả khi auth stream
+chưa emit. Auth epoch/loading/error/logout/account switch xóa private cache
+và reset filters; không lưu vào URL/disk. Provider giữ filter trong memory
+khi điều hướng cùng phiên, hủy listener theo lifecycle container hiện có;
+không thêm Supabase client hoặc Realtime subscription.
+
+RefreshIndicator chờ Future của refresh và dùng AlwaysScrollableScrollPhysics
+để kéo được ở empty/error/list ngắn. Nút refresh phục vụ desktop. Mở MH11 bằng
+task UUID qua go_router chung và refresh trang đầu giữ filter khi quay lại;
+nếu guard/navigation tạo lại page thì recheck cache khi vào. Không thêm action
+MH11; fixture trong test chỉ thay read response để kiểm chứng reload.
+
+UI dựa mock HTML người dùng gửi nhưng kế thừa AppTheme/shell hiện có, dùng
+Material icons; không mang dữ liệu mẫu, logo/font từ xa hoặc readiness/ca trực
+không có backend vào app. UUID đơn là mã tham chiếu thật theo P02.1, chưa có
+mã đơn dễ đọc đã được Bảo chốt. Mapping màn và nhóm trạng thái không thay đổi.
+
+Tệp thêm/sửa riêng P02.3 (giữ nguyên các diff P02.1 có sẵn):
+
+```text
+lib/features/deliveries/presentation/pages/delivery_route_pages.dart
+lib/features/deliveries/presentation/pages/delivery_task_list_page.dart
+lib/features/deliveries/presentation/widgets/delivery_task_card.dart
+lib/features/deliveries/presentation/view_models/delivery_task_list_view_model.dart
+test/features/deliveries/delivery_task_list_page_test.dart
+test/features/deliveries/delivery_task_list_view_model_test.dart
+test/app/router/delivery_task_list_navigation_test.dart
+docs/api_contracts.md
+docs/screen_mapping.md
+```
+
+Tài liệu API/lifecycle đối chiếu với SDK đang khóa và tài liệu chính thức:
+[Riverpod refs](https://riverpod.dev/docs/concepts2/refs),
+[go_router navigation](https://pub.dev/documentation/go_router/latest/topics/Navigation-topic.html),
+[Flutter RefreshIndicator](https://api.flutter.dev/flutter/material/RefreshIndicator-class.html).
+
+### Kiểm chứng P02.3 ngày 24/10/2026
+
+- `dart format --output=none --set-exit-if-changed lib/features/deliveries/presentation test/features/deliveries/delivery_task_list_page_test.dart test/features/deliveries/delivery_task_list_view_model_test.dart test/app/router/delivery_task_list_navigation_test.dart`:
+  8 files, 0 changed.
+- `flutter analyze --no-pub`: No issues found.
+- `flutter test --no-pub test/features/deliveries/delivery_task_list_view_model_test.dart --timeout 30s`:
+  12 tests passed, gồm 3 trang thực tế 20+20+1, query/refresh/load-more race,
+  count drift/terminal mismatch và giới hạn reset, stream/RPC expiry cleanup,
+  permission denial và network retry.
+- `flutter test --no-pub test/features/deliveries/delivery_task_list_page_test.dart --timeout 20s`:
+  7 tests passed, gồm controls kết hợp, masked COD, kéo refresh ở empty/error,
+  draft cleanup và viewport 320px/text scale 2 không overflow.
+- `flutter test --no-pub test/app/router/delivery_task_list_navigation_test.dart --dart-define=CAPTURE_MH10=true --timeout 20s`:
+  1 test passed. Dùng Supabase SDK thật với transport/session fixture, router
+  production; response đổi khi quay từ MH11, giữ đủ search/kind/group, đọc lại
+  từ cursor NULL. Không có action ghi giả hay truy cập backend live.
+- `flutter test --no-pub`: 95 tests passed.
+- `flutter build web --no-pub`: Built build/web, Wasm dry run succeeded.
+  Warning font CupertinoIcons đã có từ phase trước vẫn còn; không thêm package
+  để che warning. Build không chứng minh Supabase live hoặc MH11 actions đã có.
+- `git diff --check`: PASS.
+
+Preview tùy chọn trong router test chỉ hoạt động khi CAPTURE_MH10=true và
+MH10_PREVIEW_FONT trỏ font local có sẵn (đã dùng Arial hệ thống Windows để
+kiểm tra); tải font/icon chỉ trong test để tránh font Ahem. Ảnh
+`build/p023_mh10_preview.png` là **fixture UI**, không là ảnh dữ liệu live.
+Đã xem ảnh ở 390x844 và kiểm tra bố cục. Không thêm font/dependency/demo
+adapter vào production. File build/ bị gitignore.
+
+Review độc lập đã dẫn đến sửa premark cursor làm mất trang thứ ba, kiểm tra
+số lượng terminal, cleanup khi backend báo hết phiên và diễn đạt COD bị mask.
+Các fixture phân trang ban đầu không nhất quán tổng đã được sửa về 41 và có
+regression tương ứng; sau sửa review không còn blocker. Không ghi nhận đã
+nghiệm thu Supabase Auth/PostgREST/live hoặc được stakeholder duyệt D1–D10.
+
+P02.3 hoàn tất UI/query controls và kiểm thử trong repository. Tích hợp live
+còn chặn bởi việc áp dụng P01.1/P02.1 trên môi trường đích và kiểm tra tài
+khoản/role thật; mã đơn hiển thị riêng chờ Bảo. MH11 actions vẫn chưa có nên
+reload-after-action chỉ được kiểm chứng bằng thay đổi read response fixture,
+không tuyên bố luồng nghiệp vụ end-to-end hoàn tất. Không thay migrations,
+API signatures, RLS, router, core client, theme hoặc dependencies trong phase.
+
+## P02.2 — Bổ sung nghiệm thu layout/read presentation MH10 (24/10/2026)
+
+P02.2 được đối chiếu sau P02.3 theo yêu cầu người dùng; layout/ViewModel đã
+có trong lượt P02.3, nên tái sử dụng nguyên luồng View → ViewModel → typed
+repository → RPC đọc P02.1. Không khai báo thêm RPC đã tồn tại hoặc tạo
+client/router/provider nghiệp vụ song song. Tham chiếu ma trận màn ở mục
+P02.2 của [screen_mapping.md](screen_mapping.md).
+
+Presentation chỉ dùng DeliveryTaskSnapshot/DeliveryTaskPage có quyền; không
+sao chép Order, không gọi orders/return_requests từ widget. Amount null của
+history/restricted có nghĩa bị giới hạn, không có nghĩa hết nghĩa vụ COD.
+Labels assigned/accepted lần lượt Đã phân công/Đã nhận hàng, không gộp hai
+mốc hoặc triển khai transition. Counts do server tính; chưa tải là unknown.
+
+Nút retry gọi lại read qua ViewModel và vẫn giữ typed error khi backend lỗi;
+không ghi task/COD/attempt/event. Route mở task dùng UUID và backend recheck
+hiện hành, không coi card cũ là bằng chứng quyền. Tìm/lọc/paging P02.3 giữ
+nguyên như phần đã có, không phát triển thêm trong lần nghiệm thu layout.
+
+Tệp riêng được sửa trong lượt P02.2 này:
+
+```text
+lib/features/deliveries/presentation/pages/delivery_route_pages.dart
+test/features/deliveries/delivery_task_list_page_test.dart
+test/app/router/delivery_task_list_navigation_test.dart
+docs/screen_mapping.md
+docs/api_contracts.md
+```
+
+Runtime page/card/ViewModel và theme đen–trắng đã có được dùng lại, không tính
+thành implementation mới của lượt này. Sửa route page chỉ làm rõ comment đã
+hết là outlet tạm; router test bổ sung assert đúng UUID path. Còn chờ kiểm
+chứng Supabase Auth/PostgREST/live và migration read-layer trên môi trường
+đích; chưa có action MH11 để nghiệm thu giao hàng end-to-end.
+
+Kiểm chứng P02.2 ngày 24/10/2026:
+
+- `dart format --output=none --set-exit-if-changed lib/features/deliveries/presentation/pages/delivery_route_pages.dart test/features/deliveries/delivery_task_list_page_test.dart test/app/router/delivery_task_list_navigation_test.dart`:
+  3 files, 0 changed.
+- `flutter analyze --no-pub`: No issues found.
+- `flutter test --no-pub test/features/deliveries/delivery_task_list_page_test.dart --timeout 20s`:
+  12 tests passed; thêm 5 tests P02.2 cho loading không có stale card/count,
+  empty/reset, denied/retry, network/retry và ba kind/status/COD với counts
+  lớn hơn số card. Bảy tests P02.3/masking/viewport cũ tiếp tục đạt.
+- `flutter test --no-pub`: 100 tests passed, gồm router production mở đúng
+  `/shipper/tasks/:taskId` và kiểm tra read authorization bằng SDK/session/
+  transport fixture, không phải kết nối Supabase live.
+- `git diff --check`: PASS.
+
+Audit độc lập read-only không còn finding/blocker P02.2. Không chạy lại SQL
+hay build web trong lượt này vì không thay query/schema hoặc layout/runtime
+đã được build ở P02.3; thay đổi Dart production chỉ là comment route. Phần
+presentation/read integration P02.2 đã đủ trong repository, nghiệm thu live
+vẫn chưa hoàn tất vì dependency Supabase deployment/Auth thật nêu trên.
+
+## P03.1 — Authorized task-detail API
+
+`get_my_delivery_task(p_task_id uuid) -> jsonb` được triển khai trong migration
+repository của P03.1, thay contract get đề xuất ở P00.2. Không suy ra các write
+RPC, allowed_actions, custody/version hoặc archive history S4 đã có.
+
+```text
+{
+  task: TaskSnapshot,       // đúng P01.1 projection
+  items: TaskItemSnapshot[],
+  notes: null,
+  notes_source: "unavailable_schema",
+  as_of: timestamptz
+}
+```
+
+Caller là authenticated có profiles.role=shipper; identity từ auth.uid,
+không nhận user/order/return ID để suy scope. UUID task bắt buộc. Task và
+items đọc trong một snapshot SQL qua hai projection P01.1; item sort theo
+item_id, aggregate JSON server nên không bị giới hạn row cap của PostgREST
+ở 200/1000 items. Không phân trang nhiều request rồi ghép task/items khác
+thời điểm; không row lock/ghi/event/request_id. Retry là một read snapshot
+mới có thể khác, không cam kết trạng thái bất biến sau khi response đã về.
+
+| Tình huống | Task / dữ liệu được trả |
+| --- | --- |
+| Current assigned/accepted/in_transit đúng người | Recipient name/phone, destination address/lat/lng, IDs cần thiết, kind/status/attempt/lifecycle và amount_to_collect_vnd nguyên snapshot task. Không tính lại COD từ Flutter hoặc từ giá catalog. |
+| Outbound current | product_name/variant_label/attributes/quantity và unit_price_vnd/line_total_vnd nguyên order_items snapshot theo task. Không phải quyền đọc cả orders hoặc catalog/asset hiện tại. |
+| Return pickup current | product_name (= actual_item_name), quantity (= quantity_to_collect) và quantity_collected qua return_items đúng task/request; variant/attributes/giá không có thì NULL, không đoán sản phẩm thực tế từ toàn đơn. |
+| Redelivery current | Task vẫn đọc đúng quyền, item_source=unavailable_redelivery_plan, items=[]. Sơn chưa cung cấp plan hàng giao lại; không tự dùng toàn bộ order_items. |
+| History delivered/cancelled/returned_to_store hoặc restricted | Giữ task metadata P01.1; mask order/request IDs, destination/contact/amount/assigned/accepted/started; items=[] và item_source=unavailable. Không suy null COD là hết nghĩa vụ. |
+| Reassigned/null assignment/ID ngoài quyền | Cùng lỗi NOT_FOUND_OR_FORBIDDEN, không trả task/items/PII. Không có quyền vĩnh viễn từ một lần shipper từng đọc hoặc từng được phân công. |
+
+Schema hiện tại không có cột/snapshot notes; P03.1 không tự đoán nguồn,
+trả explicit notes=null và notes_source=unavailable_schema. Đây là metadata dependency, không phải
+“đơn không có ghi chú”. Không lấy business_events/failure_reason hoặc dữ liệu
+return_request làm ghi chú. Ảnh/asset URL cũng chưa có snapshot/quyền được
+phê duyệt cho shipper: không trả path/signed/public URL, không truy cập Storage
+hoặc xin quyền rộng hơn. Bank/refund/video/inspection/customer UUID không
+thuộc envelope này. Những phần này chưa được live integrate bằng API mới.
+
+| Lỗi SQL / adapter | Hành vi |
+| --- | --- |
+| p_task_id NULL: 22023; UUID text sai: 22P02 | invalidData; Dart chặn UUID sai trước request. |
+| Thiếu identity/role khác shipper: 42501 | permissionDenied, không trả dữ liệu. Anon không có EXECUTE. |
+| ID không tồn tại/ngoài quyền/đổi người: P0002 | NOT_FOUND_OR_FORBIDDEN; chỉ adapter detail map sang staleAssignment, không suy tồn tại của task. |
+| RPC chưa deploy/SDK network/JWT lỗi | Typed backendUnavailable/network/sessionExpired như P01.2; không fallback về chuỗi RPC cũ hoặc fixture. |
+
+SupabaseDeliveryRepository.getTaskDetails gọi một detail RPC trong
+OperationalReadAccess.run(shipper), kiểm tra epoch trước/sau await. Profile
+precheck có request riêng; backend tiếp tục enforce quyền trong snapshot
+detail. DTO reuse task/item mapper nghiêm ngặt, kiểm tra đúng task ID,
+items unique và khớp source/scope, masked/unavailable không có items; notes
+chỉ chấp nhận unavailable/null; as_of bắt buộc có timezone, normalize UTC.
+Items immutable, tiền nguyên VND và lifecycle nullable giữ nguyên schema.
+DeliveryTaskDetails bổ sung metadata notes/source/asOf; không sao chép Order.
+
+getTask(UUID) tối thiểu phục vụ route guard vẫn dùng read_my_delivery_tasks
+đã có. getTaskDetails và detail provider chuyển sang envelope mới; không sửa
+router, client, theme hoặc UI MH11. P01.1 item endpoint vẫn được giữ tương
+thích; quyền raw tables/history không thay đổi. Chi tiết migration/test ở
+[database.md](database.md).
+
+### Bàn giao và kiểm chứng P03.1 (24/10/2026)
+
+Tệp thêm/sửa trong P03.1; các diff P02/theme đã có được giữ nguyên:
+
+```text
+supabase/migrations/20261024010714_get_my_delivery_task.sql
+supabase/tests/delivery_task_detail.sql
+supabase/tests/run_delivery_read_fixture.mjs
+lib/features/deliveries/domain/models/delivery_task_details.dart
+lib/features/deliveries/data/models/delivery_task_details_dto.dart
+lib/features/deliveries/data/repositories/supabase_delivery_repository.dart
+test/features/deliveries/delivery_task_details_test.dart
+test/features/deliveries/delivery_repository_test.dart
+test/features/deliveries/delivery_provider_test.dart
+docs/api_contracts.md
+docs/database.md
+docs/screen_mapping.md
+```
+
+Lệnh và kết quả cuối:
+
+- `npx --yes supabase@2.119.0 migration new get_my_delivery_task`: tạo file
+  migration thật ở trên, không push/reset cloud.
+- `node supabase/tests/run_delivery_read_fixture.mjs p011_p031_final_20261024g`:
+  PostgreSQL 17.10 native/Auth-Storage SQL stubs, áp dụng đủ 6 migration vào
+  database fixture mới; database_security.sql, delivery_read_security.sql,
+  delivery_task_list.sql và delivery_task_detail.sql đều PASS + ROLLBACK.
+  Xác nhận 0 user/order/task/Storage object còn lại. SQL chi tiết bao phủ
+  owner/ACL/STABLE/search_path/role lock, hai shipper, ba kind, mọi scope,
+  ID bị từ chối, đổi người/hủy, optional fields và đủ 1001 item rows trong
+  JSON aggregate (vượt max_rows=1000 của config, chưa là PostgREST live test).
+- `node --check supabase/tests/run_delivery_read_fixture.mjs`: PASS.
+- `dart format --output=none --set-exit-if-changed lib/features/deliveries/domain/models/delivery_task_details.dart lib/features/deliveries/data/models/delivery_task_details_dto.dart lib/features/deliveries/data/repositories/supabase_delivery_repository.dart test/features/deliveries/delivery_task_details_test.dart test/features/deliveries/delivery_repository_test.dart test/features/deliveries/delivery_provider_test.dart`:
+  6 files, 0 changed.
+- `flutter analyze --no-pub`: No issues found.
+- `flutter test test/features/deliveries/delivery_task_details_test.dart test/features/deliveries/delivery_repository_test.dart`:
+  19 tests passed sau các bổ sung review.
+- `flutter test --no-pub`: 107 tests passed. Provider fixture legacy được đổi
+  đúng envelope mới; không thêm runtime fallback để làm fixture cũ báo pass.
+- `git diff --check`: PASS.
+
+DTO/repository tests bao phủ shape/current/pickup/history/restricted/redelivery,
+nullable variant/attributes/giá/lifecycle, UTC offset, mã task sai, notes/source
+hoặc timestamp sai/thiếu, field lạ/nhạy cảm, item trùng/source sai, đầy đủ
+array server, stale assignment, missing RPC/network và late account response.
+Các test transport/session là fixture rõ ràng, không chứng minh backend live.
+Review độc lập sau bổ sung ACL/1001 items và malformed envelopes không còn
+finding. Sau kiểm chứng đã dừng đúng native server trong
+`.temp/p011_native_data` bằng pg_ctl stop -m fast, nhận server stopped;
+giữ database fixture, không xóa/reset dữ liệu hoặc tác động Supabase cloud.
+
+Phần authorized detail read P03.1 hoàn tất trong repository theo schema
+hiện tại. Không đánh dấu nghiệp vụ MH11/full live hoàn tất: notes/snapshot
+nguồn chờ Bảo/Sơn, item redelivery plan chờ Sơn, ảnh/asset scope chờ owner,
+deployment và kiểm tra Supabase Auth/PostgREST/RLS thật vẫn chưa xác minh.
+API chỉ trả unavailable flags cho dependency thiếu, không sản xuất dữ liệu
+thay thế. Chưa có xác nhận stakeholder mới cho các quyết định S1/S2/S4.
+
+## P03.2 — MH11 read-only presentation contract
+
+DeliveryTaskDetailViewModel(taskId) và page dùng lại
+deliveryTaskDetailsProvider/getTaskDetails P03.1. Provider family key gồm
+taskId/session epoch; AsyncLoading/AsyncError không mang previous data.
+Không gọi Supabase, orders/returns/catalog hoặc Storage từ widget.
+ViewModel chỉ có refresh/retry, không có method ghi trạng thái/COD/attempt.
+
+refreshDeliveryTaskDetails invalidates private session-keyed future thật,
+không chỉ invalidates public projection rồi tái dùng cache. Refresh có scope
+một task, giữ filter MH10 và các task khác; state được cập nhật từ watched
+projection, không gán kết quả cũ sau await. Khi auth/task scope thay đổi hoặc
+dispose thì response trước không publish. Bấm map cũng chỉ gửi UUID; sau
+quay lại refresh detail để task hủy/terminal còn quyền history không làm
+hiện recipient từ current cache.
+
+COD dùng nguyên task.amount_to_collect_vnd, không recompute/increment hoặc
+thêm phí 30.000 VND hardcode. P03.1 chưa có delivery_fee/subtotal fields,
+nên breakdown vẫn là dependency của owner order snapshot. Note source
+unavailable_schema, redelivery plan unavailable và asset không có quyền
+được thể hiện bằng thông báo/placeholder; không suy dữ liệu không có hoặc
+không có quyền thành zero/no obligation. Không lấy timeline/reason/bank/
+video/refund evidence từ mock hoặc nguồn riêng tư để điền UI.
+
+Gọi điện là affordance disabled được ghi rõ chưa khả dụng, phone selectable
+để người dùng copy; không thêm plugin gọi điện và không báo đã mở dialer.
+Action placeholders disabled theo cặp kind/status, chỉ ở scope current.
+Chưa có allowed_actions server hay API ghi để bật các nút này; không coi
+nhãn disabled là chốt precondition/business contract với Bảo/Sơn/Văn Đức.
+Không triển khai dialog ghi, nhận hàng, start, complete, failure hoặc incident.
+
+Giữ nguyên schema/RLS/read signatures, shared router/theme/client và packages;
+chỉ MH11 entry point thay outlet bằng page. MH18 vẫn là dependency UI riêng.
+Phạm vi hiển thị chi tiết/variant và khác biệt với mock ở screen_mapping.md.
+
+### Bàn giao P03.2 (24/10/2026)
+
+Tệp riêng thêm/sửa trong P03.2, giữ các diff P02/P03.1 và màu đã có:
+
+```text
+lib/features/deliveries/presentation/pages/delivery_route_pages.dart
+lib/features/deliveries/presentation/pages/delivery_task_detail_page.dart
+lib/features/deliveries/presentation/view_models/delivery_providers.dart
+lib/features/deliveries/presentation/view_models/delivery_task_detail_view_model.dart
+test/features/deliveries/delivery_task_detail_page_test.dart
+test/features/deliveries/delivery_task_detail_view_model_test.dart
+test/app/router/delivery_task_detail_navigation_test.dart
+test/app/router/delivery_task_list_navigation_test.dart
+docs/screen_mapping.md
+docs/api_contracts.md
+```
+
+MH10 router fixture được bổ sung detail envelope để test MH10→MH11 hiện dùng
+page thật; không thay runtime thành fixture hoặc làm API lỗi báo thành công.
+Refresh listener tạm theo dõi operationalSessionProvider hiện có từ container
+để không bị đóng khi ViewModel tự rebuild; luôn close trong finally. So sánh
+session object identity như key của FutureProvider, kiểm tra ngay khi subscribe
+và không bắt đầu private read đã supersede. Lifecycle cancellation phân biệt
+rebuild do refresh với disposal thật, không kết thúc refresh sớm và không chờ
+network của account cũ sau switch/logout/dispose. Không gán response sau await.
+
+Các checks được chạy:
+
+- `dart format --output=none --set-exit-if-changed lib/features/deliveries/presentation/pages/delivery_task_detail_page.dart lib/features/deliveries/presentation/pages/delivery_route_pages.dart lib/features/deliveries/presentation/view_models/delivery_providers.dart lib/features/deliveries/presentation/view_models/delivery_task_detail_view_model.dart test/features/deliveries/delivery_task_detail_page_test.dart test/features/deliveries/delivery_task_detail_view_model_test.dart test/app/router/delivery_task_detail_navigation_test.dart test/app/router/delivery_task_list_navigation_test.dart`:
+  8 files, 0 changed.
+- `flutter analyze --no-pub`: No issues found.
+- `flutter test --no-pub test/features/deliveries/delivery_task_detail_page_test.dart`:
+  8 tests passed, gồm outbound/pickup/redelivery, image/unavailable states,
+  malformed domain privacy, loading/error/retry, map URL/return-refresh, UUID
+  version 7/uppercase, viewport 320px/text scale 2.
+- `flutter test --no-pub test/features/deliveries/delivery_task_detail_view_model_test.dart`:
+  14 tests passed; refresh reissues read, awaits settled result, keeps task
+  isolation, drops old PII and completes correctly on epoch/logout/disposal.
+- `flutter test --no-pub test/app/router/delivery_task_detail_navigation_test.dart --dart-define=CAPTURE_MH11=true --timeout 30s`:
+  2 tests passed with production router and SDK transport/session fixture;
+  map permission revoked before opening is denied; cancellation while map
+  is open then returning reloads masked history and hides old recipient.
+  URL only task UUID, no PII query. No backend writes executed.
+- `flutter test --no-pub`: 129 tests passed.
+- `flutter build web --no-pub`: Built build/web, Wasm dry run succeeded;
+  warning font CupertinoIcons có từ phase trước vẫn còn. Không thêm package
+  để che warning hoặc suy ra backend live đã kết nối thành công từ build.
+- `git diff --check`: PASS.
+
+Preview opt-in cần MH11_PREVIEW_FONT trỏ font local (đã dùng Arial hệ thống
+khi chụp); FontLoader và dữ liệu fixture chỉ có trong test. Ảnh fixture
+`build/mh11_nike_readonly_20261024.png` ở 390x844 đã được xem trực quan;
+không là dữ liệu Supabase live hoặc demo adapter của production.
+
+Review dẫn đến sửa masking note/source, amount NULL outbound, UUID đúng
+contract, privacy khi task hủy lúc xem map và refresh lifecycle race. Test
+refresh đầu phát hiện Future kết thúc sớm do ViewModel rebuild; đã sửa mà
+không làm yếu assertion chờ kết quả. Review độc lập cuối không còn blocker.
+Không nút disabled nào gọi RPC ghi hoặc làm thay đổi trạng thái.
+
+P03.2 chỉ đọc hoàn tất theo contract P03.1 hiện có trong repository. Tích hợp
+live vẫn chưa xác minh: cần deploy P03.1 và kiểm tra Auth/RLS thật; notes,
+items giao lại, asset được phép, breakdown phí và dialer vẫn chưa khả dụng.
+MH18 vẫn là outlet, link đã test không chứng minh map provider hoàn chỉnh.
+Không schema, RLS/grant, RPC signature, dependency hoặc transition mới.
+
+Đối chiếu bổ sung bốn mock MH11: đây là bốn trường hợp riêng trên một màn,
+không phải bốn màn chính mới. Đã đọc đủ bốn HTML, nhưng test ban đầu còn thiếu
+outbound in_transit và redelivery đang dùng accepted thay vì in_transit như
+mock. Đã bổ sung hai widget test riêng cho trạng thái in_transit, kiểm tra
+đúng nhóm action disabled/COD/lần giao và không hiện action nhận/start sai
+state. Ma trận hiện tại:
+
+| Mock | Trường hợp kiểm chứng |
+| --- | --- |
+| 4df85d31… | Outbound assigned — chờ nhận hàng tại cửa hàng. |
+| 04a1c682… | Outbound in_transit — đang giao, đủ COD và placeholder thành công/thất bại disabled. |
+| 4890b961… | Return pickup — điểm lấy, quantity kế hoạch/đã nhận, không COD; không suy enum “đang lấy” từ nhãn mock. |
+| 0a839c17… | Redelivery in_transit — không COD, plan chưa khả dụng và placeholder kết quả disabled. |
+
+`flutter test --no-pub test/features/deliveries/delivery_task_detail_page_test.dart`:
+9 tests passed sau bổ sung. Không thay runtime/business state để làm khớp
+các nút/dialog ghi trong mock; chúng vẫn nằm ngoài P03.2.

@@ -153,7 +153,7 @@ P01.2 và profiles.role server; không dựng MH01/MH02 hay router auth thứ ha
 
 | Màn / route đã đăng ký | Quyền và recheck | Trạng thái giao diện |
 | --- | --- | --- |
-| MH10 `/shipper/tasks` | Chỉ shipper, role đọc từ profiles qua OperationalReadAccess | Outlet nền tảng, chưa triển khai danh sách/tìm/lọc nhiệm vụ |
+| MH10 `/shipper/tasks` | Chỉ shipper, role đọc từ profiles qua OperationalReadAccess | P01.3 tạo outlet; P02.3 bên dưới đã nối danh sách/tìm/lọc/phân trang |
 | MH11 `/shipper/tasks/:taskId` | UUID hợp lệ, DeliveryRepository.getTask đọc đúng task qua P01.1/RLS; ID ngoài quyền hoặc task đổi người về `/` | Outlet chi tiết; history/restricted chỉ có quyền projection tối thiểu, không tự mở item/PII |
 | MH18 `/shipper/tasks/:taskId/map` | UUID + cùng quyền task; chỉ snapshot_scope=current và destination có dữ liệu | Outlet bản đồ, chưa có provider map; điểm đến đã lưu, không bắt buộc pin cửa hàng |
 | MH12 `/cod`, tùy chọn `?orderId=UUID` | Manager/shipper; nếu có orderId phải đọc được khoản COD đúng scope bằng CodRepository; rỗng/ngoài quyền về `/` | Outlet COD, chưa bảng tiền/đối soát hoặc thao tác xác nhận |
@@ -183,3 +183,152 @@ Auth UI của Dung An, nội dung MH17 của Bảo, business UI MH10/MH11/MH12,
 map provider MH18 và backend live vẫn là dependency chưa nghiệm thu. Các
 outlet nền tảng không được báo là bốn màn hoàn chỉnh. API ghi/RLS/migration
 và dependency không đổi trong P01.3.
+
+## P02.1 — API truy vấn danh sách MH10
+
+Route `/shipper/tasks` và outlet P01.3 giữ nguyên. Phase này chỉ thêm read
+query server + typed repository, chưa nối bộ lọc/UI/load-more vào MH10
+(thuộc phase UI tiếp theo). Không sửa router/shell/client/theme/dependency.
+
+API `list_my_delivery_tasks` dùng scope từ auth.uid và profiles.role, không
+nhận shipper ID. Tìm kiếm UUID đơn (mã tham chiếu hiện có, chưa có mã đơn
+hiển thị riêng trong DB) hoặc tên người nhận trong projection được phép.
+Không tìm trên recipient/order ID đã bị mask của history/restricted.
+Không mở quyền orders/return_requests để bổ sung dữ liệu thiếu.
+
+Ba bộ lọc Chờ/Đang đi/Hoàn tất dùng mapping tường minh tại
+[business_states.md](business_states.md#p021--nhóm-trạng-thái-truy-vấn-mh10).
+Hủy/thất bại/chờ manager/chờ phân công thuộc Tất cả nhưng không thuộc Hoàn
+tất. Counts áp dụng toàn bộ tập có quyền sau search/kind, trước chọn nhóm;
+filtered_total sau chọn nhóm; cả hai trước cursor/limit. Kết quả và counts
+trong một snapshot SQL, không lọc cục bộ trên trang đầu.
+
+Sort theo `(created_at,task_id)` giảm dần, keyset cursor bind user/filter.
+Đổi người thu hồi row cũ; refresh từ trang đầu khi phân công/trạng thái thay
+đổi. Không hứa đóng băng tập dữ liệu xuyên nhiều request. Lịch sử vẫn chỉ là
+projection P01.1 của task còn assigned cho user, chưa có assignment archive
+bất biến. Chưa xác nhận backend live đã áp dụng migration mới.
+
+## P02.3 — MH10 tìm kiếm, lọc, phân trang và làm mới
+
+MH10 không còn chỉ là outlet. Bố cục dựa trên mock HTML người dùng cung cấp:
+header tóm tắt, ô search bo tròn, nhóm trạng thái kèm counts, chip kind và
+stack thẻ nhiệm vụ. Dùng theme Material chung và shell P01.3, không tải logo/
+font ngoài, không tạo thêm Scaffold/router/client. Không đưa shipper #8842,
+ca trực, readiness, địa chỉ, ghi chú hoặc số tiền mẫu của HTML vào production.
+
+Tìm kiếm theo lần submit (Enter/nút tìm), nút xóa gửi query rỗng. UUID đơn là
+mã tham chiếu thật hiện có, không tạo DH001 giả. Chọn kind/status gửi lại
+query server với các filter còn lại; không lọc thẻ đã tải trong widget.
+Tất cả hiển thị cả trạng thái không thuộc ba nhóm. Counts dùng nguyên server
+P02.1 sau search/kind trước group; tổng kết quả sau group và trước pagination.
+History/restricted giữ thông tin tối thiểu đã mask, không gọi orders bù PII.
+
+DeliveryTaskListViewModel quản lý query/count/page và request generation.
+Filter/refresh xóa page/cursor/count cũ trước khi tải; response query cũ
+không được publish. Load-more dùng next_cursor server, không tính offset;
+drift counts/total, trùng ID hoặc cursor lặp yêu cầu nạp lại từ trang đầu
+có giới hạn. Lỗi network khi tải thêm giữ trang cùng query và có retry;
+lỗi phiên/quyền/phân công đóng dữ liệu cũ. Không có demo fallback.
+
+Pull-to-refresh hoạt động cả khi danh sách ngắn/empty/error, có nút refresh
+cho desktop. Mở MH11 bằng task UUID trong router chung; khi quay lại nạp
+trang đầu với filter đang chọn. MH11 hiện vẫn là outlet chưa có action;
+test thay đổi dữ liệu khi quay lại dùng fixture, không giả action backend.
+Filters giữ trong bộ nhớ cùng phiên khi điều hướng; auth epoch/logout/account
+switch xóa rows/count/cursor và draft tìm kiếm. Không lưu PII/filter vào URL
+hoặc persistent storage; không thêm Realtime subscription.
+
+Không đổi state machine, migration, RPC signature/RLS, dependency, theme
+hoặc router trong P02.3. Backend live vẫn cần áp dụng P01.1/P02.1 qua workflow
+nhóm và kiểm tra Supabase thật; mã đơn ngắn riêng còn chờ Bảo, MH11 actions
+thuộc phase sau. Không coi kết quả test fixture là nghiệm thu end-to-end live.
+
+Điều chỉnh màu theo yêu cầu người dùng ngày 24/10/2026: theme chung đã đổi
+sang bảng **Nike Design System alpha** được cung cấp. Nguồn token duy nhất
+là `lib/app/theme/app_colors.dart`; AppTheme ánh xạ tường minh ColorScheme,
+không sinh bảng màu từ seed xanh. Primary #111111/on-primary #ffffff,
+surface trắng, background #faf9fb, panel soft-cloud #f5f5f5 và viền
+hairline-soft #e5e5e5. MH10, chip được chọn, AppBar và navigation dùng cùng
+theme; không tạo theme riêng cho feature. Các token sale/success/info và
+Material fixed/container được giữ đúng giá trị để dùng chung. Lượt này chỉ
+đổi màu, không thêm font/package hoặc đổi nghiệp vụ. Preview fixture được
+chụp lại; analyze sạch, full suite 95 tests và 7 widget tests MH10 đạt.
+
+## P02.2 — Đối chiếu layout MH10 và read integration
+
+Người dùng yêu cầu bổ sung nghiệm thu P02.2 sau khi P02.3 đã làm. Phần
+layout/ViewModel nền của P02.2 đã được dựng trong lượt P02.3 vì checkout lúc
+đó chỉ có outlet MH10. Giữ một DeliveryTasksRoutePage → DeliveryTaskListPage
+và DeliveryTaskListViewModel; không tạo màn/provider thứ hai hoặc xóa search/
+filter/paging P02.3 đã hoàn thành. Yêu cầu màu Nike alpha vẫn áp dụng.
+
+| Tiêu chí P02.2 | Nguồn thực thi / kiểm chứng |
+| --- | --- |
+| Danh sách shipper đã đăng nhập | Guard chung recheck profiles.role; ViewModel → DeliveryRepository.queryTasks → RPC list_my_delivery_tasks P02.1; không nhận shipper ID từ UI. |
+| Thẻ an toàn | Ba kind, status enum tường minh, UUID thật, recipient/address và COD chỉ khi projection cho phép; masked không suy ra zero COD hoặc đọc orders/returns bù dữ liệu. Không có NV001/DH001 hoặc ca trực giả. |
+| Counts | Đọc counts/filteredTotal từ repository, không suy từ số card đã tải. Chưa tải không hiện count 0 giả. |
+| Loading/empty/error/denied/retry | State riêng trong ViewModel; page không hiển thị card cũ sau first-page error; typed OperationalFailure và retry đọc thật, không demo fallback. |
+| Mở MH11 | Card push `/shipper/tasks/:taskId`; router kiểm tra lại UUID/quyền bằng exact task read; không truyền nguyên DTO/PII trong URL. Test router production xác nhận path UUID và reload sau pop. |
+
+Lượt P02.2 này tập trung bổ sung acceptance widget tests và tài liệu truy
+vết; không viết lại runtime đã có hoặc thêm action MH11. Migrations, RPC
+signature/RLS, dependency, router, core client và theme không đổi trong lượt
+này. Test fixture không là dữ liệu hoặc thành công backend live.
+
+## P03.1 — MH11 authorized detail read
+
+Đọc detail qua DeliveryRepository.getTaskDetails gọi get_my_delivery_task
+bằng task UUID, một response chứa task và items trong cùng snapshot SQL.
+Provider detail hiện có dùng lại repository này; không dựng màn/action MH11
+trong phase API. Guard getTask tối thiểu vẫn dùng read_my_delivery_tasks,
+không tải item chỉ để kiểm tra route; khi fetch detail backend kiểm tra lại.
+
+Task current đúng shipper (`assigned/accepted/in_transit`) có recipient,
+contact, destination và COD nguyên snapshot task. Outbound items lấy snapshot
+order_items; return_pickup chỉ kế hoạch return_items đúng task. History
+(`delivered/cancelled/returned_to_store`) và restricted chỉ metadata P01.1,
+không contact/order UUID/COD/items. Đổi cùng task sang shipper khác/null thu
+hồi toàn bộ row người cũ; một task lịch sử không mở task/item mới cùng đơn.
+Không có archive assignment bất biến được tự tạo bởi API này.
+
+Notes chưa có schema: notes=null, notes_source=unavailable_schema. Item
+redelivery vẫn unavailable_redelivery_plan và items=[], không giả dùng toàn
+bộ đơn. Ảnh/asset path không có snapshot được cấp quyền nên không trả URL,
+không gọi catalog/Storage để bù; bank/video/refund/inspection dữ liệu trả
+hàng không thuộc response. Đây là các dependency còn thiếu, không phải
+trạng thái hoàn tất dữ liệu ghi chú/giao lại live.
+
+Không đổi route, theme, dependency, state transition hoặc thao tác COD. Các
+API ghi của MH09/MH15/MH11 vẫn thuộc phase khác và cần owner chốt. Trạng thái
+migration/test local và giới hạn tích hợp thật ở database.md/api_contracts.md.
+
+## P03.2 — MH11 chỉ đọc theo task kind/scope
+
+DeliveryTaskRoutePage tại `/shipper/tasks/:taskId` render
+DeliveryTaskDetailPage và DeliveryTaskDetailViewModel dùng repository P03.1.
+Giữ AppTheme/AppColors Nike alpha, AppBar/Scaffold/navigation chung; không
+router/client/theme mới. Bốn mock chỉ định hướng bố cục hero, recipient,
+items, COD, action area; không là hợp đồng cho tự đổi trạng thái, đổi size,
+kho/kệ/ca trực, nhật ký hoặc lời hướng dẫn nghiệp vụ không có trong API.
+
+| Nội dung MH11 | Hiển thị theo dữ liệu/giới hạn |
+| --- | --- |
+| Header | Task UUID thật, kind và status exhaustive, scope history/restricted rõ ràng. Outbound assigned/accepted là lần dự kiến; không nói đã thực hiện trước khi start. Pickup/redelivery không áp trần hai lần outbound. |
+| Điểm giao nhận | Current có name/phone/address; map chỉ gửi taskId và recheck qua guard MH18. History/restricted không contact/destination/call/map. |
+| Gọi điện | Có affordance disabled và giải thích chưa khả dụng; phone có thể chọn/copy. Không thêm launcher/dependency hoặc báo đã gọi thành công. |
+| Notes/items/images | Notes unavailable hiện rõ chưa khả dụng; outbound dùng snapshot variant/quantity; pickup dùng tên hàng thực tế/quantity kế hoạch/đã nhận nếu có. Redelivery plan thiếu có placeholder; không thay bằng toàn đơn. Ảnh luôn placeholder rõ ràng vì API không cung cấp asset được phép; không request catalog/Storage. |
+| COD | Nguyên amount_to_collect_vnd server; không cộng fee lần hai hoặc suy fee bằng hiệu với giá item. Không có field breakdown phí 30.000 VND trong P03.1 nên chưa render dòng tách phí. Pickup/redelivery không thu COD theo kind; masked/thiếu amount không bị đổi thành nghĩa vụ 0. |
+| Thao tác | Chỉ placeholder disabled ứng với kind/status current; không form success/fail/incident/camera/checklist hoặc RPC ghi. Placeholder không thay allowed_actions server chưa có và không là stakeholder approval. |
+| Loading/error/refresh | Loading không giữ PII trước đó, typed error và retry đọc lại exact task. Refresh chỉ task hiện tại, không reset filter MH10 hoặc tạo auth client/listener mới. |
+
+Map dùng `/shipper/tasks/:taskId/map`, không contact/địa chỉ/query PII. Khi
+quay về detail từ map phải refresh exact task để cancellation đổi thành
+history không giữ snapshot current cũ. Assignment bị thu hồi được guard/API
+chặn; auth epoch/taskId/refresh race không được publish dữ liệu cũ. Retry/
+pull-to-refresh chờ request đúng scope hoặc kết thúc khi scope bị thay thế.
+
+Không migration/RLS/RPC/dependency mới trong P03.2. UI read-only theo contract
+hiện tại; live còn cần deploy/read authorization thật, notes/item redelivery/
+asset/breakdown phí và tích hợp gọi điện chưa được cung cấp. MH18 vẫn là
+outlet, phase này chỉ cung cấp link đúng quyền; không coi bản đồ đã hoàn tất.

@@ -1,9 +1,13 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../../domain/models/delivery_task.dart';
 import '../../domain/models/delivery_task_details.dart';
+import '../../domain/models/delivery_task_query.dart';
 import '../../domain/models/operational_failure.dart';
 import '../../domain/repositories/delivery_repository.dart';
 import '../models/delivery_task_dto.dart';
-import '../models/delivery_task_item_dto.dart';
+import '../models/delivery_task_details_dto.dart';
+import '../models/delivery_task_page_dto.dart';
 import 'operational_read_access.dart';
 
 /// Real P01.1 read RPC adapter. It has no demo fallback or business writes.
@@ -63,6 +67,24 @@ class SupabaseDeliveryRepository implements DeliveryRepository {
     },
   );
 
+  @override
+  Future<DeliveryTaskPage> queryTasks(DeliveryTaskQuery query) {
+    // DeliveryTaskQuery normalizes and validates all user-controlled filters
+    // before this method can reach the network.
+    return access.run(
+      roles: const {'shipper'},
+      action: (identity) async {
+        identity.ensureCurrent();
+        final response = await access.client
+            .rpc('list_my_delivery_tasks', params: query.toRpcParams())
+            .retry(enabled: false);
+        identity.ensureCurrent();
+        final payload = _object(response);
+        return DeliveryTaskPageDto.fromJson(payload, query: query).toDomain();
+      },
+    );
+  }
+
   Future<DeliveryTaskSnapshot> _readTask(
     String taskId,
     ReadIdentity identity,
@@ -99,50 +121,40 @@ class SupabaseDeliveryRepository implements DeliveryRepository {
     return access.run(
       roles: const {'shipper'},
       action: (identity) async {
-        final task = await _readTask(taskId, identity);
-        final available =
-            task.itemSource == DeliveryItemSource.orderSnapshot ||
-            task.itemSource == DeliveryItemSource.returnPlan;
-        if (!available) return DeliveryTaskDetails(task: task, items: const []);
-        final items = <DeliveryTaskItem>[];
-        final ids = <String>{};
-        String? afterId;
-        while (true) {
-          identity.ensureCurrent();
-          var query = access.client.rpc(
-            'read_my_delivery_task_items',
-            params: {'p_task_id': taskId},
-          );
-          if (afterId != null) query = query.gt('item_id', afterId);
-          final response = await query
-              .order('item_id')
-              .limit(_pageSize)
+        identity.ensureCurrent();
+        dynamic response;
+        try {
+          response = await access.client
+              .rpc('get_my_delivery_task', params: {'p_task_id': taskId})
               .retry(enabled: false);
-          identity.ensureCurrent();
-          final rows = _rows(response);
-          for (final row in rows) {
-            final item = DeliveryTaskItemDto.fromJson(row).toDomain();
-            if (item.itemSource != task.itemSource ||
-                !ids.add(item.itemId.toLowerCase())) {
-              throw const FormatException('Invalid task items');
-            }
-            items.add(item);
+        } on PostgrestException catch (error) {
+          // The detail RPC uses NOT_FOUND_OR_FORBIDDEN (P0002) for a task
+          // that is no longer assigned or is outside the permitted history.
+          // Keep this mapping local: P0002 has no meaning for other reads.
+          if (error.code == 'P0002') {
+            throw const OperationalFailure(
+              OperationalFailureCode.staleAssignment,
+            );
           }
-          if (rows.length < _pageSize) break;
-          afterId = items.last.itemId;
+          rethrow;
         }
-        // P01.1 has separate read RPCs, not a transactional detail endpoint.
-        // Recheck assignment/scope after reading items before publishing any PII.
-        final latest = await _readTask(taskId, identity);
-        if (!_sameSnapshot(task, latest)) {
-          throw const OperationalFailure(
-            OperationalFailureCode.staleAssignment,
-          );
-        }
-        return DeliveryTaskDetails(task: latest, items: items);
+        identity.ensureCurrent();
+        return DeliveryTaskDetailsDto.fromJson(
+          _object(response),
+          requestedTaskId: taskId,
+        ).toDomain();
       },
     );
   }
 
-  bool _sameSnapshot(DeliveryTaskSnapshot a, DeliveryTaskSnapshot b) => a == b;
+  Map<String, dynamic> _object(dynamic response) {
+    if (response is! Map) {
+      throw const FormatException('Expected page object');
+    }
+    try {
+      return Map<String, dynamic>.from(response);
+    } on TypeError {
+      throw const FormatException('Expected string-keyed page object');
+    }
+  }
 }

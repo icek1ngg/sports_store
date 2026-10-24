@@ -7,6 +7,7 @@ import 'package:sports_store/features/deliveries/data/models/delivery_task_dto.d
 import 'package:sports_store/features/deliveries/data/repositories/operational_read_access.dart';
 import 'package:sports_store/features/deliveries/domain/models/delivery_task.dart';
 import 'package:sports_store/features/deliveries/domain/models/delivery_task_details.dart';
+import 'package:sports_store/features/deliveries/domain/models/delivery_task_query.dart';
 import 'package:sports_store/features/deliveries/domain/models/operational_failure.dart';
 import 'package:sports_store/features/deliveries/domain/repositories/delivery_repository.dart';
 import 'package:sports_store/features/deliveries/presentation/view_models/delivery_providers.dart';
@@ -23,6 +24,11 @@ class _FixtureRepository implements DeliveryRepository {
 
   @override
   Future<List<DeliveryTaskSnapshot>> listTasks() => read();
+  @override
+  Future<DeliveryTaskPage> queryTasks(DeliveryTaskQuery query) =>
+      throw UnimplementedError(
+        'This legacy provider fixture does not query MH10 pages.',
+      );
   @override
   Future<DeliveryTaskSnapshot> getTask(String taskId) async =>
       (await read()).single;
@@ -179,9 +185,14 @@ void main() {
             {'role': 'shipper'},
           ]);
         }
-        return jsonResponse(request, [
-          maskedTaskDto(status: 'cancelled', scope: 'history'),
-        ]);
+        expect(request.url.path, endsWith('/get_my_delivery_task'));
+        return jsonResponse(request, {
+          'task': maskedTaskDto(status: 'cancelled', scope: 'history'),
+          'items': <Object>[],
+          'notes': null,
+          'notes_source': 'unavailable_schema',
+          'as_of': '2026-10-24T03:00:00Z',
+        });
       });
       final container = ProviderContainer(
         overrides: [supabaseClientProvider.overrideWithValue(client)],
@@ -202,6 +213,8 @@ void main() {
       expect(details.task.scope, DeliverySnapshotScope.history);
       expect(details.task.destination, isNull);
       expect(details.itemsAvailable, isFalse);
+      expect(details.notes, isNull);
+      expect(details.asOf, DateTime.utc(2026, 10, 24, 3));
     },
   );
 

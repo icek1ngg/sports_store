@@ -301,6 +301,26 @@ nhất** và chưa xác minh trực tiếp báo cáo gốc. Không đánh dấu 
 thể hoặc tích hợp live hoàn tất. Các phase API, migration, UI, map và test
 runtime nằm ngoài thay đổi tài liệu này.
 
+## P02.1 — Nhóm trạng thái truy vấn MH10
+
+Mapping dưới đây chỉ phục vụ bộ lọc/count của API đọc danh sách; không đổi
+enum, lifecycle, custody hoặc kết luận nghiệp vụ của order/return request.
+Đây là quyết định triển khai query trong P02.1, không ghi nhận Bảo/Sơn/Văn Đức
+đã duyệt các chuyển trạng thái còn mở tại P00.1.
+
+| Nhóm query | Task status được bao gồm | Ý nghĩa giới hạn |
+| --- | --- | --- |
+| `waiting` — Chờ | `assigned`, `accepted` | Đã phân công, chưa bắt đầu vận chuyển; accepted không bị đồng nhất với assigned về custody. |
+| `in_transit` — Đang đi | `in_transit` | Task đang vận chuyển. |
+| `completed` — Hoàn tất | `delivered`, `returned_to_store` | Task đã giao xong hoặc đã được ghi nhận về cửa hàng; không suy ra inspection/refund/restock đã xong. |
+| Không thuộc ba nhóm (`ungrouped` trong counts) | `pending_assignment`, `failed`, `cancelled`, `manager_action_required` | Vẫn xuất hiện khi không lọc nhóm; không tự coi thất bại/hủy/chờ xử lý là hoàn tất. |
+
+Không lọc nhóm nghĩa là toàn bộ task projection được phép đọc, bao gồm
+history/restricted tối thiểu của P01.1. Không suy quyền lịch sử từ task từng
+được phân công: đổi cùng task sang shipper khác/null thu hồi row người cũ.
+Snapshot history không chứa mã UUID đơn hoặc tên người nhận để tìm kiếm;
+search không được dùng dữ liệu ẩn để làm lộ quan hệ qua counts/kết quả.
+
 ## COD
 
 cod_collections.status tách khỏi trạng thái đơn:

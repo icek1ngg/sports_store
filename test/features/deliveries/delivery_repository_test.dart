@@ -13,9 +13,25 @@ import 'fixtures/delivery_dtos.dart';
 Matcher failure(OperationalFailureCode code) =>
     isA<OperationalFailure>().having((e) => e.code, 'code', code);
 
+Map<String, dynamic> detailPayload({
+  Map<String, dynamic>? task,
+  List<Map<String, dynamic>>? items,
+  Object? notes,
+  String notesSource = 'unavailable_schema',
+  Object asOf = '2026-10-23T03:00:00Z',
+}) {
+  return {
+    'task': task ?? currentTaskDto(),
+    'items': items ?? [outboundItemDto()],
+    'notes': notes,
+    'notes_source': notesSource,
+    'as_of': asOf,
+  };
+}
+
 void main() {
   test(
-    'real repository calls only P01.1 RPCs and binds item task ID',
+    'detail repository uses one authorized snapshot RPC and binds task ID',
     () async {
       final paths = <String>[];
       final client = await fixtureClient((request) async {
@@ -25,12 +41,11 @@ void main() {
             {'role': 'shipper'},
           ]);
         }
-        if (request.url.path.endsWith('/read_my_delivery_task_items')) {
+        if (request.url.path.endsWith('/get_my_delivery_task')) {
           expect(request.body, contains(taskId));
-          return jsonResponse(request, [outboundItemDto()]);
+          return jsonResponse(request, detailPayload());
         }
-        expect(request.url.path, endsWith('/read_my_delivery_tasks'));
-        return jsonResponse(request, [currentTaskDto()]);
+        fail('unexpected endpoint ${request.url.path}');
       });
       final access = OperationalReadAccess(client);
       addTearDown(() async {
@@ -42,16 +57,20 @@ void main() {
       expect(details.items.single.quantity, 2);
       expect(details.task.amountToCollectVnd, 550000);
       expect(details.itemsAvailable, isTrue);
-      expect(
-        paths.where((p) => p.endsWith('/read_my_delivery_tasks')).length,
-        2,
-      );
+      expect(paths.where((p) => p.endsWith('/get_my_delivery_task')).length, 1);
       expect(
         paths.any(
-          (p) => p.endsWith('/orders') || p.endsWith('/return_requests'),
+          (p) =>
+              p.endsWith('/read_my_delivery_tasks') ||
+              p.endsWith('/read_my_delivery_task_items') ||
+              p.endsWith('/orders') ||
+              p.endsWith('/return_requests'),
         ),
         isFalse,
       );
+      expect(details.notes, isNull);
+      expect(details.notesSource.value, 'unavailable_schema');
+      expect(details.asOf, DateTime.utc(2026, 10, 23, 3));
       expect(() => details.items.clear(), throwsUnsupportedError);
     },
   );
@@ -64,8 +83,8 @@ void main() {
           {'role': 'shipper'},
         ]);
       }
-      expect(request.url.path, endsWith('/read_my_delivery_tasks'));
-      return jsonResponse(request, [dto]);
+      expect(request.url.path, endsWith('/get_my_delivery_task'));
+      return jsonResponse(request, detailPayload(task: dto, items: const []));
     });
     final access = OperationalReadAccess(client);
     addTearDown(() async {
@@ -221,35 +240,99 @@ void main() {
     await assertion;
   });
 
+  test('detail RPC maps a revoked assignment to staleAssignment', () async {
+    final client = await fixtureClient((request) async {
+      if (request.url.path.endsWith('/profiles')) {
+        return jsonResponse(request, [
+          {'role': 'shipper'},
+        ]);
+      }
+      expect(request.url.path, endsWith('/get_my_delivery_task'));
+      return jsonResponse(request, {
+        'code': 'P0002',
+        'message': 'not found or forbidden',
+      }, status: 404);
+    });
+    final access = OperationalReadAccess(client);
+    addTearDown(() async {
+      await access.dispose();
+      await client.dispose();
+    });
+    await expectLater(
+      SupabaseDeliveryRepository(access: access).getTaskDetails(taskId),
+      throwsA(failure(OperationalFailureCode.staleAssignment)),
+    );
+  });
+
   test(
-    'assignment/scope changes during item loading discard old items',
+    'detail missing RPC and transport failure remain typed failures',
     () async {
-      var taskReads = 0;
+      var mode = 'missing';
       final client = await fixtureClient((request) async {
         if (request.url.path.endsWith('/profiles')) {
           return jsonResponse(request, [
             {'role': 'shipper'},
           ]);
         }
-        if (request.url.path.endsWith('/read_my_delivery_task_items')) {
-          return jsonResponse(request, [outboundItemDto()]);
+        expect(request.url.path, endsWith('/get_my_delivery_task'));
+        if (mode == 'network') {
+          throw http.ClientException('private endpoint payload');
         }
-        return jsonResponse(
-          request,
-          ++taskReads == 1 ? [currentTaskDto()] : [],
-        );
+        return jsonResponse(request, {
+          'code': 'PGRST202',
+          'message': 'function not found',
+        }, status: 404);
       });
       final access = OperationalReadAccess(client);
       addTearDown(() async {
         await access.dispose();
         await client.dispose();
       });
+      final repo = SupabaseDeliveryRepository(access: access);
       await expectLater(
-        SupabaseDeliveryRepository(access: access).getTaskDetails(taskId),
-        throwsA(failure(OperationalFailureCode.staleAssignment)),
+        repo.getTaskDetails(taskId),
+        throwsA(failure(OperationalFailureCode.backendUnavailable)),
+      );
+      mode = 'network';
+      await expectLater(
+        repo.getTaskDetails(taskId),
+        throwsA(failure(OperationalFailureCode.network)),
       );
     },
   );
+
+  test('late detail snapshot is rejected after an account switch', () async {
+    final entered = Completer<void>();
+    final late = Completer<http.Response>();
+    late final http.Request oldRequest;
+    final client = await fixtureClient((request) async {
+      if (request.url.path.endsWith('/profiles')) {
+        return jsonResponse(request, [
+          {'role': 'shipper'},
+        ]);
+      }
+      expect(request.url.path, endsWith('/get_my_delivery_task'));
+      oldRequest = request;
+      entered.complete();
+      return late.future;
+    });
+    final access = OperationalReadAccess(client);
+    addTearDown(() async {
+      await access.dispose();
+      await client.dispose();
+    });
+    final pending = SupabaseDeliveryRepository(access: access)
+        .getTaskDetails(taskId);
+    final assertion = expectLater(
+      pending,
+      throwsA(failure(OperationalFailureCode.sessionExpired)),
+    );
+    await entered.future;
+    await recoverFixtureSession(client, shipperB);
+    await recoverFixtureSession(client, shipperA);
+    late.complete(jsonResponse(oldRequest, detailPayload()));
+    await assertion;
+  });
 
   test('network errors are standardized and contain no raw payload', () async {
     final client = await fixtureClient((request) async {
@@ -344,33 +427,23 @@ void main() {
     expect(tasks.length, 201);
   });
 
-  test('item keyset reads remaining items despite earlier-page removals', () async {
+  test('detail snapshot accepts the complete server item array without paging', () async {
     final all = List.generate(
       201,
       (i) => outboundItemDto()
         ..['item_id'] =
             '44444444-4444-4444-8444-${(i + 1).toRadixString(16).padLeft(12, '0')}',
     );
-    var page = 0;
+    var detailCalls = 0;
     final client = await fixtureClient((request) async {
       if (request.url.path.endsWith('/profiles')) {
         return jsonResponse(request, [
           {'role': 'shipper'},
         ]);
       }
-      if (request.url.path.endsWith('/read_my_delivery_tasks')) {
-        return jsonResponse(request, [currentTaskDto()]);
-      }
-      page++;
-      if (page == 1) return jsonResponse(request, all.take(200).toList());
-      final cursor = request.url.queryParameters['item_id']!.substring(3);
-      return jsonResponse(
-        request,
-        all
-            .skip(150)
-            .where((row) => (row['item_id'] as String).compareTo(cursor) > 0)
-            .toList(),
-      );
+      expect(request.url.path, endsWith('/get_my_delivery_task'));
+      detailCalls++;
+      return jsonResponse(request, detailPayload(items: all));
     });
     final access = OperationalReadAccess(client);
     addTearDown(() async {
@@ -381,5 +454,6 @@ void main() {
         .getTaskDetails(taskId);
     expect(details.items.last.itemId, all.last['item_id']);
     expect(details.items.length, 201);
+    expect(detailCalls, 1);
   });
 }

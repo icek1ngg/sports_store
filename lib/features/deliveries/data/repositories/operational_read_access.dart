@@ -210,7 +210,10 @@ OperationalFailure mapOperationalFailure(Object error) {
       'PGRST302' ||
       'PGRST303' => OperationalFailureCode.sessionExpired,
       '403' || '42501' => OperationalFailureCode.permissionDenied,
-      '22P02' || '23514' || '200' => OperationalFailureCode.invalidData,
+      '22P02' ||
+      '22023' ||
+      '23514' ||
+      '200' => OperationalFailureCode.invalidData,
       '404' ||
       '42883' ||
       '42P01' ||
