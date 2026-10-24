@@ -55,6 +55,7 @@ try {
     'database_security.sql',
     'delivery_read_security.sql',
     'delivery_task_list.sql',
+    'delivery_task_detail.sql',
   ]) {
     const results = await client.query(await readFile(resolve(testDir, name), 'utf8'));
     const hasPass = results.some((result) => result.rows?.some((row) => Object.values(row).includes(`${name}: PASS`)));

@@ -515,3 +515,54 @@ Sau kiểm thử đã dừng đúng native server trong `.temp/p011_native_data`
 `server stopped`; giữ database cô lập, không xóa/reset dữ liệu. Không có
 kết quả cloud hoặc PostgREST thật được xác nhận. Lệnh đầy đủ và manifest
 Dart/test/docs tại mục bàn giao P02.1 của [api_contracts.md](api_contracts.md).
+
+## P03.1 — Authorized detail projection
+
+Migration additive
+`supabase/migrations/20261024010714_get_my_delivery_task.sql` được tạo bằng
+`npx --yes supabase@2.119.0 migration new get_my_delivery_task`.
+Thêm public.get_my_delivery_task(p_task_id uuid) trả jsonb envelope task/items/
+notes/notes_source/as_of. Contract hiện hành ở mục P03.1 api_contracts.md;
+get_my_delivery_task ở bảng P00.2 là đề xuất lịch sử trước implementation này.
+
+Không sửa/xóa năm migration trước hoặc thêm bảng/cột/index/enum. Function
+stable, search_path rỗng, owner sports_store_delivery_reader NOLOGIN và
+NOBYPASSRLS đã có; EXECUTE chỉ authenticated, không PUBLIC/anon/service_role.
+Không mở membership cho API roles, không thêm base SELECT grant/policy hoặc
+Storage quyền. Task/item nguồn duy nhất là hai read projections P01.1; gate
+profiles.role/auth.uid, data và item aggregate trong cùng SQL statement.
+Các SELECT bên trong stable function dùng cùng read snapshot, không khóa ghi.
+
+Item projection hạn chế tiếp tục dùng outbound order_items và pickup
+return_items theo exact task/kind/current state, không phải mọi item cùng
+order theo một assignment cũ. Metadata history/restricted giữ masking P01.1;
+đổi người/null thu hồi row, hủy chuyển sang masked history tại lần đọc mới.
+FK/PK và index scope/item hiện có đủ cho lookup một task; không có index mới
+được thêm khi chưa có bằng chứng workload cần thiết.
+
+Không có schema notes hoặc approved redelivery item plan; API trả explicit
+unavailable flags/null như P01.1/P00.2 đã ghi, không backfill dữ liệu đoán.
+Không truy vấn raw orders/return_requests/business_events/catalog/Storage;
+không có đường đọc bank/refund/video/inspection hoặc cấp signed URL sản phẩm.
+Không triển khai write RPC, custody/attempt/COD/inventory/notification.
+
+SQL suite mới `supabase/tests/delivery_task_detail.sql` chạy BEGIN/ROLLBACK
+qua runner fixture hiện có; Auth/Storage bootstrap chỉ là SQL stub trên
+PostgreSQL native. Khi test Supabase thật dùng suite nguyên vẹn với
+ON_ERROR_STOP trên môi trường test, không áp dụng bootstrap stub lên cloud.
+Phase này không chạy db push hoặc reset project chung.
+
+Kiểm chứng cuối P03.1: `node supabase/tests/run_delivery_read_fixture.mjs p011_p031_final_20261024g`
+PASS trên PostgreSQL 17.10 native fixture. Đủ 6 migration được áp dụng;
+4 suites database_security/delivery_read_security/delivery_task_list/
+delivery_task_detail PASS và ROLLBACK, xác nhận không còn Auth user/order/
+task/Storage object test. Detail suite kiểm tra ACL/owner/STABLE/search_path,
+role NOBYPASSRLS, role/task scope, reassignment/cancellation, masking và
+aggregate đủ 1001 items. Không ghi là đã chạy Supabase/PostgREST thật.
+
+Native fixture server đã dừng bằng pg_ctl -D <workspace>/supabase/.temp/p011_native_data
+stop -m fast (`server stopped`), giữ database trong thư mục ignored để không
+xóa dữ liệu. Lệnh, 12 tệp thay đổi và kết quả 107 Flutter tests ở mục bàn giao
+P03.1 của [api_contracts.md](api_contracts.md). Notes, redelivery item plan và
+asset snapshot/quyền vẫn là dependency chưa có; không thêm schema đoán hoặc
+grant đọc orders/returns/Storage để gỡ các dependency đó.

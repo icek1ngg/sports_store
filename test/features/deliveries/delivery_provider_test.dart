@@ -185,9 +185,14 @@ void main() {
             {'role': 'shipper'},
           ]);
         }
-        return jsonResponse(request, [
-          maskedTaskDto(status: 'cancelled', scope: 'history'),
-        ]);
+        expect(request.url.path, endsWith('/get_my_delivery_task'));
+        return jsonResponse(request, {
+          'task': maskedTaskDto(status: 'cancelled', scope: 'history'),
+          'items': <Object>[],
+          'notes': null,
+          'notes_source': 'unavailable_schema',
+          'as_of': '2026-10-24T03:00:00Z',
+        });
       });
       final container = ProviderContainer(
         overrides: [supabaseClientProvider.overrideWithValue(client)],
@@ -208,6 +213,8 @@ void main() {
       expect(details.task.scope, DeliverySnapshotScope.history);
       expect(details.task.destination, isNull);
       expect(details.itemsAvailable, isFalse);
+      expect(details.notes, isNull);
+      expect(details.asOf, DateTime.utc(2026, 10, 24, 3));
     },
   );
 
