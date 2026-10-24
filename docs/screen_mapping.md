@@ -183,3 +183,28 @@ Auth UI của Dung An, nội dung MH17 của Bảo, business UI MH10/MH11/MH12,
 map provider MH18 và backend live vẫn là dependency chưa nghiệm thu. Các
 outlet nền tảng không được báo là bốn màn hoàn chỉnh. API ghi/RLS/migration
 và dependency không đổi trong P01.3.
+
+## P02.1 — API truy vấn danh sách MH10
+
+Route `/shipper/tasks` và outlet P01.3 giữ nguyên. Phase này chỉ thêm read
+query server + typed repository, chưa nối bộ lọc/UI/load-more vào MH10
+(thuộc phase UI tiếp theo). Không sửa router/shell/client/theme/dependency.
+
+API `list_my_delivery_tasks` dùng scope từ auth.uid và profiles.role, không
+nhận shipper ID. Tìm kiếm UUID đơn (mã tham chiếu hiện có, chưa có mã đơn
+hiển thị riêng trong DB) hoặc tên người nhận trong projection được phép.
+Không tìm trên recipient/order ID đã bị mask của history/restricted.
+Không mở quyền orders/return_requests để bổ sung dữ liệu thiếu.
+
+Ba bộ lọc Chờ/Đang đi/Hoàn tất dùng mapping tường minh tại
+[business_states.md](business_states.md#p021--nhóm-trạng-thái-truy-vấn-mh10).
+Hủy/thất bại/chờ manager/chờ phân công thuộc Tất cả nhưng không thuộc Hoàn
+tất. Counts áp dụng toàn bộ tập có quyền sau search/kind, trước chọn nhóm;
+filtered_total sau chọn nhóm; cả hai trước cursor/limit. Kết quả và counts
+trong một snapshot SQL, không lọc cục bộ trên trang đầu.
+
+Sort theo `(created_at,task_id)` giảm dần, keyset cursor bind user/filter.
+Đổi người thu hồi row cũ; refresh từ trang đầu khi phân công/trạng thái thay
+đổi. Không hứa đóng băng tập dữ liệu xuyên nhiều request. Lịch sử vẫn chỉ là
+projection P01.1 của task còn assigned cho user, chưa có assignment archive
+bất biến. Chưa xác nhận backend live đã áp dụng migration mới.

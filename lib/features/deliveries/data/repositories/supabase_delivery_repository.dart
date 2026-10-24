@@ -1,9 +1,11 @@
 import '../../domain/models/delivery_task.dart';
 import '../../domain/models/delivery_task_details.dart';
+import '../../domain/models/delivery_task_query.dart';
 import '../../domain/models/operational_failure.dart';
 import '../../domain/repositories/delivery_repository.dart';
 import '../models/delivery_task_dto.dart';
 import '../models/delivery_task_item_dto.dart';
+import '../models/delivery_task_page_dto.dart';
 import 'operational_read_access.dart';
 
 /// Real P01.1 read RPC adapter. It has no demo fallback or business writes.
@@ -62,6 +64,24 @@ class SupabaseDeliveryRepository implements DeliveryRepository {
       return List.unmodifiable(tasks);
     },
   );
+
+  @override
+  Future<DeliveryTaskPage> queryTasks(DeliveryTaskQuery query) {
+    // DeliveryTaskQuery normalizes and validates all user-controlled filters
+    // before this method can reach the network.
+    return access.run(
+      roles: const {'shipper'},
+      action: (identity) async {
+        identity.ensureCurrent();
+        final response = await access.client
+            .rpc('list_my_delivery_tasks', params: query.toRpcParams())
+            .retry(enabled: false);
+        identity.ensureCurrent();
+        final payload = _object(response);
+        return DeliveryTaskPageDto.fromJson(payload, query: query).toDomain();
+      },
+    );
+  }
 
   Future<DeliveryTaskSnapshot> _readTask(
     String taskId,
@@ -145,4 +165,14 @@ class SupabaseDeliveryRepository implements DeliveryRepository {
   }
 
   bool _sameSnapshot(DeliveryTaskSnapshot a, DeliveryTaskSnapshot b) => a == b;
+  Map<String, dynamic> _object(dynamic response) {
+    if (response is! Map) {
+      throw const FormatException('Expected page object');
+    }
+    try {
+      return Map<String, dynamic>.from(response);
+    } on TypeError {
+      throw const FormatException('Expected string-keyed page object');
+    }
+  }
 }

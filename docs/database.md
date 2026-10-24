@@ -466,3 +466,52 @@ vẫn cần xác nhận P01.1 đã áp dụng trên môi trường đích và ch
 redelivery item plan còn phụ thuộc Sơn (itemsAvailable=false), note/ảnh/
 version và các API ghi chưa thuộc phase này. Không chạy lại SQL migration
 hoặc thay fixture SQL của P01.1 trong P01.2.
+
+## P02.1 — Task-list query RPC
+
+Migration additive
+`supabase/migrations/20261023153729_list_my_delivery_tasks.sql` được tạo bằng
+`npx --yes supabase@2.119.0 migration new list_my_delivery_tasks`.
+Chỉ thêm `public.list_my_delivery_tasks(delivery_task_kind,text,text,integer,text)`
+trả jsonb; chữ ký/kết quả/count/filter/cursor ở [api_contracts.md](api_contracts.md).
+Không sửa migration cũ, enum, cột/bảng, trạng thái, inventory/COD, notification
+hoặc API ghi. Không thay grants đọc bảng và không thêm/sửa policy RLS.
+
+Owner tiếp tục là sports_store_delivery_reader NOLOGIN/NOINHERIT/NOBYPASSRLS
+của P01.1; function stable, search_path rỗng. EXECUTE chỉ authenticated;
+PUBLIC/anon/service_role không được cấp. Function kiểm tra auth.uid và role
+shipper trong profiles; RLS tiếp tục enforce task assigned đúng user.
+Đọc dữ liệu qua read_my_delivery_tasks đã mask, chỉ join delivery_tasks đã
+chịu RLS để lấy created_at phục vụ sort `(created_at,id)` giảm dần. Không
+đọc orders/return_requests/bank/evidence hoặc hidden recipient để search.
+Item JSON giữ nguyên trường của P01.1; created_at chỉ là metadata cursor.
+
+Counts sau kind/search, trước group/cursor/limit; total sau group, trước
+cursor/limit. Một snapshot SQL cho page/counts/total; không khóa hàng/ghi
+request ledger. Keyset không đóng băng dữ liệu xuyên request. Cùng task đổi
+người/null thu hồi quyền shipper cũ, terminal history vẫn mask như P01.1;
+không bổ sung assignment archive S4.
+
+Không thêm index: đã có delivery_tasks_assigned_shipper_id_idx cho scope
+và primary key cho join ID. Query phải đếm toàn bộ tập được phép sau filter;
+sort diễn ra sau projection materialized. Chưa có workload/EXPLAIN chứng minh
+index mới giúp phần này; không thêm trigram/index orders cho tìm UUID/tên
+hoặc tuyên bố tối ưu lớn khi chưa có dữ liệu thật. Đánh giá lại performance
+trên workload thực nếu cần, không đổi quyền để tối ưu.
+
+`supabase/tests/delivery_task_list.sql` là fixture trong BEGIN/ROLLBACK,
+được thêm vào runner cô lập hiện có. Bootstrap Auth/Storage chỉ là SQL stub
+trên PostgreSQL native, không là Supabase Auth/PostgREST/Storage live. Không
+áp dụng migration hoặc reset project cloud trong phase này. Khi nghiệm thu
+live cần dùng workflow migration của nhóm và chạy SQL allowed/denied trên
+môi trường test Supabase thật, không dùng bootstrap stub trên cloud.
+
+Kiểm chứng cuối: `node supabase/tests/run_delivery_read_fixture.mjs p011_p021_final9`
+PASS trên PostgreSQL 17.10 native, đủ 5 migration và ba SQL suites
+(database_security.sql, delivery_read_security.sql, delivery_task_list.sql).
+Mọi fixture ROLLBACK, xác nhận 0 user/order/task/Storage object còn lại.
+Sau kiểm thử đã dừng đúng native server trong `.temp/p011_native_data` bằng
+`pg_ctl -D <workspace>/supabase/.temp/p011_native_data stop -m fast` và nhận
+`server stopped`; giữ database cô lập, không xóa/reset dữ liệu. Không có
+kết quả cloud hoặc PostgREST thật được xác nhận. Lệnh đầy đủ và manifest
+Dart/test/docs tại mục bàn giao P02.1 của [api_contracts.md](api_contracts.md).

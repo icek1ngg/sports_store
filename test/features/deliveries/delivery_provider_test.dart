@@ -7,6 +7,7 @@ import 'package:sports_store/features/deliveries/data/models/delivery_task_dto.d
 import 'package:sports_store/features/deliveries/data/repositories/operational_read_access.dart';
 import 'package:sports_store/features/deliveries/domain/models/delivery_task.dart';
 import 'package:sports_store/features/deliveries/domain/models/delivery_task_details.dart';
+import 'package:sports_store/features/deliveries/domain/models/delivery_task_query.dart';
 import 'package:sports_store/features/deliveries/domain/models/operational_failure.dart';
 import 'package:sports_store/features/deliveries/domain/repositories/delivery_repository.dart';
 import 'package:sports_store/features/deliveries/presentation/view_models/delivery_providers.dart';
@@ -23,6 +24,11 @@ class _FixtureRepository implements DeliveryRepository {
 
   @override
   Future<List<DeliveryTaskSnapshot>> listTasks() => read();
+  @override
+  Future<DeliveryTaskPage> queryTasks(DeliveryTaskQuery query) =>
+      throw UnimplementedError(
+        'This legacy provider fixture does not query MH10 pages.',
+      );
   @override
   Future<DeliveryTaskSnapshot> getTask(String taskId) async =>
       (await read()).single;

@@ -51,7 +51,11 @@ try {
       throw error;
     }
   }
-  for (const name of ['database_security.sql', 'delivery_read_security.sql']) {
+  for (const name of [
+    'database_security.sql',
+    'delivery_read_security.sql',
+    'delivery_task_list.sql',
+  ]) {
     const results = await client.query(await readFile(resolve(testDir, name), 'utf8'));
     const hasPass = results.some((result) => result.rows?.some((row) => Object.values(row).includes(`${name}: PASS`)));
     if (!hasPass || results.at(-1)?.command !== 'ROLLBACK') {
