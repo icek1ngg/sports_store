@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// Temporary outlet for MH10 until the shared shipper shell is integrated.
+import 'delivery_task_list_page.dart';
+
+/// MH10 entry point inside the shared, authenticated shipper shell.
 class DeliveryTasksRoutePage extends StatelessWidget {
   const DeliveryTasksRoutePage({super.key});
 
@@ -9,15 +11,7 @@ class DeliveryTasksRoutePage extends StatelessWidget {
     return Semantics(
       key: ValueKey('mh10-outlet'),
       label: 'Danh sách nhiệm vụ giao hàng',
-      child: Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text(
-            'Giao diện danh sách nhiệm vụ chưa được tích hợp.',
-            textAlign: TextAlign.center,
-          ),
-        ),
-      ),
+      child: const DeliveryTaskListPage(),
     );
   }
 }

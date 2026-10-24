@@ -235,3 +235,70 @@ trạng thái hoàn tất dữ liệu ghi chú/giao lại live.
 Không đổi route, theme, dependency, state transition hoặc thao tác COD. Các
 API ghi của MH09/MH15/MH11 vẫn thuộc phase khác và cần owner chốt. Trạng thái
 migration/test local và giới hạn tích hợp thật ở database.md/api_contracts.md.
+
+## P02.3 — MH10 tìm kiếm, lọc, phân trang và làm mới
+
+MH10 không còn chỉ là outlet. Bố cục dựa trên mock HTML người dùng cung cấp:
+header tóm tắt, ô search bo tròn, nhóm trạng thái kèm counts, chip kind và
+stack thẻ nhiệm vụ. Dùng theme Material chung và shell P01.3, không tải logo/
+font ngoài, không tạo thêm Scaffold/router/client. Không đưa shipper #8842,
+ca trực, readiness, địa chỉ, ghi chú hoặc số tiền mẫu của HTML vào production.
+
+Tìm kiếm theo lần submit (Enter/nút tìm), nút xóa gửi query rỗng. UUID đơn là
+mã tham chiếu thật hiện có, không tạo DH001 giả. Chọn kind/status gửi lại
+query server với các filter còn lại; không lọc thẻ đã tải trong widget.
+Tất cả hiển thị cả trạng thái không thuộc ba nhóm. Counts dùng nguyên server
+P02.1 sau search/kind trước group; tổng kết quả sau group và trước pagination.
+History/restricted giữ thông tin tối thiểu đã mask, không gọi orders bù PII.
+
+DeliveryTaskListViewModel quản lý query/count/page và request generation.
+Filter/refresh xóa page/cursor/count cũ trước khi tải; response query cũ
+không được publish. Load-more dùng next_cursor server, không tính offset;
+drift counts/total, trùng ID hoặc cursor lặp yêu cầu nạp lại từ trang đầu
+có giới hạn. Lỗi network khi tải thêm giữ trang cùng query và có retry;
+lỗi phiên/quyền/phân công đóng dữ liệu cũ. Không có demo fallback.
+
+Pull-to-refresh hoạt động cả khi danh sách ngắn/empty/error, có nút refresh
+cho desktop. Mở MH11 bằng task UUID trong router chung; khi quay lại nạp
+trang đầu với filter đang chọn. MH11 hiện vẫn là outlet chưa có action;
+test thay đổi dữ liệu khi quay lại dùng fixture, không giả action backend.
+Filters giữ trong bộ nhớ cùng phiên khi điều hướng; auth epoch/logout/account
+switch xóa rows/count/cursor và draft tìm kiếm. Không lưu PII/filter vào URL
+hoặc persistent storage; không thêm Realtime subscription.
+
+Không đổi state machine, migration, RPC signature/RLS, dependency, theme
+hoặc router trong P02.3. Backend live vẫn cần áp dụng P01.1/P02.1 qua workflow
+nhóm và kiểm tra Supabase thật; mã đơn ngắn riêng còn chờ Bảo, MH11 actions
+thuộc phase sau. Không coi kết quả test fixture là nghiệm thu end-to-end live.
+
+Điều chỉnh màu theo yêu cầu người dùng ngày 24/10/2026: theme chung đã đổi
+sang bảng **Nike Design System alpha** được cung cấp. Nguồn token duy nhất
+là `lib/app/theme/app_colors.dart`; AppTheme ánh xạ tường minh ColorScheme,
+không sinh bảng màu từ seed xanh. Primary #111111/on-primary #ffffff,
+surface trắng, background #faf9fb, panel soft-cloud #f5f5f5 và viền
+hairline-soft #e5e5e5. MH10, chip được chọn, AppBar và navigation dùng cùng
+theme; không tạo theme riêng cho feature. Các token sale/success/info và
+Material fixed/container được giữ đúng giá trị để dùng chung. Lượt này chỉ
+đổi màu, không thêm font/package hoặc đổi nghiệp vụ. Preview fixture được
+chụp lại; analyze sạch, full suite 95 tests và 7 widget tests MH10 đạt.
+
+## P02.2 — Đối chiếu layout MH10 và read integration
+
+Người dùng yêu cầu bổ sung nghiệm thu P02.2 sau khi P02.3 đã làm. Phần
+layout/ViewModel nền của P02.2 đã được dựng trong lượt P02.3 vì checkout lúc
+đó chỉ có outlet MH10. Giữ một DeliveryTasksRoutePage → DeliveryTaskListPage
+và DeliveryTaskListViewModel; không tạo màn/provider thứ hai hoặc xóa search/
+filter/paging P02.3 đã hoàn thành. Yêu cầu màu Nike alpha vẫn áp dụng.
+
+| Tiêu chí P02.2 | Nguồn thực thi / kiểm chứng |
+| --- | --- |
+| Danh sách shipper đã đăng nhập | Guard chung recheck profiles.role; ViewModel → DeliveryRepository.queryTasks → RPC list_my_delivery_tasks P02.1; không nhận shipper ID từ UI. |
+| Thẻ an toàn | Ba kind, status enum tường minh, UUID thật, recipient/address và COD chỉ khi projection cho phép; masked không suy ra zero COD hoặc đọc orders/returns bù dữ liệu. Không có NV001/DH001 hoặc ca trực giả. |
+| Counts | Đọc counts/filteredTotal từ repository, không suy từ số card đã tải. Chưa tải không hiện count 0 giả. |
+| Loading/empty/error/denied/retry | State riêng trong ViewModel; page không hiển thị card cũ sau first-page error; typed OperationalFailure và retry đọc thật, không demo fallback. |
+| Mở MH11 | Card push `/shipper/tasks/:taskId`; router kiểm tra lại UUID/quyền bằng exact task read; không truyền nguyên DTO/PII trong URL. Test router production xác nhận path UUID và reload sau pop. |
+
+Lượt P02.2 này tập trung bổ sung acceptance widget tests và tài liệu truy
+vết; không viết lại runtime đã có hoặc thêm action MH11. Migrations, RPC
+signature/RLS, dependency, router, core client và theme không đổi trong lượt
+này. Test fixture không là dữ liệu hoặc thành công backend live.
