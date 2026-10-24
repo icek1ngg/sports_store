@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'delivery_task_list_page.dart';
+import 'delivery_task_detail_page.dart';
 
 /// MH10 entry point inside the shared, authenticated shipper shell.
 class DeliveryTasksRoutePage extends StatelessWidget {
@@ -16,7 +17,7 @@ class DeliveryTasksRoutePage extends StatelessWidget {
   }
 }
 
-/// Temporary outlet for MH11 until the shared shipper shell is integrated.
+/// MH11 read-only task detail inside the shared, authenticated shipper shell.
 class DeliveryTaskRoutePage extends StatelessWidget {
   const DeliveryTaskRoutePage({required this.taskId, super.key});
 
@@ -27,15 +28,7 @@ class DeliveryTaskRoutePage extends StatelessWidget {
     return Semantics(
       key: ValueKey('mh11-outlet'),
       label: 'Chi tiết nhiệm vụ giao hàng',
-      child: Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text(
-            'Giao diện chi tiết nhiệm vụ chưa được tích hợp.',
-            textAlign: TextAlign.center,
-          ),
-        ),
-      ),
+      child: DeliveryTaskDetailPage(taskId: taskId),
     );
   }
 }

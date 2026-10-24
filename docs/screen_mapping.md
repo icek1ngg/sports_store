@@ -153,7 +153,7 @@ P01.2 và profiles.role server; không dựng MH01/MH02 hay router auth thứ ha
 
 | Màn / route đã đăng ký | Quyền và recheck | Trạng thái giao diện |
 | --- | --- | --- |
-| MH10 `/shipper/tasks` | Chỉ shipper, role đọc từ profiles qua OperationalReadAccess | Outlet nền tảng, chưa triển khai danh sách/tìm/lọc nhiệm vụ |
+| MH10 `/shipper/tasks` | Chỉ shipper, role đọc từ profiles qua OperationalReadAccess | P01.3 tạo outlet; P02.3 bên dưới đã nối danh sách/tìm/lọc/phân trang |
 | MH11 `/shipper/tasks/:taskId` | UUID hợp lệ, DeliveryRepository.getTask đọc đúng task qua P01.1/RLS; ID ngoài quyền hoặc task đổi người về `/` | Outlet chi tiết; history/restricted chỉ có quyền projection tối thiểu, không tự mở item/PII |
 | MH18 `/shipper/tasks/:taskId/map` | UUID + cùng quyền task; chỉ snapshot_scope=current và destination có dữ liệu | Outlet bản đồ, chưa có provider map; điểm đến đã lưu, không bắt buộc pin cửa hàng |
 | MH12 `/cod`, tùy chọn `?orderId=UUID` | Manager/shipper; nếu có orderId phải đọc được khoản COD đúng scope bằng CodRepository; rỗng/ngoài quyền về `/` | Outlet COD, chưa bảng tiền/đối soát hoặc thao tác xác nhận |
@@ -208,33 +208,6 @@ Sort theo `(created_at,task_id)` giảm dần, keyset cursor bind user/filter.
 đổi. Không hứa đóng băng tập dữ liệu xuyên nhiều request. Lịch sử vẫn chỉ là
 projection P01.1 của task còn assigned cho user, chưa có assignment archive
 bất biến. Chưa xác nhận backend live đã áp dụng migration mới.
-
-## P03.1 — MH11 authorized detail read
-
-Đọc detail qua DeliveryRepository.getTaskDetails gọi get_my_delivery_task
-bằng task UUID, một response chứa task và items trong cùng snapshot SQL.
-Provider detail hiện có dùng lại repository này; không dựng màn/action MH11
-trong phase API. Guard getTask tối thiểu vẫn dùng read_my_delivery_tasks,
-không tải item chỉ để kiểm tra route; khi fetch detail backend kiểm tra lại.
-
-Task current đúng shipper (`assigned/accepted/in_transit`) có recipient,
-contact, destination và COD nguyên snapshot task. Outbound items lấy snapshot
-order_items; return_pickup chỉ kế hoạch return_items đúng task. History
-(`delivered/cancelled/returned_to_store`) và restricted chỉ metadata P01.1,
-không contact/order UUID/COD/items. Đổi cùng task sang shipper khác/null thu
-hồi toàn bộ row người cũ; một task lịch sử không mở task/item mới cùng đơn.
-Không có archive assignment bất biến được tự tạo bởi API này.
-
-Notes chưa có schema: notes=null, notes_source=unavailable_schema. Item
-redelivery vẫn unavailable_redelivery_plan và items=[], không giả dùng toàn
-bộ đơn. Ảnh/asset path không có snapshot được cấp quyền nên không trả URL,
-không gọi catalog/Storage để bù; bank/video/refund/inspection dữ liệu trả
-hàng không thuộc response. Đây là các dependency còn thiếu, không phải
-trạng thái hoàn tất dữ liệu ghi chú/giao lại live.
-
-Không đổi route, theme, dependency, state transition hoặc thao tác COD. Các
-API ghi của MH09/MH15/MH11 vẫn thuộc phase khác và cần owner chốt. Trạng thái
-migration/test local và giới hạn tích hợp thật ở database.md/api_contracts.md.
 
 ## P02.3 — MH10 tìm kiếm, lọc, phân trang và làm mới
 
@@ -302,3 +275,60 @@ Lượt P02.2 này tập trung bổ sung acceptance widget tests và tài liệu
 vết; không viết lại runtime đã có hoặc thêm action MH11. Migrations, RPC
 signature/RLS, dependency, router, core client và theme không đổi trong lượt
 này. Test fixture không là dữ liệu hoặc thành công backend live.
+
+## P03.1 — MH11 authorized detail read
+
+Đọc detail qua DeliveryRepository.getTaskDetails gọi get_my_delivery_task
+bằng task UUID, một response chứa task và items trong cùng snapshot SQL.
+Provider detail hiện có dùng lại repository này; không dựng màn/action MH11
+trong phase API. Guard getTask tối thiểu vẫn dùng read_my_delivery_tasks,
+không tải item chỉ để kiểm tra route; khi fetch detail backend kiểm tra lại.
+
+Task current đúng shipper (`assigned/accepted/in_transit`) có recipient,
+contact, destination và COD nguyên snapshot task. Outbound items lấy snapshot
+order_items; return_pickup chỉ kế hoạch return_items đúng task. History
+(`delivered/cancelled/returned_to_store`) và restricted chỉ metadata P01.1,
+không contact/order UUID/COD/items. Đổi cùng task sang shipper khác/null thu
+hồi toàn bộ row người cũ; một task lịch sử không mở task/item mới cùng đơn.
+Không có archive assignment bất biến được tự tạo bởi API này.
+
+Notes chưa có schema: notes=null, notes_source=unavailable_schema. Item
+redelivery vẫn unavailable_redelivery_plan và items=[], không giả dùng toàn
+bộ đơn. Ảnh/asset path không có snapshot được cấp quyền nên không trả URL,
+không gọi catalog/Storage để bù; bank/video/refund/inspection dữ liệu trả
+hàng không thuộc response. Đây là các dependency còn thiếu, không phải
+trạng thái hoàn tất dữ liệu ghi chú/giao lại live.
+
+Không đổi route, theme, dependency, state transition hoặc thao tác COD. Các
+API ghi của MH09/MH15/MH11 vẫn thuộc phase khác và cần owner chốt. Trạng thái
+migration/test local và giới hạn tích hợp thật ở database.md/api_contracts.md.
+
+## P03.2 — MH11 chỉ đọc theo task kind/scope
+
+DeliveryTaskRoutePage tại `/shipper/tasks/:taskId` render
+DeliveryTaskDetailPage và DeliveryTaskDetailViewModel dùng repository P03.1.
+Giữ AppTheme/AppColors Nike alpha, AppBar/Scaffold/navigation chung; không
+router/client/theme mới. Bốn mock chỉ định hướng bố cục hero, recipient,
+items, COD, action area; không là hợp đồng cho tự đổi trạng thái, đổi size,
+kho/kệ/ca trực, nhật ký hoặc lời hướng dẫn nghiệp vụ không có trong API.
+
+| Nội dung MH11 | Hiển thị theo dữ liệu/giới hạn |
+| --- | --- |
+| Header | Task UUID thật, kind và status exhaustive, scope history/restricted rõ ràng. Outbound assigned/accepted là lần dự kiến; không nói đã thực hiện trước khi start. Pickup/redelivery không áp trần hai lần outbound. |
+| Điểm giao nhận | Current có name/phone/address; map chỉ gửi taskId và recheck qua guard MH18. History/restricted không contact/destination/call/map. |
+| Gọi điện | Có affordance disabled và giải thích chưa khả dụng; phone có thể chọn/copy. Không thêm launcher/dependency hoặc báo đã gọi thành công. |
+| Notes/items/images | Notes unavailable hiện rõ chưa khả dụng; outbound dùng snapshot variant/quantity; pickup dùng tên hàng thực tế/quantity kế hoạch/đã nhận nếu có. Redelivery plan thiếu có placeholder; không thay bằng toàn đơn. Ảnh luôn placeholder rõ ràng vì API không cung cấp asset được phép; không request catalog/Storage. |
+| COD | Nguyên amount_to_collect_vnd server; không cộng fee lần hai hoặc suy fee bằng hiệu với giá item. Không có field breakdown phí 30.000 VND trong P03.1 nên chưa render dòng tách phí. Pickup/redelivery không thu COD theo kind; masked/thiếu amount không bị đổi thành nghĩa vụ 0. |
+| Thao tác | Chỉ placeholder disabled ứng với kind/status current; không form success/fail/incident/camera/checklist hoặc RPC ghi. Placeholder không thay allowed_actions server chưa có và không là stakeholder approval. |
+| Loading/error/refresh | Loading không giữ PII trước đó, typed error và retry đọc lại exact task. Refresh chỉ task hiện tại, không reset filter MH10 hoặc tạo auth client/listener mới. |
+
+Map dùng `/shipper/tasks/:taskId/map`, không contact/địa chỉ/query PII. Khi
+quay về detail từ map phải refresh exact task để cancellation đổi thành
+history không giữ snapshot current cũ. Assignment bị thu hồi được guard/API
+chặn; auth epoch/taskId/refresh race không được publish dữ liệu cũ. Retry/
+pull-to-refresh chờ request đúng scope hoặc kết thúc khi scope bị thay thế.
+
+Không migration/RLS/RPC/dependency mới trong P03.2. UI read-only theo contract
+hiện tại; live còn cần deploy/read authorization thật, notes/item redelivery/
+asset/breakdown phí và tích hợp gọi điện chưa được cung cấp. MH18 vẫn là
+outlet, phase này chỉ cung cấp link đúng quyền; không coi bản đồ đã hoàn tất.
