@@ -100,8 +100,8 @@ không có quá một bản ghi cho cùng số lần giao. result là success ho
 lần thất bại phải có lý do. Sự cố shipper có kind là damaged, lost hoặc other,
 kèm task_id, actor_id là shipper đang tạo sự cố, subject_type là
 `delivery_task`, subject_id trùng task_id và request_id chống ghi lặp trong
-business_events. Shipper chỉ đọc được sự cố của nhiệm vụ đang được phân công
-cho chính mình.
+business_events. Sau P01.1 chỉ manager đọc raw events; shipper không đọc
+raw sự cố hoặc report bàn giao, kể cả trên task của mình.
 
 ## P00.1 — Hợp đồng chuyển trạng thái giao nhận (23/10/2026)
 
@@ -138,8 +138,8 @@ Shipper báo bàn giao cửa hàng là sự kiện, chưa phải `returned_to_st
 trạng thái trước/sau giữ nguyên; không gán `incident_kind` cho bàn giao bình thường.
 DB chưa có cột mốc bàn giao/custody hoặc cơ chế idempotency tổng quát cho mọi
 action; cần thiết kế cách lưu payload/đối chiếu retry ở phase API (D2).
-RLS hiện chỉ cho shipper đọc event sự cố do mình tạo trên task đang được
-phân công; event bàn giao bình thường không thuộc quyền đọc đó. Cách trả
+Ở baseline P00.1 shipper chỉ đọc sự cố do mình tạo trên task được phân công;
+sau P01.1 raw events chỉ manager đọc. Cách trả
 kết quả/retry hoặc projection bàn giao cần hợp đồng server riêng, không
 gán giả `incident_kind` hay mở rộng policy trong P00.1.
 Chỉ manager thực nhận mới đổi task thành `returned_to_store`; kết luận chất
@@ -377,8 +377,8 @@ giao ban đầu; policy đọc bằng chứng phải giới hạn cho manager v�
 business_events lưu đối tượng, trạng thái trước/sau, actor, lý do và thời điểm.
 Sự cố giao hàng dùng cùng bảng với incident_kind, task_id và request_id duy
 nhất. Một event sự cố bắt buộc có task, actor, request_id và lý do không rỗng.
-Manager đọc toàn bộ event; shipper chỉ đọc event sự cố của nhiệm vụ đang được
-phân công.
+Manager đọc toàn bộ event; sau P01.1 shipper không đọc raw event sự cố hay
+bàn giao. ACK/replay cần contract response/projection an toàn riêng.
 notifications tham chiếu sự kiện và có khóa duy nhất (recipient_id, event_id),
 nên một sự kiện xử lý lại không tạo thông báo trùng cho cùng người nhận.
 read_at thuộc từng notification/người nhận.
@@ -409,3 +409,220 @@ approved_service_area_geojson. Tọa độ giao/điểm cửa hàng luôn phải
 latitude/longitude và nằm trong miền hợp lệ. Việc xác minh vị trí thuộc Hà Nội
 và vùng phục vụ được thực hiện phía server khi đặt đơn; migration nền không tự
 tạo tọa độ hoặc boundary giả.
+
+## P03.3 — Quyết định phạm vi phân công outbound đầu tiên (24/10/2026)
+
+Người dùng trực tiếp chốt trong phiên triển khai: phân công lần đầu từ
+`preparing` sang `awaiting_pickup` đồng thời là manager xác nhận hàng sẵn sàng;
+chỉ đổi shipper trước nhận hàng; chỉ tạo/cập nhật COD sạch ở `uncollected`;
+chặn lần giao hai và đổi người sau nhận hàng. Đây là quyết định của người dùng,
+không ghi nhận Bảo, Sơn hoặc Văn Đức đã xác nhận.
+
+Quyết định này thay phần còn mở của D1 cho O1/O1b trong phạm vi outbound đầu
+tiên và phần S3 về khởi tạo nghĩa vụ COD. Không thay O3/O4: phân công chưa là
+thực nhận, start, xuất tồn hay tăng delivery_attempt_count. Không ghi
+delivery_attempts khi phân công hoặc đổi người. Task có attempt_number=1;
+count vẫn 0. D3 về custody/lần hai, D4 inventory, các hợp đồng nhận/start,
+hủy và notification vẫn cần owner liên quan quyết định/triển khai.
+
+| Actor / thao tác | Điều kiện server | Chuyển trạng thái / tác động |
+| --- | --- | --- |
+| Manager tạo và phân công | Order preparing, count=0; chưa có attempt/custody; không outbound active; target shipper hợp lệ | Tạo outbound assigned số 1, O awaiting_pickup; snapshot điểm nhận từ order; task amount=COD expected=order total; COD uncollected |
+| Manager phân công task pending đã có | Order preparing, exact expected task pending_assignment chưa có người/custody | Task assigned, O awaiting_pickup; đồng bộ COD sạch; không tạo task thứ hai |
+| Manager đổi người | Order awaiting_pickup, exact expected task và expected shipper; task assigned chưa nhận/start/kết quả; COD sạch | Giữ task/số lần, đổi assigned_shipper_id và COD shipper; audit old/new; người cũ mất quyền current ở lần fetch tiếp theo |
+| Manager gửi lại cùng request | Actor vẫn manager, toàn bộ payload giống request thành công | Trả kết quả lệnh đã lưu, không thêm task/audit hay đổi assignment; kết quả replay không là snapshot quyền hiện tại |
+| Nhận hàng/lần hai/COD đã thu | Có custody/attempt hoặc COD không sạch | Từ chối; không sửa lịch sử, count, tài chính hoặc dispatch để hợp thức hóa dữ liệu |
+
+Hai manager tạo đồng thời chỉ một lệnh tạo thành công. Reassignment phải gửi
+expected task/shipper để phát hiện thao tác cũ; không dùng last-write-wins.
+Không mở lịch sử PII cho shipper từ audit manager này.
+
+## P04.1 — O3/O4 chưa có transaction tích hợp
+
+Yêu cầu phase hiện tại xác định accept là thực nhận + dispatch và start mới
+tăng count; không phải bằng chứng các RPC/primitive đã tồn tại. Người dùng
+xác nhận dependency inventory/cancel chưa có (24/10/2026). O3/O4 vẫn là target
+contract, chưa live. Không chuyển assigned→accepted hoặc accepted→in_transit
+bằng fixture; không tạo attempt result trước khi kết thúc.
+
+D2 custody proof, D3 custody lần hai, D4 inventory transaction và S2/S4 ledger/
+version vẫn mở. Không tự suy task số 2 được accept từ việc nó assigned hoặc
+không có active task khác. P03.3 chỉ phân công đầu tiên trước custody vẫn giữ.
+Bộ fixture P04.1 fail-closed không chốt phương án các owner và không chứng minh
+race hủy/nhận hoặc exactly-once dispatch đã được thực thi.
+
+Demo cô lập bổ sung theo yêu cầu người dùng chỉ minh họa O3/O4/O12; role,
+custody/dispatch proof và cùng holder lần hai là dữ liệu/logic mô phỏng trong
+p041_demo. Không là quyết định D2/D3/D4 hoặc transaction thật của các owner.
+Xem [hướng dẫn demo](demos/p041_outbound_demo.md); trạng thái live vẫn bị chặn.
+
+## P04.2 — Không thêm transition live
+
+Command/eligibility draft và action harness chỉ phục vụ kiểm thử thứ tự O3/O4,
+không thay trạng thái hay custody của database. Scope fixture chỉ outbound lần
+đầu; không suy D3 lần hai đã chốt từ demo P04.1. RPC O3/O4 vẫn chưa tồn tại,
+không dispatch/start/attempt result mới trong phase này. Xem handoff P04.2 ở
+api_contracts.md; không ghi nhận stakeholder agreement mới.
+
+## P05.1 — O5 còn bị chặn live
+
+O5 yêu cầu task/order delivered + một success attempt + COD collected và event/
+notification nguyên tử, count không tăng ở completion. SQL fixture P05.1 chỉ
+kiểm tra mô hình này với custody/recipient giả định test; không là transaction
+live hoặc agreement D4/D7/S2/S3. Actor/amount lấy từ server fixture, không tin
+shipper/order total caller; thu thiếu không được coi collected.
+
+Contender failed-result test chỉ kiểm tra loại trừ success/failed cho cùng
+attempt, không định nghĩa quy tắc thất bại hoặc triển khai O6/O9. Không tự suy
+P04.1/P04.2 đã hoàn tất từ fixture. Chi tiết ở api_contracts.md P05.1.
+
+## P05.2 — Không thêm transition live
+
+Confirmation UI fixture không thay O5/task/order/COD; backend amount vẫn là
+nguồn chuẩn, received-full là xác nhận chứ không chứng minh server đã ghi.
+Không tăng attempt, dispatch, thu COD hoặc ghi delivered từ local state.
+Không thay quyết định D7 hoặc các dependency P05.1; live vẫn bị chặn.
+
+## P06.1 — COD list không tạo chuyển trạng thái
+
+Read MH12 giữ uncollected → collected → received. Outstanding chỉ gồm khoản
+collected, với nguyên collected_amount_vnd chưa received; uncollected không
+là tiền đang giữ, received không còn outstanding. Tổng độc lập status tab và
+pagination, nhưng tuân scope role/shipper/order. Returns/refunds không trừ
+khoản này, không đổi status hoặc collector. Không có RPC confirm receipt hoặc
+completion được thêm ở phase đọc; các dependency write trước đó vẫn còn.
+
+## P06.3 — Manager thực nhận đủ COD
+
+Người dùng chốt receipt contract ngày 25/10/2026; không là approval của owner
+khác. Chỉ manager hiện tại xác nhận collected sạch, đủ expected=collected=
+amount thực nhận. Chuyển COD collected → received, received_amount đủ nguyên,
+received_by=manager auth và received_at=handed_over_at giờ server. Không đổi
+order/task/return state, không giảm collected/expected hoặc offset refund.
+
+Một receipt/order. Same manager/request/payload trả lại kết quả; mismatch hoặc
+request mới sau receipt bị conflict. Event/notification chỉ holder và ledger
+receipt atomic. Shipper không tự xác nhận, kể cả gọi RPC trực tiếp. Chưa áp
+dụng transition này vào UI manager hoặc coi completion live đã có.
+
+## P07.1 — Outbound failure dependency boundary (26/10/2026)
+
+Audit chín migration: chưa có public `fail_delivery_task`, accept/start hoặc
+`complete_outbound_delivery`. P04.1/P05.1 chỉ fixture cô lập; không dùng dữ
+liệu in_transit seed làm bằng chứng custody/dispatch thật. Theo stop rule,
+chỉ thêm interface SQL temporary fail-closed và dependency tests; không đổi
+migration, enum, RLS/grants, API runtime hoặc UI MH11.
+
+Mapping mục tiêu O6/O9 giữ đúng enum: outbound `in_transit` → `failed`;
+order `delivering` → `awaiting_redelivery` ở lần 1, → `awaiting_store_return`
+ở lần 2. Chỉ khi có kết quả mới ghi một `delivery_attempts.failed`, giữ count,
+không thu COD/restock/nhận hoàn. Chưa thực thi các chuyển này trong P07.1.
+
+Lý do draft: unreachable/reschedule/bad_address/refusal/other; other cần mô tả.
+Cách lưu code/description vào text reason, ledger/version và response/error
+live còn cần chốt. Bảo cần chốt recipient/event thất bại D7; quyết định P06.3
+chỉ áp dụng COD receipt, không là approval cho failure. Văn Đức/Bảo cần
+custody/dispatch P04.1 và D3 lần hai; success/failure cần cùng khóa và ledger
+để nghiệm thu race thật. Không triển khai return_pickup/redelivery failure.
+
+[Manifest, contract mục tiêu, kiểm tra và blockers](demos/p071_outbound_failure_boundary.md).
+P07.1 **chưa hoàn tất / live BLOCKED**; dependency fixture không trả success
+và không thay thế acceptance tests của RPC thật.
+## P07.2 — Manager retry/reassignment/custody: live BLOCKED (26/10/2026)
+
+Đã audit chín migration và contracts: `assign_delivery_task` P03.3 có thật,
+chỉ outbound đầu tiên và đổi trước nhận hàng, chặn count>0/lịch sử attempt/
+custody. Không nới API này. `decide_outbound_retry` và custody transfer vẫn
+chưa có; P07.1 failure và P04.1 dispatch/start thật cũng chưa có.
+
+Theo stop rule chỉ thêm hai pg_temp interfaces test-only, luôn
+DEPENDENCY_NOT_READY sau validation; không có success, mutation hay manager/
+custody enforcement runtime. Bổ sung regression gọi RPC assignment hiện có
+khi count=2 bằng hai manager/shipper/request khác nhau: phải ATTEMPT_LIMIT,
+không sửa lịch sử/số lần/tồn. Đây không là nghiệm thu retry/start lần hai.
+
+Manager có hai lựa chọn mục tiêu sau failed lần 1: tạo task mới số 2 hoặc
+order awaiting_store_return để hoàn sớm. Count chỉ tăng tại start, giữ task/
+attempt/dispatch cũ; assignment không xác nhận physical receipt. D3 còn chờ
+Bảo/Minh Đức chọn giữ hàng/chuyển trực tiếp/qua cửa hàng và proof của Văn Đức;
+D5 xử lý task 2 đã tạo nhưng chưa start; ledger/version/custody và D7 chưa
+được chốt cho retry. Không tự coi demo là approval hoặc live integration.
+
+[Manifest, contract mục tiêu và kiểm tra P07.2](demos/p072_outbound_retry_boundary.md).
+Không migration/RPC public/RLS/UI/router mới; P07.2 **chưa hoàn tất**.
+## P07.4 — Store handover/incident dependency boundary (26/10/2026)
+
+Chín migration hiện có chưa có report_store_handover/report_delivery_incident.
+Actual enum incident là damaged/lost/other; lưu trong business_events, không
+còn bảng delivery_incidents. Sau P01.1 chỉ manager đọc raw events; không mở
+RLS shipper để giải quyết retry. Unique event request_id toàn bảng không là
+ledger đối chiếu actor/operation/payload/result.
+
+Theo stop rule chỉ thêm hai pg_temp interfaces test-only luôn lỗi
+DEPENDENCY_NOT_READY sau validation/auth. Handover signature draft chưa có
+items/proof và không bao giờ success; không phải API nhận bàn giao finalized.
+Bổ sung test schema/RLS thật bằng privileged event seeds: loại incident,
+required actor/task/request/reason, subject match, không ghi result thất bại
+hoặc đổi task/order/COD/return/tồn; report chung không giả incident.
+
+Mục tiêu report giữ trạng thái, không manager receipt/inspection/restock hoặc
+bồi thường tự động. Outbound O10, pickup P5 và redelivery R6a cần D2/D5/D8/D9
+custody/items/allowed-state contracts; incident D6 cần ma trận theo kind/state.
+Bảo cần chốt manager recipient/deep link D7; S2 cần ledger/event payload/replay
+an toàn. Quyết định COD P06.3 không chốt các dependency này. Không tự chọn
+all managers hoặc coi assignment là physical custody.
+
+[Manifest, contract mục tiêu, lệnh/kết quả và blockers P07.4](demos/p074_delivery_reporting_boundary.md).
+Không migration/public API/grant/RLS/UI mới; P07.4 **live BLOCKED, chưa hoàn tất**.
+## P04.1 — Production accept/start, bổ sung ngày 26/10/2026
+
+Người dùng đã chốt triển khai primitive xuất kho/custody cùng hai RPC; lần hai
+chỉ cùng shipper còn giữ đủ hàng, chặn đổi người sau nhận. Đây là quyết định
+người dùng, không tự ghi teammate approval. Phần P04.1 BLOCKED/demo ở trên là
+lịch sử trước implementation này; không dùng fixture làm backend live.
+
+Migration mới `20261026055651_accept_start_outbound_delivery.sql` định nghĩa
+public.accept_delivery_task(p_task_id uuid,p_request_id uuid) và
+public.start_delivery_task(p_task_id uuid,p_request_id uuid), returns jsonb.
+Accept thực nhận/dispatch/proof nguyên tử, count chưa tăng; start xác minh
+proof rồi tăng count tối đa 2, không xuất lại hoặc ghi result attempt.
+
+Reservation phải có movement chứng minh của chính đơn, khớp toàn bộ server
+order_items; thiếu evidence bị từ chối. Private immutable dispatch/custody và
+request ledger riêng; role/assignment recheck cả replay. Không client write
+permission mới. DB guard chống hủy sau custody, không giả có RPC hủy của Bảo.
+Second accept/start không tạo task2; P07.2 manager retry và P07.1 failure vẫn
+chưa có production endpoint. Không notification D7 chưa chốt hoặc UI P04.2.
+
+[Contract, schema, kiểm thử và trạng thái deploy P04.1 production](demos/p041_production_accept_start.md).
+Implementation repository không đồng nghĩa đã deploy/Auth/PostgREST/cloud;
+không tự đánh dấu toàn bộ MH11 hoặc luồng giao→COD hoàn tất.
+### P04.1 — Kết quả deploy cloud 26/10/2026
+
+Sau khi người dùng duyệt project `bqoyfytmrtvjwrpshuhh` và đăng nhập CLI,
+đã deploy các migration pending và hai RPC accept/start production. Đã thêm
+migration `20261026062903_secure_internal_auth_identity_bridge.sql` sửa đặc
+thù managed Auth schema bằng helper private chỉ trả auth.uid cho internal
+roles; không grant quyền client/bảng Auth hoặc membership authenticated.
+
+11 migration local/remote khớp. Native 13 SQL suites +3 nhóm concurrency PASS;
+8 scoped SQL suites cloud PASS, gồm accept/start, read, assignment và COD.
+HTTP PostgREST hai RPC từ chối caller không đăng nhập bằng 401/42501. Mọi SQL
+fixture cloud rollback; profile/order/private proof/request/test Auth users
+không tồn dư. Không reset/xóa catalog cloud để ép baseline test PASS.
+
+Hai RPC backend đã có và đã test cloud; chưa positive JWT/UI end-to-end,
+không tự bật P04.2 MH11. P05/P07 write APIs còn thiếu vẫn không được coi hoàn
+tất. Chi tiết tệp/lệnh/kết quả/giới hạn tại
+[demos/p041_production_accept_start.md](demos/p041_production_accept_start.md).
+## P04.2 — Presentation production (26/10/2026)
+
+MH11 đã bật xác nhận thủ công assigned → accepted và accepted → in_transit cho outbound current theo P04.1. UI không tự chuyển state; chỉ hiển thị kết quả đọc lại server. Attempt hai vẫn phải qua custody/stock guards ở server. Các mục P04.2 chưa bật live phía trên là lịch sử trước adapter production.
+
+Chi tiết phạm vi, retry, kiểm thử và giới hạn live: [P04.2 production](demos/p042_production_outbound_actions.md).
+
+## P05.1/P05.2 — O5 production đã triển khai (26/10/2026)
+
+Thay kết luận P05 fixture-only trước đây. O5 chỉ shipper đang giữ đầy đủ hàng và được gán task outbound in_transit, order delivering, accepted/start/count/attempt/proof đúng, chưa có result; khách nhận đủ và thu đủ server COD. Một transaction ghi task/order delivered + một delivery_attempts success + COD collected + event delivery_completed và thông báo khách/các manager hiện tại. Count đã tăng ở start, không tăng ở completion; không xuất lại tồn, không ghi store receipt. Hỏng/mất/proof sai chặn completion.
+
+User đã chốt ledger/notification cho completion, không phải stakeholder agreement được suy diễn. Return/refund sau này không xóa COD obligation. MH11 production hai checkbox và refetch authoritative; failure/retry/return mutations P07 vẫn ngoài phạm vi. [Contract và kết quả live](demos/p051_p052_production_outbound_completion.md).
