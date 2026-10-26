@@ -12,6 +12,8 @@ import '../support/operational_supabase_fixture.dart';
 
 Map<String, dynamic> _row(String shipper, String order) => {
   'order_id': order,
+  'order_code': order,
+  'order_code_source': 'order_uuid',
   'shipper_id': shipper,
   'status': 'collected',
   'expected_amount_vnd': '550000',
@@ -39,6 +41,7 @@ void main() {
   test('real COD provider clears A data before B loads and after logout', () async {
     final delayedB = Completer<http.Response>();
     late http.Request requestB;
+    var rpcCalls = 0;
     const orderA = '11111111-1111-4111-8111-111111111111';
     const orderB = '22222222-2222-4222-8222-222222222222';
     final client = await fixtureClient((request) async {
@@ -50,12 +53,13 @@ void main() {
           {'role': 'shipper'},
         ]);
       }
-      expect(request.url.path, endsWith('/cod_collections'));
-      if (request.url.queryParameters['shipper_id'] == 'eq.$shipperB') {
+      expect(request.url.path, endsWith('/rpc/list_cod_collections'));
+      rpcCalls++;
+      if (rpcCalls == 2) {
         requestB = request;
         return delayedB.future;
       }
-      return jsonResponse(request, [_row(shipperA, orderA)]);
+      return jsonResponse(request, _page([_row(shipperA, orderA)]));
     });
     final container = ProviderContainer(
       overrides: [supabaseClientProvider.overrideWithValue(client)],
@@ -90,7 +94,7 @@ void main() {
     expect(container.read(codCollectionsProvider).asData, isNull);
     // Ensure B's SDK request has actually reached the injected test transport.
     await Future<void>.delayed(Duration.zero);
-    delayedB.complete(jsonResponse(requestB, [_row(shipperB, orderB)]));
+    delayedB.complete(jsonResponse(requestB, _page([_row(shipperB, orderB)])));
     await _until(
       container,
       () => container.read(codCollectionsProvider).hasValue,
@@ -153,3 +157,17 @@ void main() {
     },
   );
 }
+
+Map<String, dynamic> _page(List<Map<String, dynamic>> items) => {
+  'items': items,
+  'next_cursor': null,
+  'filtered_total': items.length,
+  'counts': {
+    'all': items.length,
+    'uncollected': 0,
+    'collected': items.length,
+    'received': 0,
+  },
+  'outstanding_vnd': items.length * 550000,
+  'as_of': '2026-10-25T08:00:00Z',
+};

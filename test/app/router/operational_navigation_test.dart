@@ -373,12 +373,29 @@ void main() {
       userId: shipperA,
       roles: {shipperA: 'shipper'},
       dataHandler: (request) async {
-        if (request.url.path.endsWith('/cod_collections')) {
+        if (request.url.path.endsWith('/rpc/list_cod_collections')) {
           codRequests.add(request);
-          return jsonResponse(
-            request,
-            returnRows ? [_codRow()] : const <Object>[],
-          );
+          return jsonResponse(request, {
+            'items': returnRows
+                ? [
+                    {
+                      ..._codRow(),
+                      'order_code': _codOrderId,
+                      'order_code_source': 'order_uuid',
+                    },
+                  ]
+                : const <Object>[],
+            'next_cursor': null,
+            'filtered_total': returnRows ? 1 : 0,
+            'counts': {
+              'all': returnRows ? 1 : 0,
+              'uncollected': 0,
+              'collected': returnRows ? 1 : 0,
+              'received': 0,
+            },
+            'outstanding_vnd': returnRows ? 550000 : 0,
+            'as_of': '2026-10-25T06:00:00Z',
+          });
         }
         return jsonResponse(request, const <Object>[]);
       },
@@ -394,12 +411,12 @@ void main() {
     );
     expect(_hasKey('shipper-navigation'), isTrue);
     expect(
-      codRequests.single.url.queryParameters['order_id'],
-      'eq.$_codOrderId',
+      (jsonDecode(codRequests.single.body) as Map)['p_order_id'],
+      _codOrderId,
     );
     expect(
-      codRequests.single.url.queryParameters['shipper_id'],
-      'eq.$shipperA',
+      (jsonDecode(codRequests.single.body) as Map)['p_shipper_id'],
+      isNull,
     );
 
     router.go('/');
@@ -417,7 +434,15 @@ void main() {
       () => router.state.uri.toString() == '/cod' && _hasKey('mh12-outlet'),
       description: 'unfiltered MH12 outlet',
     );
-    expect(codRequests.length, filteredRequestCount);
+    // The live shipper UI now queries its list after the guard admits /cod.
+    // These extra requests are status-scoped presentation reads, not an
+    // unfiltered guard lookup or a bypass of the exact-order check.
+    for (final request in codRequests.skip(filteredRequestCount)) {
+      final body = jsonDecode(request.body) as Map;
+      expect(body['p_statuses'], ['collected']);
+      expect(body['p_shipper_id'], shipperA);
+      expect(body['p_order_id'], isNull);
+    }
 
     router.go('/');
     await _pumpUntil(
@@ -439,7 +464,10 @@ void main() {
       description: 'root after unauthorized COD order',
     );
     expect(_hasKey('mh12-outlet'), isFalse);
-    expect(codRequests.last.url.queryParameters['order_id'], 'eq.$_codOrderId');
+    expect(
+      (jsonDecode(codRequests.last.body) as Map)['p_order_id'],
+      _codOrderId,
+    );
   });
 
   testWidgets('invalid IDs remain on route without any server request', (
