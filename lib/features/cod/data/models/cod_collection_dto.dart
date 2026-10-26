@@ -4,6 +4,8 @@ import '../../domain/models/cod_collection.dart';
 class CodCollectionDto {
   const CodCollectionDto({
     required this.orderId,
+    this.orderCode,
+    this.orderCodeSource,
     this.shipperId,
     required this.status,
     required this.expectedAmountVnd,
@@ -19,6 +21,8 @@ class CodCollectionDto {
   });
 
   final String orderId;
+  final String? orderCode;
+  final String? orderCodeSource;
   final String? shipperId;
   final CodStatus status;
   final int expectedAmountVnd;
@@ -33,7 +37,10 @@ class CodCollectionDto {
   final DateTime updatedAt;
 
   /// Decodes a Supabase row without coercing malformed values.
-  factory CodCollectionDto.fromJson(Map<String, dynamic> json) {
+  factory CodCollectionDto.fromJson(
+    Map<String, dynamic> json, {
+    bool requireOrderCode = false,
+  }) {
     final statusValue = _readRequiredString(json, 'status');
     final status = CodStatus.fromValue(statusValue);
     final expectedAmount = _readRequiredMoney(
@@ -51,8 +58,17 @@ class CodCollectionDto {
       receivedAmountVnd: receivedAmount,
     );
 
+    final orderId = _readRequiredUuid(json, 'order_id');
+    final orderCode = _readOptionalOrderCode(json);
+    final orderCodeSource = _readOptionalOrderCodeSource(json);
+    if (requireOrderCode &&
+        (orderCode != orderId || orderCodeSource != 'order_uuid')) {
+      throw _invalid('order_code', 'the order UUID with source order_uuid');
+    }
     return CodCollectionDto(
-      orderId: _readRequiredUuid(json, 'order_id'),
+      orderId: orderId,
+      orderCode: orderCode,
+      orderCodeSource: orderCodeSource,
       shipperId: _readNullableUuid(json, 'shipper_id'),
       status: status,
       expectedAmountVnd: expectedAmount,
@@ -71,6 +87,8 @@ class CodCollectionDto {
   CodCollection toDomain() {
     return CodCollection(
       orderId: orderId,
+      orderCode: orderCode ?? orderId,
+      orderCodeSource: orderCodeSource ?? 'order_uuid',
       shipperId: shipperId,
       status: status,
       expectedAmountVnd: expectedAmountVnd,
@@ -85,6 +103,29 @@ class CodCollectionDto {
       updatedAt: updatedAt,
     );
   }
+}
+
+String? _readOptionalOrderCode(Map<String, dynamic> json) {
+  if (!json.containsKey('order_code') || json['order_code'] == null) {
+    return null;
+  }
+  if (json['order_code'] is! String ||
+      (json['order_code'] as String).trim().isEmpty) {
+    throw _invalid('order_code', 'null or a non-blank string');
+  }
+  return json['order_code'] as String;
+}
+
+String? _readOptionalOrderCodeSource(Map<String, dynamic> json) {
+  if (!json.containsKey('order_code_source') ||
+      json['order_code_source'] == null) {
+    return null;
+  }
+  if (json['order_code_source'] is! String ||
+      (json['order_code_source'] as String).trim().isEmpty) {
+    throw _invalid('order_code_source', 'null or a non-blank string');
+  }
+  return json['order_code_source'] as String;
 }
 
 final RegExp _uuidPattern = RegExp(

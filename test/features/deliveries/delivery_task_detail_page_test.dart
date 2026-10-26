@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sports_store/app/theme/app_theme.dart';
+import 'package:sports_store/features/deliveries/data/repositories/operational_providers.dart';
+import 'package:sports_store/features/deliveries/data/repositories/operational_read_access.dart';
 import 'package:sports_store/features/deliveries/domain/models/delivery_task.dart';
 import 'package:sports_store/features/deliveries/domain/models/delivery_task_details.dart';
 import 'package:sports_store/features/deliveries/domain/models/operational_failure.dart';
@@ -12,6 +14,12 @@ import 'package:sports_store/features/deliveries/presentation/view_models/delive
 const _taskId = '11111111-1111-4111-8111-111111111111';
 const _returnTaskId = '66666666-6666-4666-8666-666666666666';
 const _redeliveryTaskId = '88888888-8888-4888-8888-888888888888';
+
+const _expiredOperationalSession = OperationalSession(
+  userId: null,
+  generation: 0,
+  failure: OperationalFailure(OperationalFailureCode.sessionExpired),
+);
 
 class _FixtureDetailViewModel extends DeliveryTaskDetailViewModel {
   _FixtureDetailViewModel(super.taskId, this.initial);
@@ -42,7 +50,7 @@ void main() {
       await tester.pumpWidget(_app(details.task.taskId, vm));
       expect(find.text('Đang vận chuyển'), findsOneWidget);
       final actions = kind == DeliveryTaskKind.outbound
-          ? ['Giao thành công', 'Báo giao thất bại']
+          ? ['Báo giao thất bại']
           : ['Giao lại thành công', 'Báo giao lại thất bại'];
       for (final label in actions) {
         final action = find.widgetWithText(OutlinedButton, label);
@@ -93,7 +101,7 @@ void main() {
     expect(find.byKey(const ValueKey('task-detail-map')), findsOneWidget);
     expect(
       find.text(
-        'Gọi điện chưa khả dụng. Bạn có thể sao chép số điện thoại để liên hệ.',
+        'Gọi điện chỉ mở trình quay số; bạn quyết định thực hiện cuộc gọi.',
       ),
       findsOneWidget,
     );
@@ -110,7 +118,7 @@ void main() {
             find.byKey(const ValueKey('task-detail-call')),
           )
           .onPressed,
-      isNull,
+      isNotNull,
     );
     expect(find.text('Không có khả năng gọi điện'), findsNothing);
     expect(find.text('Nhận hàng'), findsOneWidget);
@@ -224,6 +232,9 @@ void main() {
       ProviderScope(
         overrides: [
           deliveryTaskDetailViewModelProvider(mapTaskId).overrideWith(() => vm),
+          operationalSessionProvider.overrideWithValue(
+            const AsyncData(_expiredOperationalSession),
+          ),
         ],
         child: MaterialApp.router(theme: AppTheme.light, routerConfig: router),
       ),
@@ -261,6 +272,12 @@ Widget _app(String taskId, _FixtureDetailViewModel vm) {
     key: ValueKey(vm),
     overrides: [
       deliveryTaskDetailViewModelProvider(taskId).overrideWith(() => vm),
+      // The legacy page tests intentionally inject only the read-only detail
+      // VM. Keep the newly lazy action VM from constructing Supabase when an
+      // outbound projection is rendered by these read-only fixtures.
+      operationalSessionProvider.overrideWithValue(
+        const AsyncData(_expiredOperationalSession),
+      ),
     ],
     child: MaterialApp(
       theme: AppTheme.light,

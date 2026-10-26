@@ -1,0 +1,184 @@
+-- P04.1 DEMO ONLY. This file is injected only into a new p011_* native
+-- fixture. It is not a migration, runtime schema, API or authorization model.
+do $$
+begin
+  if left(current_database(),5) <> 'p011_'
+     or current_setting('sports_store.fixture_mode', true) is distinct from 'p011_isolated' then
+    raise exception 'P04.1 demo requires guarded p011_ isolated fixture';
+  end if;
+end;
+$$;
+
+create schema p041_demo;
+create table p041_demo.actors(id uuid primary key, role text not null
+  check (role in ('customer','manager','shipper')));
+create table p041_demo.orders(id uuid primary key, status text not null
+  check (status in ('awaiting_pickup','delivering','cancelled')),
+  attempt_count smallint not null check (attempt_count between 0 and 2));
+create table p041_demo.tasks(
+  id uuid primary key, order_id uuid not null references p041_demo.orders,
+  kind text not null default 'outbound' check (kind in ('outbound','return_pickup','redelivery')),
+  shipper_id uuid references p041_demo.actors, status text not null
+    check (status in ('assigned','accepted','in_transit','cancelled','failed')),
+  attempt_number smallint not null check (attempt_number between 1 and 2),
+  accepted_at timestamptz, started_at timestamptz,
+  result text check (result is null or result in ('success','failed')),
+  finished_at timestamptz);
+create table p041_demo.variants(id uuid primary key, on_hand bigint not null
+  check (on_hand >= 0), reserved bigint not null check (reserved >= 0 and reserved <= on_hand));
+create table p041_demo.items(order_id uuid not null references p041_demo.orders,
+  variant_id uuid not null references p041_demo.variants, quantity bigint not null check (quantity > 0),
+  primary key(order_id,variant_id));
+create table p041_demo.dispatches(order_id uuid primary key references p041_demo.orders,
+  dispatched_at timestamptz not null default clock_timestamp());
+create table p041_demo.dispatch_items(order_id uuid not null references p041_demo.dispatches,
+  variant_id uuid not null references p041_demo.variants, quantity bigint not null check(quantity > 0),
+  primary key(order_id,variant_id));
+create table p041_demo.custody(order_id uuid primary key references p041_demo.orders,
+  task_id uuid not null references p041_demo.tasks, holder_id uuid not null references p041_demo.actors,
+  accepted_at timestamptz not null);
+create table p041_demo.requests(actor_id uuid not null references p041_demo.actors,
+  request_id uuid not null, operation text not null check(operation in ('accept','start','cancel')),
+  task_id uuid not null references p041_demo.tasks, payload_hash text not null, result jsonb not null,
+  created_at timestamptz not null default clock_timestamp(), primary key(actor_id,request_id));
+create index p041_demo_tasks_order_idx on p041_demo.tasks(order_id);
+
+create or replace function p041_demo.command(p_operation text,p_task_id uuid,p_request_id uuid)
+returns jsonb language plpgsql security invoker set search_path = '' as $$
+declare
+  l_actor uuid := (select auth.uid()); l_role text; l_order uuid; l_os text; l_count smallint;
+  l_task p041_demo.tasks%rowtype; l_custody p041_demo.custody%rowtype;
+  l_req p041_demo.requests%rowtype; l_hash text; l_result jsonb; l_now timestamptz := clock_timestamp();
+  l_item record; l_dispatched boolean;
+begin
+  if p_operation is null or p_task_id is null or p_request_id is null
+     or p_operation not in ('accept','start','cancel') then
+    raise exception using errcode='22023',message='INVALID_ARGUMENT';
+  end if;
+  if l_actor is null then raise exception using errcode='42501',message='AUTH_REQUIRED'; end if;
+  select role into l_role from p041_demo.actors where id=l_actor;
+  if l_role is null then raise exception using errcode='42501',message='FORBIDDEN'; end if;
+  perform pg_advisory_xact_lock(hashtextextended('p041_demo:'||l_actor||':'||p_request_id,0));
+  select order_id into l_order from p041_demo.tasks where id=p_task_id;
+  if l_order is null then raise exception using errcode='P0001',message='NOT_FOUND_OR_FORBIDDEN'; end if;
+  select status,attempt_count into l_os,l_count from p041_demo.orders where id=l_order for update;
+  select * into l_task from p041_demo.tasks where id=p_task_id for update;
+  if l_role='shipper' and l_task.shipper_id is distinct from l_actor then
+    raise exception using errcode='42501',message='FORBIDDEN';
+  end if;
+  if p_operation in ('accept','start') and l_role<>'shipper' then
+    raise exception using errcode='42501',message='FORBIDDEN';
+  end if;
+  if p_operation='cancel' and l_role<>'manager' then
+    raise exception using errcode='42501',message='FORBIDDEN';
+  end if;
+  l_hash:=md5(jsonb_build_object('operation',p_operation,'task_id',p_task_id,'request_id',p_request_id)::text);
+  select * into l_req from p041_demo.requests where actor_id=l_actor and request_id=p_request_id;
+  if found then
+    if l_req.payload_hash<>l_hash or l_req.operation<>p_operation or l_req.task_id<>p_task_id then
+      raise exception using errcode='P0001',message='IDEMPOTENCY_CONFLICT';
+    end if;
+    return l_req.result;
+  end if;
+  if p_operation='accept' then
+    if l_task.kind<>'outbound' or l_task.status<>'assigned' or l_os<>'awaiting_pickup'
+       or l_task.accepted_at is not null or l_task.started_at is not null
+       or l_task.result is not null or l_task.finished_at is not null then
+      raise exception using errcode='P0001',message='STATE_CONFLICT';
+    end if;
+    select * into l_custody from p041_demo.custody where order_id=l_order for update;
+    select exists(select 1 from p041_demo.dispatches where order_id=l_order) into l_dispatched;
+    if l_task.attempt_number=1 then
+      if l_count<>0 or l_dispatched or l_custody.order_id is not null then
+        raise exception using errcode='P0001',message='CUSTODY_UNRESOLVED';
+      end if;
+      for l_item in select i.variant_id,i.quantity,v.on_hand,v.reserved
+        from p041_demo.items i join p041_demo.variants v on v.id=i.variant_id
+        where i.order_id=l_order order by i.variant_id for update of v loop
+        if l_item.quantity>l_item.reserved or l_item.quantity>l_item.on_hand then
+          raise exception using errcode='P0001',message='INVENTORY_UNAVAILABLE';
+        end if;
+      end loop;
+      if not exists(select 1 from p041_demo.items where order_id=l_order) then
+        raise exception using errcode='P0001',message='INVENTORY_UNAVAILABLE';
+      end if;
+      insert into p041_demo.dispatches(order_id) values(l_order);
+      insert into p041_demo.dispatch_items(order_id,variant_id,quantity)
+        select order_id,variant_id,quantity from p041_demo.items where order_id=l_order;
+      update p041_demo.variants v set on_hand=v.on_hand-i.quantity,reserved=v.reserved-i.quantity
+        from p041_demo.items i where i.order_id=l_order and i.variant_id=v.id;
+      insert into p041_demo.custody(order_id,task_id,holder_id,accepted_at)
+        values(l_order,p_task_id,l_actor,l_now);
+    else
+      -- Explicit demo-only D3 assumption: the same holder retains dispatched goods.
+      if not l_dispatched or l_task.attempt_number<>l_count+1 or l_custody.order_id is null
+         or l_custody.holder_id<>l_actor or not exists(select 1 from p041_demo.tasks old
+           where old.order_id=l_order and old.result='failed' and old.attempt_number=1)
+         or (select count(*) from p041_demo.dispatch_items where order_id=l_order)
+            <> (select count(*) from p041_demo.items where order_id=l_order)
+         or exists (select 1 from p041_demo.items i left join p041_demo.dispatch_items d
+           on d.order_id=i.order_id and d.variant_id=i.variant_id
+           where i.order_id=l_order and (d.variant_id is null or d.quantity<>i.quantity)) then
+        raise exception using errcode='P0001',message='CUSTODY_UNRESOLVED';
+      end if;
+      update p041_demo.custody set task_id=p_task_id,accepted_at=l_now where order_id=l_order;
+    end if;
+    update p041_demo.tasks set status='accepted',accepted_at=l_now where id=p_task_id;
+    l_result:=jsonb_build_object('operation','accept','task_id',p_task_id,'order_id',l_order,
+      'status','accepted','attempt_number',l_task.attempt_number,'dispatched_now',not l_dispatched,'committed_at',l_now);
+  elsif p_operation='start' then
+    select * into l_custody from p041_demo.custody where order_id=l_order for update;
+    select exists(select 1 from p041_demo.dispatches where order_id=l_order) into l_dispatched;
+    if l_task.kind<>'outbound' or l_task.status<>'accepted' or l_os<>'awaiting_pickup'
+       or l_custody.order_id is null or l_custody.task_id<>p_task_id or l_custody.holder_id<>l_actor
+       or l_task.accepted_at is null
+       or l_custody.accepted_at is null or not l_dispatched
+       or (select count(*) from p041_demo.dispatch_items where order_id=l_order)
+          <> (select count(*) from p041_demo.items where order_id=l_order)
+       or exists (select 1 from p041_demo.items i left join p041_demo.dispatch_items d
+          on d.order_id=i.order_id and d.variant_id=i.variant_id
+          where i.order_id=l_order and (d.variant_id is null or d.quantity<>i.quantity)) then
+      raise exception using errcode='P0001',message='CUSTODY_UNRESOLVED';
+    end if;
+    if l_task.attempt_number<>l_count+1 or l_count>=2 then
+      raise exception using errcode='P0001',message='ATTEMPT_LIMIT';
+    end if;
+    update p041_demo.tasks set status='in_transit',started_at=l_now where id=p_task_id;
+    update p041_demo.orders set status='delivering',attempt_count=attempt_count+1 where id=l_order;
+    l_result:=jsonb_build_object('operation','start','task_id',p_task_id,'order_id',l_order,
+      'status','in_transit','attempt_number',l_task.attempt_number,'committed_at',l_now);
+  else
+    select * into l_custody from p041_demo.custody where order_id=l_order for update;
+    select exists(select 1 from p041_demo.dispatches where order_id=l_order) into l_dispatched;
+    if l_task.status<>'assigned' or l_custody.order_id is not null or l_dispatched
+       or l_os<>'awaiting_pickup' then
+      raise exception using errcode='P0001',message='CUSTODY_UNRESOLVED';
+    end if;
+    for l_item in select variant_id,quantity from p041_demo.items where order_id=l_order order by variant_id for update loop
+      update p041_demo.variants set reserved=reserved-l_item.quantity
+        where id=l_item.variant_id and reserved >= l_item.quantity;
+      if not found then
+        raise exception using errcode='P0001',message='INVENTORY_UNAVAILABLE';
+      end if;
+    end loop;
+    update p041_demo.tasks set status='cancelled',shipper_id=null where id=p_task_id;
+    update p041_demo.orders set status='cancelled' where id=l_order;
+    l_result:=jsonb_build_object('operation','cancel','task_id',p_task_id,'order_id',l_order,'status','cancelled','committed_at',l_now);
+  end if;
+  insert into p041_demo.requests(actor_id,request_id,operation,task_id,payload_hash,result)
+    values(l_actor,p_request_id,p_operation,p_task_id,l_hash,l_result);
+  return l_result;
+end;
+$$;
+
+comment on schema p041_demo is 'P04.1 isolated demo only; not runtime authorization or inventory source';
+
+create or replace function p041_demo.reject_fault_request()
+returns trigger language plpgsql security invoker set search_path = '' as $$
+begin
+  if new.request_id = '04110000-0000-0000-0000-000000000399'::uuid then
+    raise exception using errcode='P0001',message='DEMO_FAULT_INJECTION';
+  end if;
+  return new;
+end;
+$$;
