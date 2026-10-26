@@ -1,0 +1,54 @@
+-- P04.1 TEST-ONLY fail-closed interface fixture.
+-- Never apply this file to Supabase/cloud or a shared database.
+-- The inventory/custody primitive is not available yet, so these temporary
+-- functions intentionally have no success path and perform no table I/O.
+-- The runner expands this file in the same transaction as the dependency
+-- suite, then rolls it back.
+
+create or replace function pg_temp.accept_delivery_task_contract(
+  p_task_id uuid,
+  p_request_id uuid
+) returns jsonb
+language plpgsql
+security invoker
+set search_path = pg_catalog, auth, pg_temp
+as $$
+begin
+  if p_task_id is null or p_request_id is null then
+    raise exception using errcode = '22023', message = 'INVALID_ARGUMENT';
+  end if;
+
+  if auth.uid() is null then
+    raise exception using errcode = '42501', message = 'AUTH_REQUIRED';
+  end if;
+
+  -- Deliberately fail closed until owner-approved inventory dispatch and
+  -- custody are implemented in one server transaction. No task, order,
+  -- profile, inventory or ledger row is inspected or changed here.
+  raise exception using errcode = 'P0001', message = 'DEPENDENCY_NOT_READY';
+end;
+$$;
+
+create or replace function pg_temp.start_delivery_task_contract(
+  p_task_id uuid,
+  p_request_id uuid
+) returns jsonb
+language plpgsql
+security invoker
+set search_path = pg_catalog, auth, pg_temp
+as $$
+begin
+  if p_task_id is null or p_request_id is null then
+    raise exception using errcode = '22023', message = 'INVALID_ARGUMENT';
+  end if;
+
+  if auth.uid() is null then
+    raise exception using errcode = '42501', message = 'AUTH_REQUIRED';
+  end if;
+
+  -- Deliberately fail closed until accepted custody, outbound attempt
+  -- counting, cancellation locking and request idempotency are implemented by
+  -- the approved runtime RPC. This fixture cannot manufacture success.
+  raise exception using errcode = 'P0001', message = 'DEPENDENCY_NOT_READY';
+end;
+$$;

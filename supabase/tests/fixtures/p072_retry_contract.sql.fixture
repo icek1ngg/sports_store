@@ -1,0 +1,69 @@
+-- P07.2 TEST-ONLY fail-closed retry/reassignment interface fixture.
+-- Never apply this file to Supabase/cloud or a shared database.
+--
+-- Production custody, dispatch/start, failure and second-attempt contracts are
+-- not available yet. D3 (whether and how the order remains in the shipper's
+-- custody for retry, or returns through store custody) is unresolved. These
+-- temporary interfaces therefore validate only the draft input boundary and
+-- always fail closed. They do not look up a profile, role, task, order,
+-- attempt, custody proof, third-attempt state or idempotency ledger.
+--
+-- The parameter list is a test-only draft shape, not a finalized production
+-- RPC signature. `p_decision` accepts only the two draft tokens below; no
+-- production enum, state transition, response contract or payload hash is
+-- established by this fixture.
+
+create or replace function pg_temp.decide_outbound_retry_contract(
+  p_order_id uuid,
+  p_request_id uuid,
+  p_decision text
+) returns jsonb
+language plpgsql
+security invoker
+set search_path = pg_catalog, auth, pg_temp
+as $$
+begin
+  if p_order_id is null or p_request_id is null then
+    raise exception using errcode = '22023', message = 'INVALID_ARGUMENT';
+  end if;
+
+  if p_decision is null
+     or p_decision not in ('retry', 'return_to_store') then
+    raise exception using errcode = '22023', message = 'INVALID_ARGUMENT';
+  end if;
+
+  if auth.uid() is null then
+    raise exception using errcode = '42501', message = 'AUTH_REQUIRED';
+  end if;
+
+  -- No role/state/custody/attempt validation is claimed here. Until the
+  -- owner-approved custody and D3 transaction exists, every otherwise-valid
+  -- call remains fail closed and cannot fabricate a retry task or order state.
+  raise exception using errcode = 'P0001', message = 'DEPENDENCY_NOT_READY';
+end;
+$$;
+
+create or replace function pg_temp.reassign_outbound_task_contract(
+  p_task_id uuid,
+  p_shipper_id uuid,
+  p_request_id uuid
+) returns jsonb
+language plpgsql
+security invoker
+set search_path = pg_catalog, auth, pg_temp
+as $$
+begin
+  if p_task_id is null or p_shipper_id is null or p_request_id is null then
+    raise exception using errcode = '22023', message = 'INVALID_ARGUMENT';
+  end if;
+
+  if auth.uid() is null then
+    raise exception using errcode = '42501', message = 'AUTH_REQUIRED';
+  end if;
+
+  -- This is not the existing public.assign_delivery_task contract and must
+  -- not weaken or replace it. Custody, current assignment, task kind/state,
+  -- role and idempotency checks remain dependencies for a future live API.
+  raise exception using errcode = 'P0001', message = 'DEPENDENCY_NOT_READY';
+end;
+$$;
