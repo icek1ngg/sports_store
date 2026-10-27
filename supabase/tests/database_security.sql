@@ -671,27 +671,34 @@ SELECT pg_temp.assert_rows('conversation read marker keeps manager and stamps cu
   current_setting('database_test.customer_id'),
   current_setting('database_test.customer_id')), 1);
 
--- Shippers see only their assigned delivery/return work, related order items,
--- COD and incident events; they cannot access chat, customer orders, or refund
--- and evidence fields.
+-- P01.1: shippers read assigned work/items only through safe projections.
+-- Base-table reads cannot use historical assignments to unlock related data.
+-- COD remains independent; chat, orders, return and evidence remain private.
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.set_test_claims(current_setting('database_test.shipper_id')::uuid);
-SELECT pg_temp.assert_rows('shipper sees assigned tasks only',
-  format('SELECT id FROM public.delivery_tasks WHERE assigned_shipper_id = %L::uuid',
-    current_setting('database_test.shipper_id')), 2);
+SELECT pg_temp.assert_rows('shipper cannot read raw tasks',
+  'SELECT id FROM public.delivery_tasks', 0);
+SELECT pg_temp.assert_rows('shipper sees assigned task projections',
+  'SELECT task_id FROM public.read_my_delivery_tasks()', 2);
 SELECT pg_temp.assert_rows('shipper cannot read orders', 'SELECT id FROM public.orders', 0);
-SELECT pg_temp.assert_rows('shipper sees assigned order item', 'SELECT id FROM public.order_items', 1);
-SELECT pg_temp.assert_rows('shipper sees assigned attempt', 'SELECT task_id FROM public.delivery_attempts', 1);
+SELECT pg_temp.assert_rows('shipper cannot read raw order items', 'SELECT id FROM public.order_items', 0);
+SELECT pg_temp.assert_rows('shipper cannot read raw attempts', 'SELECT task_id FROM public.delivery_attempts', 0);
+SELECT pg_temp.assert_rows('shipper sees task-scoped order items',
+  format('SELECT item_id FROM public.read_my_delivery_task_items(%L::uuid)',
+    current_setting('database_test.task_id')), 1);
 SELECT pg_temp.assert_rows('shipper sees own COD', 'SELECT order_id FROM public.cod_collections', 1);
-SELECT pg_temp.assert_rows('shipper sees assigned return item', 'SELECT id FROM public.return_items', 1);
-SELECT pg_temp.assert_rows('shipper sees assigned incident event',
+SELECT pg_temp.assert_rows('shipper cannot read raw return items', 'SELECT id FROM public.return_items', 0);
+SELECT pg_temp.assert_rows('shipper sees task-scoped return items',
+  format('SELECT item_id FROM public.read_my_delivery_task_items(%L::uuid)',
+    current_setting('database_test.return_task_id')), 1);
+SELECT pg_temp.assert_rows('shipper cannot read raw incident event',
   format($sql$
     SELECT id FROM public.business_events
     WHERE incident_kind IS NOT NULL
       AND actor_id = %L::uuid
-  $sql$, current_setting('database_test.shipper_id')), 1);
-SELECT pg_temp.assert_rows('assigned shipper sees the assigned task incident set',
-  $$SELECT id FROM public.business_events WHERE incident_kind IS NOT NULL$$, 1);
+  $sql$, current_setting('database_test.shipper_id')), 0);
+SELECT pg_temp.assert_rows('shipper cannot read raw incident set',
+  $$SELECT id FROM public.business_events WHERE incident_kind IS NOT NULL$$, 0);
 SELECT pg_temp.assert_rows('shipper cannot read return request bank data',
   'SELECT id FROM public.return_requests', 0);
 SELECT pg_temp.assert_rows('shipper cannot read conversations',
@@ -838,6 +845,99 @@ SELECT pg_temp.assert_raises('duplicate business request event is rejected', for
   ARRAY['23505']);
 
 RESET ROLE;
+-- P07.4 regressions of the EXISTING schema only. Privileged event seeds do
+-- not implement reporting RPC authorization, idempotent replay or notifications.
+CREATE TEMP TABLE p074_business_before AS
+SELECT jsonb_build_object(
+  'orders', (SELECT jsonb_agg(to_jsonb(x) ORDER BY x.id) FROM public.orders x),
+  'tasks', (SELECT jsonb_agg(to_jsonb(x) ORDER BY x.id) FROM public.delivery_tasks x),
+  'attempts', (SELECT jsonb_agg(to_jsonb(x) ORDER BY x.id) FROM public.delivery_attempts x),
+  'cod', (SELECT jsonb_agg(to_jsonb(x) ORDER BY x.order_id) FROM public.cod_collections x),
+  'variants', (SELECT jsonb_agg(to_jsonb(x) ORDER BY x.id) FROM public.product_variants x),
+  'movements', (SELECT jsonb_agg(to_jsonb(x) ORDER BY x.id) FROM public.inventory_movements x),
+  'returns', (SELECT jsonb_agg(to_jsonb(x) ORDER BY x.id) FROM public.return_requests x),
+  'notifications', (SELECT jsonb_agg(to_jsonb(x) ORDER BY x.id) FROM public.notifications x)
+) AS snapshot;
+
+DO $$
+DECLARE l_kind public.delivery_incident_kind;
+BEGIN
+  FOREACH l_kind IN ARRAY enum_range(NULL::public.delivery_incident_kind) LOOP
+    INSERT INTO public.business_events
+      (actor_id, subject_type, subject_id, task_id, incident_kind, request_id, reason)
+    VALUES (current_setting('database_test.shipper_id')::uuid,
+      'delivery_task', current_setting('database_test.task_id')::uuid,
+      current_setting('database_test.task_id')::uuid, l_kind, gen_random_uuid(),
+      'P074 privileged schema fixture: ' || l_kind::text);
+  END LOOP;
+END;
+$$;
+SELECT pg_temp.assert_rows('P07.4 all actual incident enum variants are representable',
+  $$SELECT DISTINCT incident_kind FROM public.business_events
+    WHERE reason LIKE 'P074 privileged schema fixture:%'$$, 3);
+SELECT pg_temp.assert_raises('P07.4 incident requires an actor', format($sql$
+  INSERT INTO public.business_events
+    (subject_type, subject_id, task_id, incident_kind, request_id, reason)
+  VALUES ('delivery_task', %L::uuid, %L::uuid, 'damaged', gen_random_uuid(), 'Damage')
+  $sql$, current_setting('database_test.task_id'), current_setting('database_test.task_id')),
+  ARRAY['23514']);
+SELECT pg_temp.assert_raises('P07.4 incident requires request key', format($sql$
+  INSERT INTO public.business_events
+    (actor_id, subject_type, subject_id, task_id, incident_kind, reason)
+  VALUES (%L::uuid, 'delivery_task', %L::uuid, %L::uuid, 'lost', 'Loss')
+  $sql$, current_setting('database_test.shipper_id'), current_setting('database_test.task_id'),
+  current_setting('database_test.task_id')), ARRAY['23514']);
+SELECT pg_temp.assert_raises('P07.4 incident rejects blank reason', format($sql$
+  INSERT INTO public.business_events
+    (actor_id, subject_type, subject_id, task_id, incident_kind, request_id, reason)
+  VALUES (%L::uuid, 'delivery_task', %L::uuid, %L::uuid, 'other', gen_random_uuid(), '   ')
+  $sql$, current_setting('database_test.shipper_id'), current_setting('database_test.task_id'),
+  current_setting('database_test.task_id')), ARRAY['23514']);
+SELECT pg_temp.assert_raises('P07.4 incident subject must match task', format($sql$
+  INSERT INTO public.business_events
+    (actor_id, subject_type, subject_id, task_id, incident_kind, request_id, reason)
+  VALUES (%L::uuid, 'delivery_task', %L::uuid, %L::uuid, 'other', gen_random_uuid(), 'Mismatch')
+  $sql$, current_setting('database_test.shipper_id'), current_setting('database_test.other_order_id'),
+  current_setting('database_test.task_id')), ARRAY['23514']);
+
+-- Generic event has NULL incident_kind: never disguise handover as damage/loss.
+-- This seed is not a finalized production handover event-type/payload contract.
+INSERT INTO public.business_events
+  (actor_id, subject_type, subject_id, task_id, request_id, reason)
+VALUES (current_setting('database_test.shipper_id')::uuid, 'delivery_task',
+  current_setting('database_test.task_id')::uuid,
+  current_setting('database_test.task_id')::uuid,
+  '07400000-0000-0000-0000-000000000001'::uuid,
+  'P074 TEST-ONLY generic report; no manager receipt');
+SELECT pg_temp.assert_rows('P07.4 generic report is distinct from an incident',
+  $$SELECT id FROM public.business_events
+    WHERE request_id = '07400000-0000-0000-0000-000000000001'::uuid
+      AND incident_kind IS NULL$$, 1);
+
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.set_test_claims(current_setting('database_test.shipper_id')::uuid);
+SELECT pg_temp.assert_rows('P07.4 shipper cannot read unstructured raw event seeds',
+  $$SELECT id FROM public.business_events WHERE reason LIKE 'P074%'$$, 0);
+SELECT pg_temp.assert_raises('P07.4 shipper cannot bypass missing RPC by inserting raw report',
+  format($sql$INSERT INTO public.business_events (actor_id, subject_type, subject_id, reason)
+  VALUES (%L::uuid, 'delivery_task', %L::uuid, 'Unauthorized report')$sql$,
+  current_setting('database_test.shipper_id'), current_setting('database_test.task_id')),
+  ARRAY['42501']);
+SELECT pg_temp.set_test_claims(current_setting('database_test.manager_id')::uuid);
+SELECT pg_temp.assert_rows('P07.4 manager sees fixture events',
+  $$SELECT id FROM public.business_events WHERE reason LIKE 'P074%'$$, 4);
+RESET ROLE;
+SELECT pg_temp.assert_rows('P07.4 event-only seeds never complete attempts receive or replenish goods',
+  $$SELECT 1 FROM p074_business_before b WHERE b.snapshot = jsonb_build_object(
+    'orders', (SELECT jsonb_agg(to_jsonb(x) ORDER BY x.id) FROM public.orders x),
+    'tasks', (SELECT jsonb_agg(to_jsonb(x) ORDER BY x.id) FROM public.delivery_tasks x),
+    'attempts', (SELECT jsonb_agg(to_jsonb(x) ORDER BY x.id) FROM public.delivery_attempts x),
+    'cod', (SELECT jsonb_agg(to_jsonb(x) ORDER BY x.order_id) FROM public.cod_collections x),
+    'variants', (SELECT jsonb_agg(to_jsonb(x) ORDER BY x.id) FROM public.product_variants x),
+    'movements', (SELECT jsonb_agg(to_jsonb(x) ORDER BY x.id) FROM public.inventory_movements x),
+    'returns', (SELECT jsonb_agg(to_jsonb(x) ORDER BY x.id) FROM public.return_requests x),
+    'notifications', (SELECT jsonb_agg(to_jsonb(x) ORDER BY x.id) FROM public.notifications x))$$, 1);
+
 SELECT 'database_security.sql: PASS' AS result,
        'fixtures rolled back by final statement' AS fixture_scope;
 
