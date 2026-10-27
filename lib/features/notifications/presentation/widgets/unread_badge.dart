@@ -21,16 +21,19 @@ class UnreadBadge extends StatelessWidget {
       child: Container(
         constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-        alignment: Alignment.center,
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.error,
           borderRadius: BorderRadius.circular(999),
         ),
-        child: Text(
-          visual,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: Theme.of(context).colorScheme.onError,
-            fontWeight: FontWeight.w700,
+        child: Center(
+          widthFactor: 1,
+          heightFactor: 1,
+          child: Text(
+            visual,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: Theme.of(context).colorScheme.onError,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
       ),

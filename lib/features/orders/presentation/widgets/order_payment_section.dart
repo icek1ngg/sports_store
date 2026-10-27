@@ -20,7 +20,7 @@ class OrderPaymentSection extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Thanh toán', style: Theme.of(context).textTheme.titleMedium),
+            Text('Thanh toán', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 12),
             _MoneyRow(label: 'Tạm tính', amount: order.subtotalVnd),
             const SizedBox(height: 8),
@@ -56,6 +56,24 @@ class _MoneyRow extends StatelessWidget {
     final style = emphasized
         ? Theme.of(context).textTheme.titleMedium
         : Theme.of(context).textTheme.bodyMedium;
+    final amountStyle = emphasized
+        ? Theme.of(context).textTheme.headlineSmall
+        : style;
+    if (MediaQuery.textScalerOf(context).scale(14) > 21 ||
+        MediaQuery.sizeOf(context).width < 360) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: style),
+          const SizedBox(height: 4),
+          Text(
+            formatVnd(amount),
+            softWrap: true,
+            style: amountStyle?.copyWith(fontWeight: FontWeight.w700),
+          ),
+        ],
+      );
+    }
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -66,7 +84,7 @@ class _MoneyRow extends StatelessWidget {
             formatVnd(amount),
             textAlign: TextAlign.end,
             softWrap: true,
-            style: style?.copyWith(fontWeight: FontWeight.w700),
+            style: amountStyle?.copyWith(fontWeight: FontWeight.w700),
           ),
         ),
       ],

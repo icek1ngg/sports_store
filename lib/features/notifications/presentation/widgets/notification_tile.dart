@@ -23,9 +23,7 @@ class NotificationTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final unread = !notification.isRead;
-    final surface = unread
-        ? colors.secondaryContainer.withValues(alpha: 0.42)
-        : null;
+    final surface = unread ? colors.surfaceContainerLow : colors.surface;
     final typeLabel = _subjectTypeLabel(notification.subjectType);
     final content = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -42,13 +40,17 @@ class NotificationTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      child: Text(
-                        notification.title,
-                        softWrap: true,
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: unread
-                              ? FontWeight.w700
-                              : FontWeight.w500,
+                      // The outer tile label already announces title/type.
+                      child: ExcludeSemantics(
+                        child: Text(
+                          notification.title,
+                          softWrap: true,
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(
+                                fontWeight: unread
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                              ),
                         ),
                       ),
                     ),
@@ -77,9 +79,11 @@ class NotificationTile extends StatelessWidget {
                       formatHanoiDateTime(notification.createdAt),
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
-                    Text(
-                      typeLabel,
-                      style: Theme.of(context).textTheme.bodySmall,
+                    ExcludeSemantics(
+                      child: Text(
+                        typeLabel,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
                     ),
                   ],
                 ),
@@ -129,9 +133,15 @@ class NotificationTile extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: surface,
-          border: Border(bottom: BorderSide(color: colors.outlineVariant)),
+          borderRadius: BorderRadius.circular(16),
         ),
-        child: onTap == null ? content : InkWell(onTap: onTap, child: content),
+        child: onTap == null
+            ? content
+            : InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: onTap,
+                child: content,
+              ),
       ),
     );
   }
@@ -149,12 +159,10 @@ class _SubjectIcon extends StatelessWidget {
     final data = _subjectIcon(type);
     return CircleAvatar(
       radius: 22,
-      backgroundColor: unread
-          ? colors.primaryContainer
-          : colors.surfaceContainerHighest,
+      backgroundColor: unread ? colors.primary : colors.surfaceContainerLow,
       child: Icon(
         data.icon,
-        color: unread ? colors.onPrimaryContainer : colors.onSurfaceVariant,
+        color: unread ? colors.onPrimary : colors.onSurfaceVariant,
       ),
     );
   }

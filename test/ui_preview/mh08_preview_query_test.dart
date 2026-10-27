@@ -88,7 +88,7 @@ void main() {
         expect(environment.manager.managerDetailReads.last, id);
         // Existing MH09 onAccepted may invalidate lists while detail is open.
         final reads = environment.manager.managerReads.length;
-        await tester.pageBack();
+        await tester.tap(find.byTooltip('Quay lại'));
         await tester.pumpAndSettle();
         expect(identical(previewContainer(tester), container), isTrue);
         expect(environment.manager.managerReads.length, reads + 1);
