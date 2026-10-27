@@ -1144,4 +1144,3 @@ comment on function public.decide_outbound_retry(uuid, uuid, text, uuid, uuid) i
   'P07.2 manager-only first failure decision. Retry creates same-holder task 2 without dispatch/custody; return may cancel an unstarted task 2 through an append-only decision permit.';
 
 notify pgrst, 'reload schema';
-

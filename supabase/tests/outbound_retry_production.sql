@@ -444,4 +444,3 @@ reset role;
 select 'outbound_retry_production.sql: PASS' as result,
        'P07.2 real retry/return/custody/CAS/privacy/rollback contract' as scope;
 rollback;
-
