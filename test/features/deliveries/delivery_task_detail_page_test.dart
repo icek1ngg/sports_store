@@ -50,7 +50,7 @@ void main() {
       await tester.pumpWidget(_app(details.task.taskId, vm));
       expect(find.text('Đang vận chuyển'), findsOneWidget);
       final actions = kind == DeliveryTaskKind.outbound
-          ? ['Báo giao thất bại']
+          ? <String>[]
           : ['Giao lại thành công', 'Báo giao lại thất bại'];
       for (final label in actions) {
         final action = find.widgetWithText(OutlinedButton, label);

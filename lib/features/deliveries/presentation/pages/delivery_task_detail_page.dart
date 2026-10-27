@@ -13,6 +13,8 @@ import '../widgets/outbound_task_actions.dart';
 import '../widgets/delivery_call_action.dart';
 import '../widgets/outbound_completion_action.dart';
 import '../view_models/outbound_completion_view_model.dart';
+import '../view_models/outbound_failure_view_model.dart';
+import '../widgets/outbound_failure_action.dart';
 import '../view_models/outbound_task_actions_view_model.dart';
 
 /// MH11 detail view with server-backed outbound accept/start actions.
@@ -61,6 +63,7 @@ class _DeliveryTaskDetailPageState
     // to loading/history, so its acknowledged COD/list reconciliation finishes.
     if (_completionControllerActive) {
       ref.watch(outboundCompletionViewModelProvider(widget.taskId));
+      ref.watch(outboundFailureViewModelProvider(widget.taskId));
     }
 
     return RefreshIndicator(
@@ -185,6 +188,8 @@ class _DetailBody extends StatelessWidget {
                 OutboundTaskActions(task: task),
                 if (task.status == DeliveryTaskStatus.inTransit)
                   OutboundCompletionAction(taskId: task.taskId),
+                if (task.status == DeliveryTaskStatus.inTransit)
+                  OutboundFailureAction(taskId: task.taskId),
                 if (isCurrent &&
                     task.status != DeliveryTaskStatus.assigned &&
                     task.status != DeliveryTaskStatus.accepted)
@@ -207,7 +212,15 @@ class _DetailBody extends StatelessWidget {
           _SectionCard(
             title: 'Kết quả xác nhận',
             icon: Icons.task_alt_outlined,
-            child: OutboundCompletionAction(taskId: task.taskId),
+            child: Column(
+              children: [
+                OutboundCompletionAction(
+                  taskId: task.taskId,
+                  allowSubmit: false,
+                ),
+                OutboundFailureAction(taskId: task.taskId, allowSubmit: false),
+              ],
+            ),
           ),
         ],
         const SizedBox(height: 12),
@@ -874,9 +887,7 @@ List<String> _futureActionLabels(DeliveryTaskSnapshot task) {
     (DeliveryTaskKind.outbound, DeliveryTaskStatus.accepted) => [
       'Bắt đầu giao',
     ],
-    (DeliveryTaskKind.outbound, DeliveryTaskStatus.inTransit) => [
-      'Báo giao thất bại',
-    ],
+    (DeliveryTaskKind.outbound, DeliveryTaskStatus.inTransit) => [],
     (DeliveryTaskKind.returnPickup, DeliveryTaskStatus.assigned) => [
       'Xác nhận lấy hàng',
     ],

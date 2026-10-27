@@ -1,8 +1,4 @@
-/// Draft, transport-neutral input for reporting an outbound delivery failure.
-///
-/// P07.1 deliberately has no live RPC.  This model is a domain seam for the
-/// test-only P07.3 harness and must not be treated as a Supabase payload by
-/// runtime code until the server contract is approved.
+/// Outbound failure command for the deployed P07.1 contract.
 enum OutboundFailureReason {
   unreachable('unreachable'),
   reschedule('reschedule'),
@@ -22,7 +18,7 @@ enum OutboundFailureReason {
   }
 }
 
-/// The disposition returned by a future failure transaction.
+/// The disposition returned by a failure transaction.
 ///
 /// A first failed attempt remains with the manager for a retry/return
 /// decision.  A second failed attempt remains pending store return.  The
@@ -56,7 +52,7 @@ enum OutboundFailureDisposition {
   }
 }
 
-/// Idempotent, client-controlled input for the future failure API.
+/// Idempotent, client-controlled input for the failure API.
 ///
 /// The command intentionally contains no amount, shipper identity, schedule,
 /// COD or stock fields.  The server derives actor, assignment, timestamps and
@@ -100,7 +96,7 @@ class OutboundFailureCommand {
         : true;
   }
 
-  /// The canonical text sent by a future adapter.  This getter makes the
+  /// The canonical text sent by the production adapter.  This getter makes the
   /// whitespace rule explicit without mutating the immutable command.
   String? get trimmedDescription {
     final trimmed = description?.trim();
@@ -135,7 +131,7 @@ class OutboundFailureCommand {
       'hasDescription: ${trimmedDescription != null})';
 }
 
-/// Server acknowledgement draft for [OutboundFailureCommand].
+/// Validated server acknowledgement for [OutboundFailureCommand].
 ///
 /// This is not a task snapshot.  A harness must perform a separate
 /// authoritative detail read and only then expose a failed result.
