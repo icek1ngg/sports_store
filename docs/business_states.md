@@ -1,5 +1,11 @@
 # Trạng thái nghiệp vụ
 
+P07.5 chỉ nối giao diện reporting outbound P07.4. Báo bàn giao/sự cố không đổi
+task/order/COD/attempt/stock; marker bàn giao lấy từ server không phải trạng thái
+manager receipt. UI đọc flags custody từ RPC hẹp, không suy từ `failed` đơn lẻ.
+Pickup/redelivery và manager resolution/inspection/restock chưa được triển khai
+bởi phase này. Xem [P07.5](demos/p075_production_reporting_interfaces.md).
+
 Tài liệu này là hợp đồng trạng thái dùng chung cho MH01–MH20 và migration schema
 nền tảng. Các giá trị bên dưới đã được định nghĩa
 bằng enum hoặc ràng buộc trong schema để các ViewModel, repository và policy

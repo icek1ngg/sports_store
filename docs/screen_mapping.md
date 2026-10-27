@@ -1,5 +1,11 @@
 # Ánh xạ màn hình Sports Store
 
+MH11 P07.5: tại route task-detail hiện có, thêm dialog báo bàn giao và sự cố
+outbound theo quyền context server, kể cả task failed/cancelled restricted.
+Không thêm màn/route. Report không có nghĩa chủ cửa hàng nhận, kiểm tra hoặc
+nhập lại tồn; dialog thất bại thông thường vẫn riêng. Xem
+[phạm vi và kiểm chứng P07.5](demos/p075_production_reporting_interfaces.md).
+
 Phạm vi chính gồm đúng 20 màn hình (MH01–MH20). Hộp thoại thêm/sửa sản phẩm,
 biến thể và bộ chọn vị trí trong màn đặt hàng là thành phần của màn hình tương
 ứng, không tạo thêm mã màn hình.

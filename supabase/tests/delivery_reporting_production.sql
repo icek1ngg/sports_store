@@ -438,6 +438,11 @@ reset role;
 set local role authenticated;
 select pg_temp.set_p074_claims('07450000-0000-0000-0000-000000000003');
 select public.accept_delivery_task((select id from p074_ids where name='task15_2'),'07450000-0000-0000-0000-000000000934');
+select pg_temp.assert_p074('P075 accepted retry hides old task1 context',
+  (select c->>'can_handover'='false' and c->>'can_incident'='false'
+    and c->>'order_status' is null and c->'items'='[]'::jsonb
+   from (select public.get_my_delivery_reporting_context(
+     (select id from p074_ids where name='task15')) c) q));
 reset role;
 set local role authenticated;
 select pg_temp.set_p074_claims('07450000-0000-0000-0000-000000000002');
@@ -678,9 +683,41 @@ reset role;
 -- A genuinely eligible return task with a lost report cannot claim full goods.
 set local role authenticated;
 select pg_temp.set_p074_claims('07450000-0000-0000-0000-000000000003');
+-- P07.5 read projection: server custody, not restricted detail items, supplies
+-- the exact full-item confirmation. No contact, order UUID or money survives.
+select pg_temp.assert_p074('P075 eligible context exact safe shape',
+  (select c->>'can_handover'='true' and c->>'can_incident'='true'
+    and c->>'handover_reported'='false'
+    and c->>'order_status'='awaiting_store_return'
+    and c->'items'=jsonb_build_array(jsonb_build_object(
+      'order_item_id','07450000-0000-0000-0000-000000000210',
+      'product_name','P07.4 reporting product',
+      'variant_label','P07.4 reporting variant','quantity',2))
+    and (select array_agg(k order by k) from jsonb_object_keys(c) k)
+      =array['can_handover','can_incident','handover_block_reason',
+        'handover_reported','incident_block_reason','items','order_status',
+        'task_id','task_status']
+   from (select public.get_my_delivery_reporting_context(
+     (select id from p074_ids where name='task10')) c) q));
+select pg_temp.assert_p074('P075 accepted incident only no item snapshot',
+  (select c->>'can_handover'='false' and c->>'can_incident'='true'
+    and c->'items'='[]'::jsonb
+   from (select public.get_my_delivery_reporting_context(
+     (select id from p074_ids where name='task12')) c) q));
+select pg_temp.assert_p074('P075 assigned no custody hides order context',
+  (select c->>'can_handover'='false' and c->>'can_incident'='false'
+    and c->'items'='[]'::jsonb and c->>'order_status' is null
+   from (select public.get_my_delivery_reporting_context(
+     (select id from p074_ids where name='task18')) c) q));
 savepoint p074_lost_return;
 select public.report_delivery_incident((select id from p074_ids where name='task10'),
  '07450000-0000-0000-0000-000000000988','lost','missing parcel');
+select pg_temp.assert_p074('P075 lost blocks handover only',
+  (select c->>'can_handover'='false' and c->>'can_incident'='true'
+    and c->>'handover_block_reason'='CUSTODY_UNRESOLVED'
+    and c->'items'='[]'::jsonb
+   from (select public.get_my_delivery_reporting_context(
+     (select id from p074_ids where name='task10')) c) q));
 select pg_temp.assert_p074_error('lost blocks full handover on eligible return task',
  $$select public.report_store_handover((select id from p074_ids where name='task10'),
  '07450000-0000-0000-0000-000000000989',
@@ -971,6 +1008,87 @@ select pg_temp.assert_p074(
 
 drop trigger p074_report_late_fault on public.notifications;
 drop function public.p074_report_late_fault();
+
+-- P07.5 post-report and authorization checks use the same real lifecycle.
+savepoint p075_missing_cod;
+delete from public.cod_collections
+  where order_id='07450000-0000-0000-0000-000000000010';
+set local role authenticated;
+select pg_temp.set_p074_claims('07450000-0000-0000-0000-000000000003');
+select pg_temp.assert_p074('P075 missing COD disables reporting context',
+  (select c->>'can_handover'='false' and c->>'can_incident'='false'
+    and c->>'order_status' is null and c->'items'='[]'::jsonb
+    and c->>'incident_block_reason'='CUSTODY_UNRESOLVED'
+   from (select public.get_my_delivery_reporting_context(
+     (select id from p074_ids where name='task10')) c) q));
+rollback to savepoint p075_missing_cod;
+savepoint p075_wrong_cod_holder;
+update public.cod_collections set shipper_id='07450000-0000-0000-0000-000000000004'
+  where order_id='07450000-0000-0000-0000-000000000010';
+set local role authenticated;
+select pg_temp.set_p074_claims('07450000-0000-0000-0000-000000000003');
+select pg_temp.assert_p074('P075 mismatched COD holder disables reporting context',
+  (select c->>'can_handover'='false' and c->>'can_incident'='false'
+    and c->>'order_status' is null and c->'items'='[]'::jsonb
+    and c->>'handover_block_reason'='CUSTODY_UNRESOLVED'
+   from (select public.get_my_delivery_reporting_context(
+     (select id from p074_ids where name='task10')) c) q));
+rollback to savepoint p075_wrong_cod_holder;
+set local role authenticated;
+select pg_temp.set_p074_claims('07450000-0000-0000-0000-000000000003');
+select pg_temp.assert_p074('P075 report remains report, incident still allowed',
+  (select c->>'handover_reported'='true' and c->>'can_handover'='false'
+    and c->>'can_incident'='true' and c->>'task_status'='failed'
+    and c->>'order_status'='awaiting_store_return' and c->'items'='[]'::jsonb
+   from (select public.get_my_delivery_reporting_context(
+     (select id from p074_ids where name='task10')) c) q));
+select pg_temp.assert_p074('P075 cancelled task2 uses retained custody',
+  (select c->>'handover_reported'='true' and c->>'can_incident'='true'
+    and c->>'task_status'='cancelled'
+   from (select public.get_my_delivery_reporting_context(
+     (select id from p074_ids where name='task11_2')) c) q));
+select pg_temp.assert_p074('P075 old task1 cannot unlock retry context',
+  (select c->>'can_incident'='false' and c->>'can_handover'='false'
+    and c->>'order_status' is null and c->'items'='[]'::jsonb
+   from (select public.get_my_delivery_reporting_context(
+     (select id from p074_ids where name='task11')) c) q));
+select pg_temp.assert_p074_error('P075 unsupported pickup',
+  $$select public.get_my_delivery_reporting_context('07450000-0000-0000-0000-000000000801')$$,
+  'PT409','UNSUPPORTED_TASK_KIND');
+select pg_temp.assert_p074_error('P075 unauthorized task ID',
+  $$select public.get_my_delivery_reporting_context((select id from p074_ids where name='task19'))$$,
+  '42501','NOT_FOUND_OR_FORBIDDEN');
+select pg_temp.assert_p074_error('P075 unknown deep link',
+  $$select public.get_my_delivery_reporting_context('07450000-0000-0000-0000-000000000999')$$,
+  '42501','NOT_FOUND_OR_FORBIDDEN');
+select pg_temp.set_p074_claims('07450000-0000-0000-0000-000000000002');
+select pg_temp.assert_p074_error('P075 manager denied',
+  $$select public.get_my_delivery_reporting_context((select id from p074_ids where name='task10'))$$,
+  '42501','PERMISSION_DENIED');
+savepoint p075_reassignment;
+select public.assign_delivery_task(
+  '07450000-0000-0000-0000-000000000018',
+  '07450000-0000-0000-0000-000000000004',
+  '07450000-0000-0000-0000-000000000990',
+  (select id from p074_ids where name='task18'),
+  '07450000-0000-0000-0000-000000000003');
+select pg_temp.set_p074_claims('07450000-0000-0000-0000-000000000003');
+select pg_temp.assert_p074_error('P075 prior assignee denied after reassignment',
+  $$select public.get_my_delivery_reporting_context((select id from p074_ids where name='task18'))$$,
+  '42501','NOT_FOUND_OR_FORBIDDEN');
+rollback to savepoint p075_reassignment;
+select pg_temp.set_p074_claims(null);
+select pg_temp.assert_p074_error('P075 no identity denied',
+  $$select public.get_my_delivery_reporting_context((select id from p074_ids where name='task10'))$$,
+  '42501','AUTH_REQUIRED');
+reset role;
+select pg_temp.assert_p074('P075 context authenticated-only ACL and safe owner',
+  has_function_privilege('authenticated','public.get_my_delivery_reporting_context(uuid)','execute')
+  and not has_function_privilege('anon','public.get_my_delivery_reporting_context(uuid)','execute')
+  and not has_function_privilege('service_role','public.get_my_delivery_reporting_context(uuid)','execute')
+  and (select pg_get_userbyid(proowner)='sports_store_outbound_reporting_writer'
+    and prosecdef and proconfig @> array['search_path=""'] from pg_proc
+    where oid='public.get_my_delivery_reporting_context(uuid)'::regprocedure));
 
 select 'delivery_reporting_production.sql: PASS' as result,
   'transaction rolled back' as cleanup;

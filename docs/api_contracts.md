@@ -1,5 +1,12 @@
 # Hợp đồng truy cập database
 
+Hiện hành P07.5 (27/10/2026): MH11 nối hai mutation reporting production P07.4
+qua repository/ViewModel. Có thêm `get_my_delivery_reporting_context(uuid)` cho
+eligibility và item custody tối thiểu; không mở base-table reads. Xem contract,
+whitelist, khóa và kiểm chứng trong
+[P07.5](demos/p075_production_reporting_interfaces.md). Task cũ có attempt mới hơn
+không mở context task mới. Pickup/redelivery vẫn unsupported theo scope đã chốt.
+
 Lưu ý phiên bản: baseline và P00.2 dưới đây ghi hiện trạng trước P01.1.
 Lớp đọc task mới và các quyền bị thu hẹp được mô tả tại mục P01.1 cuối file;
 không dùng nhánh shipper của baseline làm quyền truy cập hiện hành sau migration đó.

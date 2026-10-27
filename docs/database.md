@@ -1,5 +1,11 @@
 # Database Sports Store
 
+P07.5 thêm migration `20261027140241_delivery_reporting_context.sql` cho một
+RPC đọc hẹp phục vụ báo cáo MH11: reuse constrained reporting owner/validator,
+không table/schema/enum mới, không nới grants/RLS client. Chỉ latest outbound
+task của holder hợp lệ nhận flags/item snapshot; không PII/order UUID/giá.
+Chi tiết [P07.5](demos/p075_production_reporting_interfaces.md).
+
 Mô tả baseline/P00.2 bên dưới là lịch sử thiết kế. P01.1 cuối file ghi thay
 đổi read projection và policy mới; không dùng predicate shipper của baseline
 như quyền hiện hành sau khi áp dụng migration P01.1.

@@ -14,7 +14,9 @@ import '../widgets/delivery_call_action.dart';
 import '../widgets/outbound_completion_action.dart';
 import '../view_models/outbound_completion_view_model.dart';
 import '../view_models/outbound_failure_view_model.dart';
+import '../view_models/delivery_reporting_view_model.dart';
 import '../widgets/outbound_failure_action.dart';
+import '../widgets/delivery_reporting_action.dart';
 import '../view_models/outbound_task_actions_view_model.dart';
 
 /// MH11 detail view with server-backed outbound accept/start actions.
@@ -37,10 +39,17 @@ class _DeliveryTaskDetailPageState
     extends ConsumerState<DeliveryTaskDetailPage> {
   bool _completionControllerActive = false;
   bool _outboundControllerActive = false;
+  bool _reportingControllerActive = false;
+  DeliveryTaskSnapshot? _lastReportingSnapshot;
+  var _reportingContextRefreshScheduled = false;
   Future<void> _refresh() async {
     await ref
         .read(deliveryTaskDetailViewModelProvider(widget.taskId).notifier)
         .refresh();
+    if (!mounted || !_reportingControllerActive) return;
+    await ref
+        .read(deliveryReportingViewModelProvider(widget.taskId).notifier)
+        .refreshContext();
   }
 
   @override
@@ -50,6 +59,16 @@ class _DeliveryTaskDetailPageState
     if (task?.kind == DeliveryTaskKind.outbound &&
         task?.scope == DeliverySnapshotScope.current) {
       _outboundControllerActive = true;
+    }
+    // Reporting has its own restricted projection. Once this page has seen
+    // any outbound task, keep its controller alive across detail refreshes so
+    // an uncertain handover/incident command retains the same request key.
+    if (task?.kind == DeliveryTaskKind.outbound) {
+      _reportingControllerActive = true;
+      if (_lastReportingSnapshot != null && _lastReportingSnapshot != task) {
+        _scheduleReportingContextRefresh();
+      }
+      _lastReportingSnapshot = task;
     }
     if (_outboundControllerActive) {
       ref.watch(outboundTaskActionsViewModelProvider(widget.taskId));
@@ -65,6 +84,9 @@ class _DeliveryTaskDetailPageState
       ref.watch(outboundCompletionViewModelProvider(widget.taskId));
       ref.watch(outboundFailureViewModelProvider(widget.taskId));
     }
+    if (_reportingControllerActive) {
+      ref.watch(deliveryReportingViewModelProvider(widget.taskId));
+    }
 
     return RefreshIndicator(
       key: const ValueKey('task-detail-refresh'),
@@ -76,6 +98,20 @@ class _DeliveryTaskDetailPageState
         slivers: [_content(state)],
       ),
     );
+  }
+
+  void _scheduleReportingContextRefresh() {
+    if (_reportingContextRefreshScheduled) return;
+    _reportingContextRefreshScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _reportingContextRefreshScheduled = false;
+      if (!mounted || !_reportingControllerActive) return;
+      unawaited(
+        ref
+            .read(deliveryReportingViewModelProvider(widget.taskId).notifier)
+            .refreshContext(),
+      );
+    });
   }
 
   Widget _content(AsyncValue<DeliveryTaskDetails> state) {
@@ -127,6 +163,7 @@ class _DeliveryTaskDetailPageState
             details: details,
             onMapReturned: _refresh,
             showCompletionRecovery: _completionControllerActive,
+            showReporting: _reportingControllerActive,
           ),
         ],
       ),
@@ -139,11 +176,13 @@ class _DetailBody extends StatelessWidget {
     required this.details,
     required this.onMapReturned,
     required this.showCompletionRecovery,
+    required this.showReporting,
   });
 
   final DeliveryTaskDetails details;
   final Future<void> Function() onMapReturned;
   final bool showCompletionRecovery;
+  final bool showReporting;
 
   @override
   Widget build(BuildContext context) {
@@ -221,6 +260,14 @@ class _DetailBody extends StatelessWidget {
                 OutboundFailureAction(taskId: task.taskId, allowSubmit: false),
               ],
             ),
+          ),
+        ],
+        if (showReporting && task.kind == DeliveryTaskKind.outbound) ...[
+          const SizedBox(height: 12),
+          _SectionCard(
+            title: 'Báo cáo bàn giao / sự cố',
+            icon: Icons.report_problem_outlined,
+            child: DeliveryReportingAction(taskId: task.taskId),
           ),
         ],
         const SizedBox(height: 12),
@@ -680,7 +727,7 @@ class _ReadOnlyNotice extends StatelessWidget {
             child: Text(
               isMasked
                   ? 'Đây là bản ghi lịch sử hoặc bị giới hạn; dữ liệu riêng tư không được hiển thị.'
-                  : 'Nhận hàng, bắt đầu giao và giao thành công của outbound được xác minh qua server. Thất bại và trả hàng chưa được bật.',
+                  : 'Các thao tác được xác minh theo nhiệm vụ trên server. Báo bàn giao chưa phải cửa hàng nhận, kiểm tra hoặc nhập lại tồn kho.',
               style: theme.textTheme.bodySmall,
             ),
           ),
