@@ -1707,3 +1707,31 @@ RPC **đã deploy** `complete_outbound_delivery(p_task_id uuid,p_request_id uuid
 UI production dùng hai checkbox, full backend COD không sửa được, stable key/timeout retry, ACK→authoritative read→MH10/COD refresh. Gọi điện chỉ tel composer. MH17 renderer/deep link theo role vẫn thuộc Bảo, chưa nghiệm thu ở đây. P07 failure RPC chưa có; competitor concurrency là test-only.
 
 P04.2 và P04→P05 đã PASS real Auth/JWT + Flutter widget + cloud repositories/RPC; không phải test điện thoại vật lý. Chi tiết đầy đủ input/output/errors/lock/retry/schema/quyền/test commands/manifest: [handoff production](demos/p051_p052_production_outbound_completion.md).
+
+## P06.1–P06.4 — Nghiệm thu live 27/10/2026
+
+Các ghi chú P06 trước đây “chưa deploy/chưa nghiệm thu cloud” là mốc lịch sử. Đã nghiệm thu real Auth/JWT + CodRoutePage shipper/manager + production repositories/RPC trên project bqoyfytmrtvjwrpshuhh: phân trang hơn100 records, own-only/manager UUID filters, full receipt550.000, lost-ACK retry giữ key, simultaneous managers chỉ một receipt, COD không offset refund, và account-switch cache cleanup. Hai cloud SQL suites P06 PASS/ROLLBACK. Sửa one-shot latch dialog chống double pop; không migration/RLS/API mới.
+
+Cleanup xác nhận không còn fixture accounts/orders/COD/returns/receipts/notifications; giữ3products có sẵn. Live là Flutter widget runner nối cloud, chưa điện thoại vật lý/MH17 renderer. Phạm vi/lệnh/manifest, fixture phân trang có nhãn và kết quả chi tiết: [P06 live acceptance](demos/p06_live_acceptance.md).
+
+## P07.1 — Production outbound failure (27/10/2026)
+
+Contract outbound: `fail_delivery_task(p_task_id uuid,p_request_id uuid,p_reason_code text,p_description text DEFAULT NULL) → jsonb`. Lý do gồm unreachable/reschedule/bad_address/refusal/other; chỉ other bắt buộc mô tả. Server chuẩn hóa whitespace trước lưu/so payload. Caller phải là shipper hiện được gán, có custody/dispatch hợp lệ, task in_transit/order delivering và COD sạch uncollected. Không nhận actor/count/amount từ client. Khóa request rồi order→task→COD đồng nhất với completion; cùng key khác payload hoặc kết quả đối nghịch bị từ chối, không có local success fallback.
+
+Kết quả một attempt failed; task failed, order awaiting_redelivery ở lần1 hoặc awaiting_store_return ở lần2; count/COD/tồn không đổi. Event delivery_failed, notification chung cho chủ cửa hàng (profile manager), không gửi khách hoặc đưa lý do/PII vào inbox. Failure ledger riêng lưu mã/mô tả/ACK. Pickup/redelivery vẫn ngoài phạm vi; API tổng quát ở bảng đề xuất phía trên không có nghĩa đã triển khai các nhánh đó. P07.3 UI chưa nối. [Contract đầy đủ, trạng thái deploy và kiểm thử](demos/p071_production_outbound_failure.md) thay kết luận fixture-only P07.1 cũ theo phạm vi đã xác minh.
+
+## P07.2 — Manager retry/early return (27/10/2026)
+
+Contract `decide_outbound_retry(p_order_id uuid,p_request_id uuid,p_decision text,p_expected_failed_task_id uuid,p_expected_retry_task_id uuid DEFAULT NULL) → jsonb`, decision retry/return_to_store, manager server-only. NULL expected retry task là CAS chưa có task2; UUID task2 là CAS khi chuyển retry sang hoàn trước start. Retry tạo assigned task2 cùng shipper/holder, order awaiting_pickup, count giữ1; accept/start vẫn do shipper xác nhận qua RPC P04, không dispatch lại. Không nhận shipper/amount/count từ client.
+
+Người dùng chốt D5: trước start có thể hủy assigned/accepted task2 để hoàn sớm, giữ custody/attempt history; sau start không đổi. Thông báo chung chỉ holder shipper. Không mở chuyển người sau nhận hàng hoặc tạo lần ba. P03.3 chỉ đổi người trước nhận lần đầu vẫn giữ nguyên. P07.2 không sửa UI MH09 của Bảo. Ledger/CAS/ACK/errors/quyền, trạng thái implementation/deploy và lệnh nghiệm thu: [handoff production P07.2](demos/p072_production_outbound_retry.md), thay các blocker P04/P07.1 và D3/D5 cũ trong phạm vi người dùng đã chốt.
+
+## P07.3 — MH11 production failure dialog (27/10/2026)
+
+MH11 gọi fail_delivery_task đã deploy qua OutboundFailureRepository/OperationalReadAccess, strict ACK DTO và Riverpod ViewModel. Input chỉ p_task_id/p_request_id/p_reason_code/p_description; attempt trong command chỉ là guard local, không gửi server. Other cần mô tả, mã chuẩn có description tùy chọn. Timeout/malformed ACK giữ key; ACK hợp lệ chỉ retry read. Sau authorized restricted failed projection đúng attempt/completed_at mới báo kết quả và refresh MH10. Shared result gate chặn completion/failure xung đột; backend tiếp tục enforce quyền/locks. Token refresh giữ pending, logout/account switch xóa và bỏ response cũ. Không fake success/thu COD/auto retry schedule. [Manifest, checks và giới hạn live](demos/p073_production_failed_delivery_dialog.md). Thay kết luận P07.3 fixture-only; không migration/API/RLS mới, chưa app/JWT live acceptance.
+
+## P07.4 — Outbound reporting contract (27/10/2026)
+
+Người dùng chốt outbound trước: report_store_handover kiểm tra current assignee/holder, order awaiting_store_return và task failed hoặc task2 cancelled do hoàn sớm; xác nhận full item/quantity theo dispatch/custody server. report_delivery_incident dùng enum damaged/lost/other, reason không chỉ whitespace, sau custody ở accepted/in_transit/failed hoặc task2 cancelled chờ hoàn. Cả hai chỉ ghi report/event và notification chủ cửa hàng; không đổi state/result/COD/count/inventory/receipt/inspection/compensation.
+
+Ledger actor/request dùng chung hai operation: same key/payload replay sau reauthorization; khác payload/target/operation conflict. Handover chỉ một report/order, key khác conflict; incident cho phép nhiều report và vẫn được báo sau handover nếu holder/state hợp lệ. Event UUID do server sinh, không dùng client key unique toàn cục. Pickup/redelivery bị từ chối explicit, D8/D9 còn cần Sơn; không khai các nhánh này là production. [Contract, trạng thái deploy và acceptance P07.4](demos/p074_production_delivery_reporting.md) thay boundary cũ theo phạm vi outbound được chốt.

@@ -626,3 +626,25 @@ Chi tiết phạm vi, retry, kiểm thử và giới hạn live: [P04.2 producti
 Thay kết luận P05 fixture-only trước đây. O5 chỉ shipper đang giữ đầy đủ hàng và được gán task outbound in_transit, order delivering, accepted/start/count/attempt/proof đúng, chưa có result; khách nhận đủ và thu đủ server COD. Một transaction ghi task/order delivered + một delivery_attempts success + COD collected + event delivery_completed và thông báo khách/các manager hiện tại. Count đã tăng ở start, không tăng ở completion; không xuất lại tồn, không ghi store receipt. Hỏng/mất/proof sai chặn completion.
 
 User đã chốt ledger/notification cho completion, không phải stakeholder agreement được suy diễn. Return/refund sau này không xóa COD obligation. MH11 production hai checkbox và refetch authoritative; failure/retry/return mutations P07 vẫn ngoài phạm vi. [Contract và kết quả live](demos/p051_p052_production_outbound_completion.md).
+
+## P06.1–P06.4 — Nghiệm thu live 27/10/2026
+
+Các ghi chú P06 trước đây “chưa deploy/chưa nghiệm thu cloud” là mốc lịch sử. Đã nghiệm thu real Auth/JWT + CodRoutePage shipper/manager + production repositories/RPC trên project bqoyfytmrtvjwrpshuhh: phân trang hơn100 records, own-only/manager UUID filters, full receipt550.000, lost-ACK retry giữ key, simultaneous managers chỉ một receipt, COD không offset refund, và account-switch cache cleanup. Hai cloud SQL suites P06 PASS/ROLLBACK. Sửa one-shot latch dialog chống double pop; không migration/RLS/API mới.
+
+Cleanup xác nhận không còn fixture accounts/orders/COD/returns/receipts/notifications; giữ3products có sẵn. Live là Flutter widget runner nối cloud, chưa điện thoại vật lý/MH17 renderer. Phạm vi/lệnh/manifest, fixture phân trang có nhãn và kết quả chi tiết: [P06 live acceptance](demos/p06_live_acceptance.md).
+
+## P07.1 — Outbound failed result (27/10/2026)
+
+O6/O9 dùng đúng bộ đếm đã tăng tại start: current shipper + outbound in_transit/order delivering + custody/proof + sạch COD uncollected. Ghi một failed result, task failed/completed_at. Lần1 order awaiting_redelivery chờ chủ cửa hàng; lần2 awaiting_store_return. Không tăng/reset count, thu tiền, tạo task2, xuất/nhập tồn hoặc coi cửa hàng đã nhận hàng. Mã lý do riêng, other cần mô tả; event delivery_failed và thông báo chung chỉ chủ cửa hàng có role manager (người dùng làm rõ manager là store owner), không gửi khách. Không suy ra stakeholder approval.
+
+P07.2 quyết định retry/return, P07.3 dialog và P07.4 handover/incident vẫn riêng; tests task2 có nhãn fixture không chứng minh luồng retry đã tích hợp. [Bản production và nghiệm thu](demos/p071_production_outbound_failure.md) là mốc mới thay blocker P04/P05 cũ trong mục P07.1.
+
+## P07.2 — O7/O8 và D5 (27/10/2026)
+
+Người dùng chốt: sau failed1, chủ cửa hàng chọn retry sẽ tạo task2 assigned cùng holder và order awaiting_pickup. Assignment không tự tạo accepted_at/custody; shipper phải xác nhận tiếp tục giữ đủ hàng bằng accept rồi mới start. Count chỉ tăng1→2 ở start, dispatch không lặp. Hoàn sớm trực tiếp giữ task1 failed/custody; đổi retry sang hoàn chỉ trước start, kể cả task2 accepted: task2 cancelled, giữ custody/accepted_at và lịch sử, order awaiting_store_return; không ghi attempt2 nếu chưa start. Sau start2 không đổi quyết định; không lần3/đổi shipper sau nhận hàng.
+
+Đây là quyết định người dùng, không suy ra approval của Bảo/Văn Đức. Manager receipt/inspection/restock D5 còn riêng; không coi quyết định hoàn là đã nhận hàng. [Bảng transition và nghiệm thu P07.2](demos/p072_production_outbound_retry.md) là mốc mới cho O7/O8 và phần D3/D5 đã chốt; pickup/redelivery không áp dụng giới hạn outbound này.
+
+## P07.4 — Report khác receipt (27/10/2026)
+
+Người dùng chốt outbound report: failed hoặc task2 cancelled do hoàn sớm + order awaiting_store_return mới báo bàn giao full goods; vẫn giữ task/order và custody ledger. Manager receipt/inspection/restock là riêng, chưa thực hiện bởi report. Incident sau custody ở accepted/in_transit/failed hoặc cancelled task2 đang chờ hoàn; ghi damaged/lost/other và lý do, không delivery_attempts failed/COD/compensation. Thông báo chỉ chủ cửa hàng. Damage đủ số lượng không cản báo bàn giao; lost không thể khai đã bàn giao toàn bộ đến khi có xử lý manager riêng. Pickup/redelivery chưa có custody contract nên từ chối, không suy ra D8/D9. [Bảng transition và kiểm thử](demos/p074_production_delivery_reporting.md).
