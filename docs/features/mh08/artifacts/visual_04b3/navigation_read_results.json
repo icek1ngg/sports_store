@@ -1,0 +1,11 @@
+{
+  "beforeHead": 54,
+  "detailHead": 55,
+  "returnHead": 56,
+  "popCanonicalDelta": 1,
+  "cursorBefore": 3,
+  "cursorAfter": 3,
+  "uniqueCursorRequests": 3,
+  "detailReadDelta": 1,
+  "queryPreserved": true
+}

@@ -1,0 +1,58 @@
+{
+  "viewport": [
+    390,
+    844
+  ],
+  "renderer": "Chromium vs Flutter widget render; Inter/Barlow loaded",
+  "warning": "Data, contracts and rasterization differ. No pixel-perfect score.",
+  "regions": {
+    "header": {
+      "html": {
+        "text": "VN ATHLETICSĐƠN HÀNGshopping_bagperson",
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 64,
+        "font": "Inter",
+        "size": "16px",
+        "lineHeight": "24px",
+        "radius": "0px",
+        "padding": "0px 20px",
+        "color": "rgb(26, 28, 29)",
+        "background": "rgba(0, 0, 0, 0)"
+      },
+      "flutter": {
+        "left": 0.0,
+        "top": 0.0,
+        "width": 390.0,
+        "height": 64.0
+      },
+      "heightDelta": 0.0,
+      "topDelta": 0.0
+    },
+    "card": {
+      "html": {
+        "text": "#DH-10248 • Hôm nay, 10:32 Chờ xác nhận person Nguyễn Minh Anh 0912 ••• 888 Cầu Giấy, Hà Nội 3 sản p",
+        "x": 20,
+        "y": 269,
+        "width": 350,
+        "height": 234,
+        "font": "Inter",
+        "size": "16px",
+        "lineHeight": "24px",
+        "radius": "0px",
+        "padding": "16px",
+        "color": "rgb(26, 28, 29)",
+        "background": "rgb(255, 255, 255)"
+      },
+      "flutter": {
+        "left": 20.0,
+        "top": 318.0,
+        "width": 350.0,
+        "height": 580.0
+      },
+      "heightDelta": 346.0,
+      "topDelta": 49.0
+    }
+  }
+}

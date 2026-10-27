@@ -1,0 +1,4 @@
+{
+  "default_input_method": "com.google.android.inputmethod.latin/com.android.inputmethod.latin.LatinIME",
+  "show_ime_with_hard_keyboard": "1"
+}

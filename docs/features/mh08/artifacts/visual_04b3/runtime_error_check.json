@@ -1,0 +1,7 @@
+{
+  "appPid": "28965",
+  "errorPattern": "E/flutter(?:\\(|\\s|:)|\\sE\\s+flutter\\s*:|FATAL EXCEPTION|A RenderFlex overflowed|EXCEPTION CAUGHT|Bad state: No ProviderScope|deactivated widget|disposed provider|Unable to load asset.*font",
+  "matchedErrors": [],
+  "count": 0,
+  "note": "I-level Flutter migration warnings excluded; no case-insensitive substring match against engine/Flutter URLs."
+}
