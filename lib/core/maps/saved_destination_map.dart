@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'map_tile_source.dart';
 import 'saved_destination.dart';
@@ -168,9 +169,46 @@ class _SavedDestinationMapState extends State<SavedDestinationMap> {
                           horizontal: 6,
                           vertical: 3,
                         ),
-                        child: Text(
-                          widget.tileSource.attribution,
-                          style: const TextStyle(fontSize: 10),
+                        child: InkWell(
+                          key: const ValueKey('map-attribution'),
+                          onTap: widget.tileSource is MapTileAttribution
+                              ? () async {
+                                  final uri =
+                                      (widget.tileSource as MapTileAttribution)
+                                          .attributionUri;
+                                  try {
+                                    final opened = await launchUrl(
+                                      uri,
+                                      mode: LaunchMode.externalApplication,
+                                    );
+                                    if (!opened && context.mounted) {
+                                      ScaffoldMessenger.maybeOf(context)
+                                          ?.showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                'Không mở được thông tin bản quyền.',
+                                              ),
+                                            ),
+                                          );
+                                    }
+                                  } on Object {
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.maybeOf(context)
+                                          ?.showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                'Không mở được thông tin bản quyền.',
+                                              ),
+                                            ),
+                                          );
+                                    }
+                                  }
+                                }
+                              : null,
+                          child: Text(
+                            widget.tileSource.attribution,
+                            style: const TextStyle(fontSize: 10),
+                          ),
                         ),
                       ),
                     ),
@@ -321,7 +359,11 @@ class _DestinationPin extends StatelessWidget {
           BoxShadow(color: Colors.black38, blurRadius: 5, offset: Offset(0, 2)),
         ],
       ),
-      child: const SizedBox(width: 26, height: 26),
+      child: const SizedBox(
+        key: ValueKey('map-destination-marker'),
+        width: 26,
+        height: 26,
+      ),
     );
   }
 }

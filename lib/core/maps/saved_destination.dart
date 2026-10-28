@@ -1,3 +1,5 @@
+import 'map_location.dart';
+
 /// A destination snapshot saved on a delivery task.
 ///
 /// This model deliberately has no dependency on a map SDK or a delivery
@@ -17,6 +19,8 @@ final class SavedDestination {
   final String address;
   final String label;
   final String? phone;
+  MapLocation get location =>
+      MapLocation(latitude: latitude, longitude: longitude);
 
   /// Valid for geographic coordinates, including the poles.
   bool get hasValidCoordinates =>
