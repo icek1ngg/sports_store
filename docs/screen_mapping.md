@@ -1,5 +1,29 @@
 # Ánh xạ màn hình Sports Store
 
+P09.4 hoàn thiện feedback launch/fallback, text-only khi thiếu tọa độ, che PII
+khi app vào nền và recheck khi resume/foreground. Web navigation dùng same-tab
+để tránh popup sau network read; không fake success. Nghiệm thu launcher thật
+còn chặn bởi runtime automation và thiếu Android; không claim realtime revoke.
+[Biên bản](demos/p094_navigation_failures_access_revocation.md).
+
+P09.3 MH18 đã có layout điểm đến theo mock, nút gọi/sao chép/chỉ đường và
+recenter; cả ba kind dùng cùng màn và marker tọa độ đã lưu. Kiểm tra lại quyền,
+session và snapshot trước handoff; navigation chỉ nhận tọa độ. Thiếu tọa độ
+fail closed, lỗi tile có thử lại; không thêm store pin hoặc sửa destination.
+[Phạm vi, tests và giới hạn dữ liệu](demos/p093_destination_map_frontend.md).
+
+P09.2 chỉ core provider adapter/config: user chốt OSM + Google Maps URL demo
+Web/Android; MH18 dùng read-only display adapter, core coordinate/navigation
+interfaces sẵn cho Văn Đức. Không xây MH16, GPS, route engine hoặc UI phase sau.
+[Handoff, license/cache/platform và checks](demos/p092_reusable_maps_adapter.md).
+
+P09.1 MH18 route chỉ taskId UUID, đọc lại authorized current destination cho cả
+ba kind qua repository chung. Initial/recheck không hợp lệ hoặc mất quyền xóa
+PII; phản hồi epoch cũ không phục hồi dữ liệu; thiếu tọa độ báo invalidData.
+Notes chưa có schema được ghi unavailable, không suy từ return evidence.
+Không thêm màn/route/map provider hoặc bước sau trong lượt P09.1.
+[Chi tiết](demos/p091_authorized_destination_data.md).
+
 P08.4 đã rà riêng frontend: MH10/MH11 ghi rõ giao lại miễn phí/không COD lần hai,
 chỉ outbound có `/2`; action theo state và refetch detail → list. Tests widget
 với actual returnPlan bao phủ confirm/cancel/Other reason, terminal gating và
@@ -134,7 +158,8 @@ MH18 tập trung **điểm đến nhiệm vụ đã lưu**, không bắt buộc 
 không chọn địa chỉ thay MH16, không GPS tracking. Không truyền contact/địa chỉ
 qua route URL. Đọc task lại bằng UUID; thiếu tọa độ hoặc map/directions lỗi
 thì giữ địa chỉ được phép đọc và báo lỗi/thử lại, không tạo tọa độ giả.
-Provider, platform, license/key và interface maps với Văn Đức còn chờ chốt.
+Provider/platform và interface maps đã được user chốt/bổ sung ở P09.2 ngày
+28/10/2026, xem biên bản P09.2; không tuyên bố Văn Đức đã nghiệm thu MH16.
 NT25 theo mô tả pin cửa hàng gốc cần điều chỉnh theo phạm vi yêu cầu này;
 không khẳng định đã kiểm chứng toàn văn báo cáo gốc.
 

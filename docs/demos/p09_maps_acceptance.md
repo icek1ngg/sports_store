@@ -1,5 +1,10 @@
 # P09 — Nghiệm thu MH18 bản đồ điểm đến
 
+**Mốc P09.2 mới:** user đã chốt provider; core display/navigation interfaces,
+native file cache/Web HTTP cache và platform builds được bổ sung theo
+[biên bản P09.2](p092_reusable_maps_adapter.md). Mô tả cache trong phiên ở mốc
+ban đầu dưới đây được thay bằng cơ chế mới, không là hạn chế hiện hành.
+
 Ngày 28/10/2026. MH18 đọc lại `delivery_tasks.destination_*` từ projection có
 quyền của shipper hiện tại. Route chỉ nhận `taskId` dạng UUID; không truyền tên,
 số điện thoại hoặc địa chỉ qua URL. Task đã bị đổi người, logout, hết phiên,

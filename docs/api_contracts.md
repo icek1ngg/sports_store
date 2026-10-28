@@ -1,5 +1,23 @@
 # Hợp đồng truy cập database
 
+P09.4 thêm **Dart interface** DeliveryMapReader.getMapTaskDetails, tái sử dụng
+get_my_delivery_task hiện có, không RPC/schema/grant mới. Chỉ map-mode nhận
+contact đầy đủ + nullable coordinates để text fallback; mapper chung vẫn strict.
+Lifecycle che PII/resume recheck; foreground recheck 15s không phải realtime.
+[Contract, tests, platform blockers](demos/p094_navigation_failures_access_revocation.md).
+
+P09.2: người dùng chốt OSM raster tiles + Google Maps URL cho demo Web/Android
+ngày 28/10/2026. Core có MapLocation, MapDisplayAdapter và MapNavigationAdapter
+coordinate-only cho MH16 tái sử dụng; chưa triển khai picker/địa chỉ MH16 và
+server vẫn kiểm Hà Nội. Native cache file bounded, Web browser cache; không API
+key hoặc Supabase API mới. [Quyết định/provider/license/cấu hình/tests](demos/p092_reusable_maps_adapter.md).
+
+P09.1 MH18 tái sử dụng `get_my_delivery_task(p_task_id uuid)` production và
+session-scoped repository/provider; chỉ current assigned/accepted/in_transit có
+destination. Denial/reassignment/session/data invalid xóa snapshot cũ; không
+projection/RPC/grant mới. Notes=null/unavailable_schema; null/sai location fail
+closed, không geocode hoặc dựng 0,0. [Contract/checks](demos/p091_authorized_destination_data.md).
+
 **Cập nhật production 28/10/2026:** người dùng đã giao và chốt bổ sung primitive
 manager receipt/inspection release và redelivery. Migration
 `20261028062908_p083_redelivery_production.sql` đã deploy tám RPC:
@@ -339,7 +357,7 @@ khác target (notifications có subject_type/id riêng, không ép mọi role c�
 | --- | --- | --- |
 | Dung An — auth/router | Session + profiles.role server; guard role và UUID routes ở screen_mapping; shared supabaseClientProvider/theme; không dùng user_metadata.role | Chốt role refresh, lỗi hết phiên, logout/account switch cleanup; deep link chờ role tải, không render PII trước quyền. Router mới chỉ `/`; không nói route đề xuất đã có |
 | Bảo — MH09/orders/notifications | create/assign/decide/receive_failed/inspect wrappers; hủy tranh chấp accept; event/recipient D7; O1/O11 mapping D1/D5 | Cùng transaction server, cùng thứ tự khóa L; không gọi lần lượt hai RPC Flutter để ghép orders + task. Xác nhận custody lần 2 D3 và snapshot order S1 |
-| Văn Đức — inventory/maps | Inventory primitive nội bộ nhận order/items/event/actor đã xác thực, trả ledger IDs và quantity sau cập nhật; không public RPC để shipper tự sửa tồn. Map interface đề xuất `SavedDestination(latitude,longitude,address,label,phone?)`, `openDirections(destination)` trả opened/unavailable/error | Chốt dispatch một lần tại accept, không dispatch lại lần 2; inspection restock lượng đạt; provider/license/key/nền tảng còn mở; map mở thất bại phải trả lỗi thật. MH16 chọn điểm riêng và validation Hà Nội ở server |
+| Văn Đức — inventory/maps | Inventory primitive nội bộ nhận order/items/event/actor đã xác thực, trả ledger IDs và quantity sau cập nhật; không public RPC để shipper tự sửa tồn. Core maps P09.2 có MapLocation/MapDisplayAdapter/MapNavigationAdapter và compatibility SavedDestination/openDirections | Maps đã được user chốt OSM + Google Maps URL Web/Android tại P09.2; không key, có license/cache và typed failure theo biên bản. Không suy Văn Đức đã dùng interface hoặc inventory contract đã thay đổi. MH16 picker riêng, validation Hà Nội ở server |
 | Sơn — MH15/returns | Duyệt lấy/kiểm tra/refund do returns sở hữu; dùng tám RPC production được người dùng giao bổ sung trong contract P08.3 mới, không ghép aggregate bằng nhiều Flutter requests | D9 user chốt failure T/R manager_action_required; primitive receipt/inspection/release/custody đã có. UI MH15 và manager resolution sau failure vẫn riêng. Không coi pickup handover report là manager receipt hoặc duyệt thu hồi là duyệt hoàn tiền |
 
 **MH18 tập trung điểm đến đã lưu của task** theo yêu cầu P00.2, không bắt
