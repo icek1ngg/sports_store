@@ -1076,12 +1076,7 @@ bool _canOpenMap(DeliveryTaskSnapshot task) {
   return task.scope == DeliverySnapshotScope.current &&
       destination != null &&
       _isUuid(task.taskId) &&
-      destination.latitude.isFinite &&
-      destination.longitude.isFinite &&
-      destination.latitude >= -90 &&
-      destination.latitude <= 90 &&
-      destination.longitude >= -180 &&
-      destination.longitude <= 180;
+      destination.hasValidCoordinates;
 }
 
 bool _isUuid(String value) {

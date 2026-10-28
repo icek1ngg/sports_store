@@ -18,9 +18,30 @@ class DeliveryTaskDto {
     this.startedAt,
     this.completedAt,
     required this.itemSource,
+  }) : _allowMissingDestinationCoordinates = false;
+
+  const DeliveryTaskDto._({
+    required this.taskId,
+    required this.kind,
+    required this.status,
+    required this.attemptNumber,
+    required this.scope,
+    this.orderId,
+    this.returnRequestId,
+    this.amountToCollectVnd,
+    this.destination,
+    this.assignedAt,
+    this.acceptedAt,
+    this.startedAt,
+    this.completedAt,
+    required this.itemSource,
+    required this._allowMissingDestinationCoordinates,
   });
 
-  factory DeliveryTaskDto.fromJson(Map<String, dynamic> json) {
+  factory DeliveryTaskDto.fromJson(
+    Map<String, dynamic> json, {
+    bool allowMissingDestinationCoordinates = false,
+  }) {
     final taskId = DeliveryDtoReaders.readRequiredUuid(json, 'task_id');
     final kind = DeliveryTaskKind.fromValue(
       DeliveryDtoReaders.readRequiredString(json, 'kind', nonBlank: false),
@@ -35,9 +56,12 @@ class DeliveryTaskDto {
         nonBlank: false,
       ),
     );
-    final destination = _readDestination(json);
+    final destination = _readDestination(
+      json,
+      allowMissingDestinationCoordinates: allowMissingDestinationCoordinates,
+    );
 
-    return DeliveryTaskDto(
+    return DeliveryTaskDto._(
       taskId: taskId,
       kind: kind,
       status: status,
@@ -70,6 +94,7 @@ class DeliveryTaskDto {
           nonBlank: false,
         ),
       ),
+      allowMissingDestinationCoordinates: allowMissingDestinationCoordinates,
     );
   }
 
@@ -87,6 +112,7 @@ class DeliveryTaskDto {
   final DateTime? startedAt;
   final DateTime? completedAt;
   final DeliveryItemSource itemSource;
+  final bool _allowMissingDestinationCoordinates;
 
   DeliveryTaskSnapshot toDomain() {
     _validate();
@@ -200,7 +226,10 @@ class DeliveryTaskDto {
         'all destination fields for a current task',
       );
     }
-    _validateDestination(destination!);
+    _validateDestination(
+      destination!,
+      allowMissingDestinationCoordinates: _allowMissingDestinationCoordinates,
+    );
   }
 
   void _validateMaskedFields() {
@@ -259,7 +288,10 @@ class DeliveryTaskDto {
     };
   }
 
-  static void _validateDestination(DeliveryDestination destination) {
+  static void _validateDestination(
+    DeliveryDestination destination, {
+    required bool allowMissingDestinationCoordinates,
+  }) {
     if (destination.name.trim().isEmpty ||
         destination.phone.trim().isEmpty ||
         destination.address.trim().isEmpty) {
@@ -268,25 +300,35 @@ class DeliveryTaskDto {
         'non-blank name, phone and address',
       );
     }
-    if (!destination.latitude.isFinite ||
-        destination.latitude < -90 ||
-        destination.latitude > 90) {
+    final latitude = destination.latitude;
+    if (latitude != null &&
+        (!latitude.isFinite || latitude < -90 || latitude > 90)) {
       throw DeliveryDtoReaders.invalid(
         'destination_latitude',
         'a finite coordinate in [-90, 90]',
       );
     }
-    if (!destination.longitude.isFinite ||
-        destination.longitude < -180 ||
-        destination.longitude > 180) {
+    final longitude = destination.longitude;
+    if (longitude != null &&
+        (!longitude.isFinite || longitude < -180 || longitude > 180)) {
       throw DeliveryDtoReaders.invalid(
         'destination_longitude',
         'a finite coordinate in [-180, 180]',
       );
     }
+    if (!allowMissingDestinationCoordinates &&
+        (latitude == null || longitude == null)) {
+      throw DeliveryDtoReaders.invalid(
+        'destination',
+        'all destination fields including finite coordinates',
+      );
+    }
   }
 
-  static DeliveryDestination? _readDestination(Map<String, dynamic> json) {
+  static DeliveryDestination? _readDestination(
+    Map<String, dynamic> json, {
+    required bool allowMissingDestinationCoordinates,
+  }) {
     final name = DeliveryDtoReaders.readNullableString(
       json,
       'destination_name',
@@ -312,22 +354,33 @@ class DeliveryTaskDto {
       maximum: 180,
     );
 
-    final fields = [name, phone, address, latitude, longitude];
-    if (fields.every((field) => field == null)) {
+    final contactFields = [name, phone, address];
+    if ([
+      ...contactFields,
+      latitude,
+      longitude,
+    ].every((field) => field == null)) {
       return null;
     }
-    if (fields.any((field) => field == null)) {
+    if (contactFields.any((field) => field == null)) {
       throw DeliveryDtoReaders.invalid(
         'destination',
-        'all destination fields or all null',
+        'all authorized contact fields or all null',
+      );
+    }
+    if (!allowMissingDestinationCoordinates &&
+        (latitude == null || longitude == null)) {
+      throw DeliveryDtoReaders.invalid(
+        'destination',
+        'all destination fields including coordinates or all null',
       );
     }
     return DeliveryDestination(
       name: name!,
       phone: phone!,
       address: address!,
-      latitude: latitude!,
-      longitude: longitude!,
+      latitude: latitude,
+      longitude: longitude,
     );
   }
 }

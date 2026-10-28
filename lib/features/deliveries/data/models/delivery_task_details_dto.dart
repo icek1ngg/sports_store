@@ -22,6 +22,7 @@ class DeliveryTaskDetailsDto {
   factory DeliveryTaskDetailsDto.fromJson(
     Map<String, dynamic> json, {
     required String requestedTaskId,
+    bool allowMissingDestinationCoordinates = false,
   }) {
     DeliveryDtoReaders.checkUuid(requestedTaskId, 'task_id');
     _checkKeys(json, _responseKeys, 'detail response');
@@ -32,7 +33,10 @@ class DeliveryTaskDetailsDto {
     }
     final taskJson = _asStringMap(rawTask, 'task');
     _checkKeys(taskJson, _taskKeys, 'task');
-    final task = DeliveryTaskDto.fromJson(taskJson);
+    final task = DeliveryTaskDto.fromJson(
+      taskJson,
+      allowMissingDestinationCoordinates: allowMissingDestinationCoordinates,
+    );
     if (task.taskId.toLowerCase() != requestedTaskId.toLowerCase()) {
       throw DeliveryDtoReaders.invalid('task_id', 'the requested task UUID');
     }
