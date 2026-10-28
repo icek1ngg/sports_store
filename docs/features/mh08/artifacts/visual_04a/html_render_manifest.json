@@ -1,0 +1,204 @@
+{
+  "source": "docs/ui_mocks/MH08_Manager_Order_List.html",
+  "generatedAt": "2026-10-15T16:55:39.123Z",
+  "browser": "155.0.8059.79",
+  "renderer": "test/visual_refinement/mh08_04a_html_reference.cjs",
+  "rendererSha256": "47f99756ab3946dcd40c8e5f472ca7b9f3eac80db6d655cb82c8a2039f4864b4",
+  "sourceSha256Before": "8f5f4d136227c2c25c8199456fd5c879658d781ac5ec5a2ca661d3a53407af62",
+  "sourceSha256After": "8f5f4d136227c2c25c8199456fd5c879658d781ac5ec5a2ca661d3a53407af62",
+  "sourceModified": false,
+  "failures": [],
+  "viewport": {
+    "width": 390,
+    "height": 844,
+    "dpr": 1
+  },
+  "scrollWidth": 390,
+  "scrollHeight": 1049,
+  "fonts": {
+    "status": "loaded",
+    "inter": true,
+    "barlow": true,
+    "symbols": true
+  },
+  "header": [
+    {
+      "text": "VN ATHLETICSĐƠN HÀNGshopping_bagperson",
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 64,
+      "font": "Inter",
+      "size": "16px",
+      "lineHeight": "24px",
+      "radius": "0px",
+      "padding": "0px 20px",
+      "color": "rgb(26, 28, 29)",
+      "background": "rgba(0, 0, 0, 0)"
+    }
+  ],
+  "title": [
+    {
+      "text": "",
+      "x": 107.40625,
+      "y": 32,
+      "width": 89.296875,
+      "height": 0,
+      "font": "\"Barlow Condensed\"",
+      "size": "28px",
+      "lineHeight": "32px",
+      "radius": "0px",
+      "padding": "0px 8px",
+      "color": "rgb(17, 17, 17)",
+      "background": "rgba(0, 0, 0, 0)"
+    },
+    {
+      "text": "ĐƠN HÀNG",
+      "x": 196.703125,
+      "y": 16,
+      "width": 89.296875,
+      "height": 32,
+      "font": "\"Barlow Condensed\"",
+      "size": "28px",
+      "lineHeight": "32px",
+      "radius": "0px",
+      "padding": "0px 8px",
+      "color": "rgb(17, 17, 17)",
+      "background": "rgba(0, 0, 0, 0)"
+    }
+  ],
+  "search": [
+    {
+      "text": "",
+      "x": 64,
+      "y": 78,
+      "width": 242,
+      "height": 20,
+      "font": "Inter",
+      "size": "14px",
+      "lineHeight": "20px",
+      "radius": "0px",
+      "padding": "0px",
+      "color": "rgb(17, 17, 17)",
+      "background": "rgba(0, 0, 0, 0)"
+    }
+  ],
+  "kpis": [
+    {
+      "text": "Chờ duyệt 12 Cần xử lý ngay",
+      "x": 20,
+      "y": 124,
+      "width": 111.328125,
+      "height": 81,
+      "font": "Inter",
+      "size": "16px",
+      "lineHeight": "24px",
+      "radius": "0px",
+      "padding": "8px",
+      "color": "rgb(255, 255, 255)",
+      "background": "rgb(17, 17, 17)"
+    },
+    {
+      "text": "Đang giao 8 Trên đường đi",
+      "x": 139.328125,
+      "y": 124,
+      "width": 111.328125,
+      "height": 81,
+      "font": "Inter",
+      "size": "16px",
+      "lineHeight": "24px",
+      "radius": "0px",
+      "padding": "8px",
+      "color": "rgb(17, 17, 17)",
+      "background": "rgb(245, 245, 245)"
+    },
+    {
+      "text": "Trả hàng 3 Yêu cầu hoàn",
+      "x": 258.65625,
+      "y": 124,
+      "width": 111.34375,
+      "height": 81,
+      "font": "Inter",
+      "size": "16px",
+      "lineHeight": "24px",
+      "radius": "0px",
+      "padding": "8px",
+      "color": "rgb(17, 17, 17)",
+      "background": "rgb(245, 245, 245)"
+    }
+  ],
+  "cards": [
+    {
+      "text": "#DH-10248 • Hôm nay, 10:32 Chờ xác nhận person Nguyễn Minh Anh 0912 ••• 888 Cầu Giấy, Hà Nội 3 sản p",
+      "x": 20,
+      "y": 269,
+      "width": 350,
+      "height": 234,
+      "font": "Inter",
+      "size": "16px",
+      "lineHeight": "24px",
+      "radius": "0px",
+      "padding": "16px",
+      "color": "rgb(26, 28, 29)",
+      "background": "rgb(255, 255, 255)"
+    },
+    {
+      "text": "#DH-10250 • Hôm nay, 10:15 Chờ xác nhận sports_martial_arts Trần Hoàng Nam Giày Air Zoom Pegasus 41 ",
+      "x": 20,
+      "y": 519,
+      "width": 350,
+      "height": 184,
+      "font": "Inter",
+      "size": "16px",
+      "lineHeight": "24px",
+      "radius": "0px",
+      "padding": "16px",
+      "color": "rgb(26, 28, 29)",
+      "background": "rgb(255, 255, 255)"
+    },
+    {
+      "text": "#DH-10235 • Hôm nay, 08:45 Đang giao Lê Thu Hà 2 sản phẩm • COD • Đống Đa, Hà Nội ₫1.820.000 local_s",
+      "x": 20,
+      "y": 719,
+      "width": 350,
+      "height": 210,
+      "font": "Inter",
+      "size": "16px",
+      "lineHeight": "24px",
+      "radius": "0px",
+      "padding": "16px",
+      "color": "rgb(26, 28, 29)",
+      "background": "rgb(255, 255, 255)"
+    }
+  ],
+  "navigation": [
+    {
+      "text": "dashboard Tổng quan receipt_long Đơn hàng inventory_2 Sản phẩm chat Tin nhắn manage_accounts Tài kho",
+      "x": 0,
+      "y": 780,
+      "width": 390,
+      "height": 64,
+      "font": "Inter",
+      "size": "16px",
+      "lineHeight": "24px",
+      "radius": "0px",
+      "padding": "0px",
+      "color": "rgb(26, 28, 29)",
+      "background": "rgba(255, 255, 255, 0.95)"
+    },
+    {
+      "text": "homeTrang chủsearchTìm kiếmreceipt_longĐơn hàngpersonTài khoản",
+      "x": 0,
+      "y": 780,
+      "width": 390,
+      "height": 64,
+      "font": "Inter",
+      "size": "16px",
+      "lineHeight": "24px",
+      "radius": "0px",
+      "padding": "0px",
+      "color": "rgb(26, 28, 29)",
+      "background": "rgba(255, 255, 255, 0.9)"
+    }
+  ]
+}

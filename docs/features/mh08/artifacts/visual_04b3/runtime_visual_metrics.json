@@ -1,0 +1,79 @@
+{
+  "densityDpi": 440,
+  "devicePixelRatio": 2.75,
+  "initialViewportPx": [
+    1080,
+    2340
+  ],
+  "sources": {
+    "initialXml": "docs\\features\\mh08\\artifacts\\visual_04b3\\android_mh08_initial.xml",
+    "pendingCardXml": "docs\\features\\mh08\\artifacts\\visual_04b3\\android_pending_card_bottom.xml"
+  },
+  "comparison": {
+    "output": "docs\\features\\mh08\\artifacts\\visual_04b3\\comparison_html_widget_android.png",
+    "androidIncludes": [
+      "status bar",
+      "navigation bar",
+      "DEMO UI"
+    ],
+    "viewportWarning": "Android includes status bar, navigation bar and DEMO UI; scaled height is 845, so it is not the same 390x844 viewport."
+  },
+  "acceptance": {
+    "confirmRejectHeightPx": 132,
+    "confirmRejectHeightLogical": 48.0,
+    "detailsFullWhenBottomScroll": true
+  },
+  "hitTargets": {
+    "reject": {
+      "label": "Từ chối",
+      "class": "android.widget.Button",
+      "boundsPx": [
+        99,
+        1749,
+        529,
+        1881
+      ],
+      "widthPx": 430,
+      "heightPx": 132,
+      "widthLogical": 156.36,
+      "heightLogical": 48.0,
+      "fullyVisible": true
+    },
+    "confirm": {
+      "label": "Xác nhận",
+      "class": "android.widget.Button",
+      "boundsPx": [
+        551,
+        1749,
+        981,
+        1881
+      ],
+      "widthPx": 430,
+      "heightPx": 132,
+      "widthLogical": 156.36,
+      "heightLogical": 48.0,
+      "fullyVisible": true
+    },
+    "details": {
+      "label": "Xem chi tiết đơn hàng",
+      "class": "android.widget.Button",
+      "boundsPx": [
+        99,
+        1903,
+        981,
+        2035
+      ],
+      "widthPx": 882,
+      "heightPx": 132,
+      "widthLogical": 320.73,
+      "heightLogical": 48.0,
+      "fullyVisible": true
+    }
+  },
+  "measuredAppBoundsPx": [
+    0,
+    136,
+    1080,
+    2274
+  ]
+}

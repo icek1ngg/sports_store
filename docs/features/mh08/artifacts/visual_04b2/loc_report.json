@@ -1,0 +1,110 @@
+[
+  {
+    "path": "lib/features/orders/presentation/widgets/mh08/mh08_order_card.dart",
+    "loc": 125,
+    "limit": 180,
+    "pass": true
+  },
+  {
+    "path": "lib/features/orders/presentation/widgets/mh08/mh08_card_header.dart",
+    "loc": 108,
+    "limit": 180,
+    "pass": true
+  },
+  {
+    "path": "lib/features/orders/presentation/widgets/mh08/mh08_buyer_section.dart",
+    "loc": 143,
+    "limit": 180,
+    "pass": true
+  },
+  {
+    "path": "lib/features/orders/presentation/widgets/mh08/mh08_item_preview.dart",
+    "loc": 137,
+    "limit": 180,
+    "pass": true
+  },
+  {
+    "path": "lib/features/orders/presentation/widgets/mh08/mh08_payment_section.dart",
+    "loc": 132,
+    "limit": 180,
+    "pass": true
+  },
+  {
+    "path": "lib/features/orders/presentation/widgets/mh08/mh08_kpi_strip.dart",
+    "loc": 101,
+    "limit": 180,
+    "pass": true
+  },
+  {
+    "path": "lib/features/orders/presentation/widgets/mh08/mh08_list_controls.dart",
+    "loc": 69,
+    "limit": 180,
+    "pass": true
+  },
+  {
+    "path": "lib/features/orders/presentation/widgets/mh08/mh08_status_chips.dart",
+    "loc": 110,
+    "limit": 180,
+    "pass": true
+  },
+  {
+    "path": "test/features/orders/presentation/widgets/mh08/mh08_order_card_test.dart",
+    "loc": 315,
+    "limit": 400,
+    "pass": true
+  },
+  {
+    "path": "test/features/orders/presentation/widgets/mh08/mh08_density_controls_test.dart",
+    "loc": 90,
+    "limit": 400,
+    "pass": true
+  },
+  {
+    "path": "test/visual_refinement/mh08_04b2_visual_test.dart",
+    "loc": 399,
+    "limit": 400,
+    "pass": true
+  },
+  {
+    "path": "test/visual_refinement/mh08_04b2_capture_helper.dart",
+    "loc": 141,
+    "limit": 150,
+    "pass": true
+  },
+  {
+    "path": "test/visual_refinement/mh08_04b2_compare.py",
+    "loc": 48,
+    "limit": 150,
+    "pass": true
+  },
+  {
+    "path": "docs/features/mh08/HANDOFF.md",
+    "loc": 76,
+    "limit": 100,
+    "pass": true
+  },
+  {
+    "path": "docs/features/mh08/UI_SPEC.md",
+    "loc": 134,
+    "limit": 200,
+    "pass": true
+  },
+  {
+    "path": "docs/features/mh08/VISUAL_AUDIT.md",
+    "loc": 140,
+    "limit": 200,
+    "pass": true
+  },
+  {
+    "path": "docs/features/mh08/MANUAL_REVIEW.md",
+    "loc": 172,
+    "limit": 200,
+    "pass": true
+  },
+  {
+    "path": "docs/features/mh08/TEST_PLAN.md",
+    "loc": 199,
+    "limit": 200,
+    "pass": true
+  }
+]

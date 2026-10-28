@@ -1,0 +1,102 @@
+{
+  "task": "MH08-04B2",
+  "baselineFiles": 293,
+  "baselineGitEntries": 161,
+  "unchanged": 285,
+  "existingDeltas": [
+    {
+      "path": "lib/features/orders/presentation/widgets/mh08/mh08_buyer_section.dart",
+      "before": "B6134F757F71DDC48650486133B8656C3A3EFDAF676E77AA308B5BBA96A0BC2C",
+      "after": "0F3F5BDE7921E2BACB5C81D23AF6BB6385804A001E59C540A277B1388DFDF23B"
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/mh08/mh08_item_preview.dart",
+      "before": "515075D0AD54E08281DCA863C312D09354C2663FE4A8B3F0010DF57418EC8EFE",
+      "after": "574601C28B13C6B6BEA07CA8DA3BFA54ADA70D6FA41B4B38586BD88FDA89D79C"
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/mh08/mh08_kpi_strip.dart",
+      "before": "5AD056467C2CDDCEE72C0B32ED2D93855365043B02731EAEE252BDC858BF9ACE",
+      "after": "283516A2DA11F0632F7EAEB67D1EBE43591724EAB4F850C0C395C70EBF4E45C0"
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/mh08/mh08_list_controls.dart",
+      "before": "78CBE14AA273BDEAC8EE13C6A1B3FD2F4BA370CA3141913289C26926BC2E3A4F",
+      "after": "AEB1AB8753E833E714CAD2AF34B0A6251247079DC9D46419AAEDB8FB72890887"
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/mh08/mh08_order_card.dart",
+      "before": "593F08DE89701715F82F3D87058B6C762ADF791AAE60F633388EEFD0A293AB21",
+      "after": "5B3BCAA0F7067BFB426D839747B7EBC2C530D6A02FBB0243AA5031DD0DD68E67"
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/mh08/mh08_payment_section.dart",
+      "before": "8B0988E0039AC6A1580059D0C38AF8A76FCBDEA2F679CB2CED27AF6FA7B24611",
+      "after": "7DCEBAB4F4D6C599ABDFE9DE5D80D2D6A745F0C25BC174DC8CD8E86B59155F57"
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/mh08/mh08_status_chips.dart",
+      "before": "A6ACEC1C94BFBAC31270715C27BE494A8448EBD664F997A76613BAEB22966A6C",
+      "after": "CAF4FCF6172E10D4D48FE0C45F887111F5D0D97CACA3224C85FB45907B9339B6"
+    },
+    {
+      "path": "test/features/orders/presentation/widgets/mh08/mh08_order_card_test.dart",
+      "before": "4A434940423362E2D5E854FD32B5DEE16C463B22EBBD014A88CB386AA6C0FCD4",
+      "after": "DD8DA4EB8DE93FBFDEDC30C3C14E83EB48706612051C904067C9DAD513C8CA44"
+    }
+  ],
+  "protectedSamples": [
+    {
+      "path": "docs/ui_mocks/MH08_Manager_Order_List.html",
+      "sha256": "8F5F4D136227C2C25C8199456FD5C879658D781AC5EC5A2CA661D3A53407AF62"
+    },
+    {
+      "path": "lib/features/orders/presentation/pages/customer_orders_page.dart",
+      "sha256": "56EB03A956A6D1E0FFDB63ECF23AF2EC4E2A888B69D5AC8ABE96ECBCC9107604"
+    },
+    {
+      "path": "lib/features/orders/presentation/pages/manager_orders_page.dart",
+      "sha256": "1E1D093A3590F86C7E793A07FD7DE8F69855772FE28A1A7F8EB0E4007A5A547A"
+    },
+    {
+      "path": "lib/features/orders/presentation/view_models/mh08/mh08_feed_coordinator.dart",
+      "sha256": "73181B1E28D465C1ABF3981EDB1F5CD08B6C7A875D4FEA385DD799334FB1512C"
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/mh07_order_card.dart",
+      "sha256": "9C2CE656A87396D988CC205C8A0E453207E86DC6808B4AF0702A50E70C60FD79"
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/mh08/mh08_page_layout.dart",
+      "sha256": "1D8F53E92479EC3923578F05D58FD1AA677FDD843262EDF1262B1409BEA96859"
+    },
+    {
+      "path": "test/features/orders/presentation/pages/customer_orders_page_test.dart",
+      "sha256": "DD19C3947C1B3110EC1572AACB9DF45848F4A90607921234D51E29B6E3F6E263"
+    },
+    {
+      "path": "test/visual_refinement/mh07_visual_review_test.dart",
+      "sha256": "D45E96EEEE4E5ACF35FDD239C96F839A1097CCAE0B9C8993CCA533B61AB1F2D7"
+    },
+    {
+      "path": "test/visual_refinement/mh08_04a_evidence_test.dart",
+      "sha256": "D0A8B2AF43CACE83C1B41A24A266AFE009C9AD2440354839C0ECFB20CAC4DDC2"
+    },
+    {
+      "path": "test/visual_refinement/mh08_04a_matrix_test.dart",
+      "sha256": "245C5DAD12A5A050F0595706A8F093D041E5949EB0C193C02C2784EA7028C5C6"
+    },
+    {
+      "path": "tool/ui_preview/mh07_preview_app.dart",
+      "sha256": "6B59FFAF41EC274DCEB82ADAF5202BC64B69073038A098517D9C0D69B50879AA"
+    },
+    {
+      "path": "tool/ui_preview/mh07_preview_data.dart",
+      "sha256": "D39D7D97D63F3BEF5067EC264D25BC1DFB0799BB130CA8B4C5BCBC36A827D966"
+    },
+    {
+      "path": "tool/ui_preview/render_mh07_reference.cjs",
+      "sha256": "A1895EC1F9751E5849F7C4F06B01205090C32513BD3AACE0B42AC2E361E11DFB"
+    }
+  ]
+}

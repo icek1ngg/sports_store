@@ -1,0 +1,42 @@
+[
+  {
+    "scenario": "expired",
+    "privateNodes": 0,
+    "labels": [
+      "DEMO UI · dữ liệu kiểm thử",
+      "Chọn màn hình",
+      "Chọn trạng thái",
+      "DEMO: lỗi trang tiếp theo",
+      "Phiên đăng nhập đã hết hạn",
+      "Phiên đăng nhập đã hết hạn",
+      "Vui lòng đăng nhập lại để tiếp tục."
+    ],
+    "pass": true
+  },
+  {
+    "scenario": "unauthorized",
+    "privateNodes": 0,
+    "labels": [
+      "DEMO UI · dữ liệu kiểm thử",
+      "Chọn màn hình",
+      "Chọn trạng thái",
+      "DEMO: lỗi trang tiếp theo",
+      "Không thể truy cập dữ liệu",
+      "Không thể truy cập dữ liệu",
+      "Phiên đăng nhập hoặc quyền truy cập hiện không khả dụng."
+    ],
+    "pass": true
+  },
+  {
+    "scenario": "session unavailable",
+    "privateNodes": 0,
+    "labels": [
+      "DEMO UI · dữ liệu kiểm thử",
+      "Chọn màn hình",
+      "Chọn trạng thái",
+      "DEMO: lỗi trang tiếp theo",
+      "Đang xác nhận phiên đăng nhập"
+    ],
+    "pass": true
+  }
+]
