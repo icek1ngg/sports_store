@@ -53,9 +53,11 @@ void main() {
           ? <String>[]
           : ['Giao lại thành công', 'Báo giao lại thất bại'];
       for (final label in actions) {
-        final action = find.widgetWithText(OutlinedButton, label);
+        final action = label == 'Giao lại thành công'
+            ? find.widgetWithText(FilledButton, label)
+            : find.widgetWithText(OutlinedButton, label);
         expect(action, findsOneWidget);
-        expect(tester.widget<OutlinedButton>(action).onPressed, isNull);
+        expect(tester.widget<ButtonStyleButton>(action).onPressed, isNull);
       }
       expect(find.text('Nhận hàng'), findsNothing);
       expect(find.text('Bắt đầu giao lại'), findsNothing);
@@ -136,10 +138,10 @@ void main() {
 
     expect(find.text('Lấy hàng hoàn'), findsOneWidget);
     expect(find.text('Đã nhận: 1'), findsOneWidget);
-    expect(find.text('Không thu COD'), findsOneWidget);
+    expect(find.text('Không thu tiền'), findsOneWidget);
     expect(find.text('Lần dự kiến: 1 / 2'), findsNothing);
-    expect(find.text('Không áp dụng hạn mức 2 lần giao đi'), findsOneWidget);
-    expect(find.text('Xác nhận lấy hàng'), findsOneWidget);
+    expect(find.text('Không áp dụng hạn mức 2 lần giao đi'), findsNothing);
+    expect(find.text('Xác nhận lấy hàng'), findsNothing);
     expect(find.text('Bóng đá bị lỗi'), findsOneWidget);
   });
 
@@ -152,7 +154,7 @@ void main() {
     );
     await tester.pumpWidget(_app(_redeliveryTaskId, vm));
 
-    expect(find.text('Giao lại'), findsOneWidget);
+    expect(find.text('Giao lại miễn phí'), findsWidgets);
     expect(find.text('Danh sách hàng giao lại chưa khả dụng.'), findsOneWidget);
     expect(find.text('Không thu COD'), findsOneWidget);
     expect(find.text('Không áp dụng hạn mức 2 lần giao đi'), findsOneWidget);

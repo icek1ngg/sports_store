@@ -146,7 +146,11 @@ class DeliveryTaskDto {
     }
 
     final expectedItemSource = _itemSourceFor(kind, scope);
-    if (itemSource != expectedItemSource) {
+    final approvedRedeliveryPlan =
+        kind == DeliveryTaskKind.redelivery &&
+        scope == DeliverySnapshotScope.current &&
+        itemSource == DeliveryItemSource.returnPlan;
+    if (itemSource != expectedItemSource && !approvedRedeliveryPlan) {
       throw DeliveryDtoReaders.invalid(
         'item_source',
         'the source corresponding to kind ${kind.value} and scope ${scope.value}',

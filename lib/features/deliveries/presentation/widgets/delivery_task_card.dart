@@ -119,7 +119,7 @@ class _MetaRow extends StatelessWidget {
         ),
         _Badge(
           icon: _statusIcon(task.status),
-          label: _statusLabel(task.status),
+          label: _statusLabel(task.status, task.kind),
           filled: false,
         ),
       ],
@@ -207,10 +207,15 @@ class _OperationalSummary extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final isOutbound = task.kind == DeliveryTaskKind.outbound;
+    final isPickup = task.kind == DeliveryTaskKind.returnPickup;
     final amount = task.amountToCollectVnd;
     final details = <Widget>[
       Text(
-        isOutbound ? 'TIỀN COD THU' : 'TRẠNG THÁI THANH TOÁN',
+        isOutbound
+            ? 'TIỀN COD THU'
+            : isPickup
+            ? 'THU HỒI TẠI KHÁCH'
+            : 'GIAO LẠI MIỄN PHÍ',
         style: theme.textTheme.labelSmall?.copyWith(
           color: scheme.onSurfaceVariant,
           fontWeight: FontWeight.w800,
@@ -223,6 +228,8 @@ class _OperationalSummary extends StatelessWidget {
             ? amount == null
                   ? 'Thông tin COD được giới hạn'
                   : _formatVnd(amount)
+            : isPickup
+            ? 'Không thu tiền'
             : 'Không thu COD',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
@@ -316,7 +323,7 @@ String _formatVnd(int value) {
 String _kindLabel(DeliveryTaskKind kind) => switch (kind) {
   DeliveryTaskKind.outbound => 'GIAO HÀNG',
   DeliveryTaskKind.returnPickup => 'THU HỒI HÀNG',
-  DeliveryTaskKind.redelivery => 'GIAO LẠI',
+  DeliveryTaskKind.redelivery => 'GIAO LẠI MIỄN PHÍ',
 };
 
 IconData _kindIcon(DeliveryTaskKind kind) => switch (kind) {
@@ -325,7 +332,18 @@ IconData _kindIcon(DeliveryTaskKind kind) => switch (kind) {
   DeliveryTaskKind.redelivery => Icons.swap_horizontal_circle_outlined,
 };
 
-String _statusLabel(DeliveryTaskStatus status) => switch (status) {
+String _statusLabel(DeliveryTaskStatus status, DeliveryTaskKind kind) {
+  if (kind == DeliveryTaskKind.returnPickup) {
+    return switch (status) {
+      DeliveryTaskStatus.failed => 'Lấy hàng thất bại',
+      DeliveryTaskStatus.returnedToStore => 'Cửa hàng đã nhận',
+      _ => _genericStatusLabel(status),
+    };
+  }
+  return _genericStatusLabel(status);
+}
+
+String _genericStatusLabel(DeliveryTaskStatus status) => switch (status) {
   DeliveryTaskStatus.pendingAssignment => 'Chờ phân công',
   DeliveryTaskStatus.assigned => 'Đã phân công',
   DeliveryTaskStatus.accepted => 'Đã nhận hàng',

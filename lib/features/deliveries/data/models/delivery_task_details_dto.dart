@@ -49,7 +49,13 @@ class DeliveryTaskDetailsDto {
       }
       final itemJson = _asStringMap(rawItem, 'item');
       _checkKeys(itemJson, _itemKeys, 'item');
-      final item = DeliveryTaskItemDto.fromJson(itemJson);
+      final item = DeliveryTaskItemDto.fromJson(
+        itemJson,
+        allowReturnMetadata:
+            task.kind == DeliveryTaskKind.redelivery &&
+            task.scope == DeliverySnapshotScope.current &&
+            task.itemSource == DeliveryItemSource.returnPlan,
+      );
       if (item.itemSource != task.itemSource ||
           !itemIds.add(item.itemId.toLowerCase())) {
         throw DeliveryDtoReaders.invalid(

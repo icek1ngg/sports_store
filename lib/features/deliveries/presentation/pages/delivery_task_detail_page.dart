@@ -18,6 +18,10 @@ import '../view_models/delivery_reporting_view_model.dart';
 import '../widgets/outbound_failure_action.dart';
 import '../widgets/delivery_reporting_action.dart';
 import '../view_models/outbound_task_actions_view_model.dart';
+import '../view_models/return_pickup_view_model.dart';
+import '../widgets/return_pickup_action.dart';
+import '../view_models/redelivery_view_model.dart';
+import '../widgets/redelivery_action.dart';
 
 /// MH11 detail view with server-backed outbound accept/start actions.
 ///
@@ -39,6 +43,8 @@ class _DeliveryTaskDetailPageState
     extends ConsumerState<DeliveryTaskDetailPage> {
   bool _completionControllerActive = false;
   bool _outboundControllerActive = false;
+  bool _returnPickupControllerActive = false;
+  bool _redeliveryControllerActive = false;
   bool _reportingControllerActive = false;
   DeliveryTaskSnapshot? _lastReportingSnapshot;
   var _reportingContextRefreshScheduled = false;
@@ -59,6 +65,16 @@ class _DeliveryTaskDetailPageState
     if (task?.kind == DeliveryTaskKind.outbound &&
         task?.scope == DeliverySnapshotScope.current) {
       _outboundControllerActive = true;
+    }
+    // Keep pickup action state alive while the authoritative read changes
+    // scope after a command (including a restricted failed projection).
+    if (task?.kind == DeliveryTaskKind.returnPickup) {
+      _returnPickupControllerActive = true;
+    }
+    // Keep the redelivery command controller alive while an ACK/read
+    // reconciliation is switching the task into a restricted terminal view.
+    if (task?.kind == DeliveryTaskKind.redelivery) {
+      _redeliveryControllerActive = true;
     }
     // Reporting has its own restricted projection. Once this page has seen
     // any outbound task, keep its controller alive across detail refreshes so
@@ -83,6 +99,12 @@ class _DeliveryTaskDetailPageState
     if (_completionControllerActive) {
       ref.watch(outboundCompletionViewModelProvider(widget.taskId));
       ref.watch(outboundFailureViewModelProvider(widget.taskId));
+    }
+    if (_returnPickupControllerActive) {
+      ref.watch(returnPickupViewModelProvider(widget.taskId));
+    }
+    if (_redeliveryControllerActive) {
+      ref.watch(redeliveryViewModelProvider(widget.taskId));
     }
     if (_reportingControllerActive) {
       ref.watch(deliveryReportingViewModelProvider(widget.taskId));
@@ -163,6 +185,8 @@ class _DeliveryTaskDetailPageState
             details: details,
             onMapReturned: _refresh,
             showCompletionRecovery: _completionControllerActive,
+            showReturnPickupRecovery: _returnPickupControllerActive,
+            showRedeliveryRecovery: _redeliveryControllerActive,
             showReporting: _reportingControllerActive,
           ),
         ],
@@ -176,12 +200,16 @@ class _DetailBody extends StatelessWidget {
     required this.details,
     required this.onMapReturned,
     required this.showCompletionRecovery,
+    required this.showReturnPickupRecovery,
+    required this.showRedeliveryRecovery,
     required this.showReporting,
   });
 
   final DeliveryTaskDetails details;
   final Future<void> Function() onMapReturned;
   final bool showCompletionRecovery;
+  final bool showReturnPickupRecovery;
+  final bool showRedeliveryRecovery;
   final bool showReporting;
 
   @override
@@ -212,7 +240,11 @@ class _DetailBody extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         _SectionCard(
-          title: 'COD',
+          title: task.kind == DeliveryTaskKind.returnPickup
+              ? 'Thu hồi tại khách'
+              : task.kind == DeliveryTaskKind.redelivery
+              ? 'Giao lại miễn phí'
+              : 'COD',
           icon: Icons.payments_outlined,
           child: _CodSection(task: task),
         ),
@@ -235,6 +267,20 @@ class _DetailBody extends StatelessWidget {
                   _ActionSection(task: task),
               ],
             ),
+          ),
+        ] else if (isCurrent && task.kind == DeliveryTaskKind.returnPickup) ...[
+          const SizedBox(height: 12),
+          _SectionCard(
+            title: 'Thao tác thu hồi',
+            icon: Icons.assignment_return_outlined,
+            child: ReturnPickupAction(taskId: task.taskId),
+          ),
+        ] else if (isCurrent && task.kind == DeliveryTaskKind.redelivery) ...[
+          const SizedBox(height: 12),
+          _SectionCard(
+            title: 'Thao tác giao lại',
+            icon: Icons.swap_horizontal_circle_outlined,
+            child: RedeliveryAction(taskId: task.taskId, task: task),
           ),
         ] else if (isCurrent) ...[
           const SizedBox(height: 12),
@@ -259,6 +305,32 @@ class _DetailBody extends StatelessWidget {
                 ),
                 OutboundFailureAction(taskId: task.taskId, allowSubmit: false),
               ],
+            ),
+          ),
+        ],
+        if (showReturnPickupRecovery &&
+            task.kind == DeliveryTaskKind.returnPickup &&
+            task.scope != DeliverySnapshotScope.current) ...[
+          const SizedBox(height: 12),
+          _SectionCard(
+            title: 'Kết quả thu hồi',
+            icon: Icons.assignment_return_outlined,
+            child: ReturnPickupAction(taskId: task.taskId, allowSubmit: false),
+          ),
+        ],
+        if (showRedeliveryRecovery &&
+            task.kind == DeliveryTaskKind.redelivery &&
+            task.status != DeliveryTaskStatus.assigned &&
+            task.status != DeliveryTaskStatus.accepted &&
+            task.status != DeliveryTaskStatus.inTransit) ...[
+          const SizedBox(height: 12),
+          _SectionCard(
+            title: 'Kết quả giao lại',
+            icon: Icons.swap_horizontal_circle_outlined,
+            child: RedeliveryAction(
+              taskId: task.taskId,
+              task: task,
+              allowSubmit: false,
             ),
           ),
         ],
@@ -307,7 +379,7 @@ class _DetailHero extends StatelessWidget {
                 background: AppColors.surface,
               ),
               _Pill(
-                label: _statusLabel(task.status),
+                label: _statusLabel(task.status, task.kind),
                 foreground: AppColors.onPrimary,
                 background: statusColor,
               ),
@@ -629,7 +701,10 @@ class _CodSection extends StatelessWidget {
     final amountLabel = switch ((isOutbound, amount)) {
       (true, final value?) => _formatVnd(value),
       (true, null) => 'Chưa có tổng COD',
-      (false, _) => 'Không thu COD',
+      (false, _) =>
+        task.kind == DeliveryTaskKind.returnPickup
+            ? 'Không thu tiền'
+            : 'Không thu COD',
     };
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -643,7 +718,11 @@ class _CodSection extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          isOutbound ? 'Tổng COD cần thu' : 'Nhiệm vụ này không thu COD',
+          isOutbound
+              ? 'Tổng COD cần thu'
+              : task.kind == DeliveryTaskKind.returnPickup
+              ? 'Thu hồi hàng tại khách'
+              : 'Giao lại miễn phí · Không thu COD lần hai',
           style: theme.textTheme.bodySmall?.copyWith(
             color: scheme.onSurfaceVariant,
           ),
@@ -903,6 +982,7 @@ class _DetailError extends StatelessWidget {
 }
 
 bool _shouldShowAttempt(DeliveryTaskSnapshot task) {
+  if (task.kind == DeliveryTaskKind.returnPickup) return false;
   if (task.kind != DeliveryTaskKind.outbound) return true;
   return switch (task.status) {
     DeliveryTaskStatus.assigned || DeliveryTaskStatus.accepted => true,
@@ -935,15 +1015,10 @@ List<String> _futureActionLabels(DeliveryTaskSnapshot task) {
       'Bắt đầu giao',
     ],
     (DeliveryTaskKind.outbound, DeliveryTaskStatus.inTransit) => [],
-    (DeliveryTaskKind.returnPickup, DeliveryTaskStatus.assigned) => [
-      'Xác nhận lấy hàng',
-    ],
-    (DeliveryTaskKind.returnPickup, DeliveryTaskStatus.accepted) => [
-      'Bắt đầu vận chuyển',
-    ],
-    (DeliveryTaskKind.returnPickup, DeliveryTaskStatus.inTransit) => [
-      'Báo bàn giao về kho',
-    ],
+    // Pickup commands are rendered by ReturnPickupAction.  Do not leave
+    // disabled generic placeholders that suggest a separate accept/start or
+    // a store receipt API exists.
+    (DeliveryTaskKind.returnPickup, _) => const [],
     (DeliveryTaskKind.redelivery, DeliveryTaskStatus.assigned) => [
       'Nhận hàng giao lại',
     ],
@@ -961,10 +1036,21 @@ List<String> _futureActionLabels(DeliveryTaskSnapshot task) {
 String _kindLabel(DeliveryTaskKind kind) => switch (kind) {
   DeliveryTaskKind.outbound => 'Giao đơn hàng',
   DeliveryTaskKind.returnPickup => 'Lấy hàng hoàn',
-  DeliveryTaskKind.redelivery => 'Giao lại',
+  DeliveryTaskKind.redelivery => 'Giao lại miễn phí',
 };
 
-String _statusLabel(DeliveryTaskStatus status) => switch (status) {
+String _statusLabel(DeliveryTaskStatus status, DeliveryTaskKind kind) {
+  if (kind == DeliveryTaskKind.returnPickup) {
+    return switch (status) {
+      DeliveryTaskStatus.failed => 'Lấy hàng thất bại',
+      DeliveryTaskStatus.returnedToStore => 'Cửa hàng đã nhận',
+      _ => _genericStatusLabel(status),
+    };
+  }
+  return _genericStatusLabel(status);
+}
+
+String _genericStatusLabel(DeliveryTaskStatus status) => switch (status) {
   DeliveryTaskStatus.pendingAssignment => 'Đang chờ phân công',
   DeliveryTaskStatus.assigned => 'Đã phân công',
   DeliveryTaskStatus.accepted => 'Đã nhận hàng',
