@@ -282,7 +282,7 @@ void main() {
               find.widgetWithText(OutlinedButton, 'Báo giao thất bại'),
             )
             .onPressed,
-        isNull,
+        isNotNull,
       );
       expect(harness.listReloads, 2);
     },
@@ -480,7 +480,7 @@ void main() {
   });
 
   testWidgets(
-    'third outbound attempt is guarded and transit keeps failure disabled',
+    'third outbound attempt is guarded and eligible transit exposes failure',
     (tester) async {
       final thirdAttempt = _ActionHarness(initial: _details(attemptNumber: 3));
       addTearDown(thirdAttempt.close);
@@ -505,7 +505,7 @@ void main() {
       for (final label in ['Báo giao thất bại']) {
         final button = find.widgetWithText(OutlinedButton, label);
         expect(button, findsOneWidget);
-        expect(tester.widget<OutlinedButton>(button).onPressed, isNull);
+        expect(tester.widget<OutlinedButton>(button).onPressed, isNotNull);
       }
       expect(transit.commandRepository.commands, isEmpty);
     },

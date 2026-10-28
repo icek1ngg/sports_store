@@ -15,7 +15,11 @@ final class PlatformDeliveryPhoneDialer implements DeliveryPhoneDialer {
       return DialerOpenOutcome.failed;
     }
     try {
-      return await launchUrl(telephoneUri, mode: LaunchMode.externalApplication)
+      return await launchUrl(
+            telephoneUri,
+            mode: LaunchMode.externalApplication,
+            webOnlyWindowName: '_self',
+          )
           ? DialerOpenOutcome.opened
           : DialerOpenOutcome.unavailable;
     } catch (_) {

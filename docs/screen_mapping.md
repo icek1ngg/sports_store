@@ -1,5 +1,69 @@
 # Ánh xạ màn hình Sports Store
 
+P09.4 hoàn thiện feedback launch/fallback, text-only khi thiếu tọa độ, che PII
+khi app vào nền và recheck khi resume/foreground. Web navigation dùng same-tab
+để tránh popup sau network read; không fake success. Nghiệm thu launcher thật
+còn chặn bởi runtime automation và thiếu Android; không claim realtime revoke.
+[Biên bản](demos/p094_navigation_failures_access_revocation.md).
+
+P09.3 MH18 đã có layout điểm đến theo mock, nút gọi/sao chép/chỉ đường và
+recenter; cả ba kind dùng cùng màn và marker tọa độ đã lưu. Kiểm tra lại quyền,
+session và snapshot trước handoff; navigation chỉ nhận tọa độ. Thiếu tọa độ
+fail closed, lỗi tile có thử lại; không thêm store pin hoặc sửa destination.
+[Phạm vi, tests và giới hạn dữ liệu](demos/p093_destination_map_frontend.md).
+
+P09.2 chỉ core provider adapter/config: user chốt OSM + Google Maps URL demo
+Web/Android; MH18 dùng read-only display adapter, core coordinate/navigation
+interfaces sẵn cho Văn Đức. Không xây MH16, GPS, route engine hoặc UI phase sau.
+[Handoff, license/cache/platform và checks](demos/p092_reusable_maps_adapter.md).
+
+P09.1 MH18 route chỉ taskId UUID, đọc lại authorized current destination cho cả
+ba kind qua repository chung. Initial/recheck không hợp lệ hoặc mất quyền xóa
+PII; phản hồi epoch cũ không phục hồi dữ liệu; thiếu tọa độ báo invalidData.
+Notes chưa có schema được ghi unavailable, không suy từ return evidence.
+Không thêm màn/route/map provider hoặc bước sau trong lượt P09.1.
+[Chi tiết](demos/p091_authorized_destination_data.md).
+
+P08.4 đã rà riêng frontend: MH10/MH11 ghi rõ giao lại miễn phí/không COD lần hai,
+chỉ outbound có `/2`; action theo state và refetch detail → list. Tests widget
+với actual returnPlan bao phủ confirm/cancel/Other reason, terminal gating và
+success/failure, giữ outbound/pickup. Không route/API/schema mới trong lượt này.
+[Biên bản P08.4](demos/p084_redelivery_frontend.md).
+
+**Cập nhật 28/10/2026:** MH11 redelivery đã nối production accept/start/complete/
+fail theo state và immutable actual plan; MH18 route map dùng
+DeliveryTaskMapPage/Supabase task projection, có pin/địa chỉ/gọi/copy/recenter/
+directions và lỗi tile. Không thêm màn/router/client/theme. Backend manager
+receipt/inspection/release/assignment đã bổ sung cho MH15 gọi, không sửa UI Sơn.
+[Redelivery](demos/p083_production_redelivery.md), [MH18](demos/p09_maps_acceptance.md).
+Các đoạn fixture-only/chưa UI dưới đây là mốc trước thay đổi này.
+
+Mốc fixture P08.3 trước bổ sung primitive chỉ backend contract/fixture redelivery, chưa production do thiếu proof
+của Sơn; không UI/action/route P08.4. MH11 redelivery vẫn chỉ đọc projection
+hiện có, item_source unavailable_redelivery_plan, không gắn RPC proposed vào
+app hoặc hiển thị thành công giả. [P08.3](demos/p083_redelivery_backend_contract.md).
+
+MH11 pickup handover được bổ sung theo yêu cầu người dùng: dùng RPC pickup riêng,
+xác nhận đủ hàng, sau report vẫn chờ chủ cửa hàng nhận/kiểm tra. Không thêm màn,
+không gọi RPC outbound. Xem [nghiệm thu](demos/p082_pickup_handover_acceptance.md).
+
+P08.2 mở rộng MH10/MH11 cho return_pickup bằng các projection hiện có và RPC
+collect/fail P08.1. Không thêm route/màn; tách thu tại khách với nhận/kiểm tra tại
+cửa hàng. Pickup handover dùng RPC riêng nêu trên và đọc marker sau report,
+không gọi RPC outbound. Xem [P08.2](demos/p082_return_pickup_frontend.md).
+
+P08.1 chỉ backend pickup cho MH15/MH11: manager phân công từ kế hoạch đã duyệt,
+shipper thu đủ hàng thực tế rồi vận chuyển về; lấy thất bại báo chủ cửa hàng.
+Không sửa UI MH15 của Sơn hoặc thêm giao diện MH11 trong phase này. Store
+handover report và manager receive/inspection vẫn riêng. Xem
+[contract và giới hạn tích hợp P08.1](demos/p081_return_pickup_backend.md).
+
+MH11 P07.5: tại route task-detail hiện có, thêm dialog báo bàn giao và sự cố
+outbound theo quyền context server, kể cả task failed/cancelled restricted.
+Không thêm màn/route. Report không có nghĩa chủ cửa hàng nhận, kiểm tra hoặc
+nhập lại tồn; dialog thất bại thông thường vẫn riêng. Xem
+[phạm vi và kiểm chứng P07.5](demos/p075_production_reporting_interfaces.md).
+
 Phạm vi chính gồm đúng 20 màn hình (MH01–MH20). Hộp thoại thêm/sửa sản phẩm,
 biến thể và bộ chọn vị trí trong màn đặt hàng là thành phần của màn hình tương
 ứng, không tạo thêm mã màn hình.
@@ -98,7 +162,8 @@ MH18 tập trung **điểm đến nhiệm vụ đã lưu**, không bắt buộc 
 không chọn địa chỉ thay MH16, không GPS tracking. Không truyền contact/địa chỉ
 qua route URL. Đọc task lại bằng UUID; thiếu tọa độ hoặc map/directions lỗi
 thì giữ địa chỉ được phép đọc và báo lỗi/thử lại, không tạo tọa độ giả.
-Provider, platform, license/key và interface maps với Văn Đức còn chờ chốt.
+Provider/platform và interface maps đã được user chốt/bổ sung ở P09.2 ngày
+28/10/2026, xem biên bản P09.2; không tuyên bố Văn Đức đã nghiệm thu MH16.
 NT25 theo mô tả pin cửa hàng gốc cần điều chỉnh theo phạm vi yêu cầu này;
 không khẳng định đã kiểm chứng toàn văn báo cáo gốc.
 
@@ -579,3 +644,25 @@ Chi tiết phạm vi, retry, kiểm thử và giới hạn live: [P04.2 producti
 Giữ route `/shipper/tasks/:taskId`, shell/theme/client chung. MH11 outbound current: assigned→nhận hàng, accepted→bắt đầu giao, in_transit hợp lệ→giao thành công. Completion dialog full backend COD (550.000 gồm phí trong test), hai checkbox và stable request ID; không sửa tiền, không auto-mutate khi mở. Sau ACK đọc lại MH11, refresh MH10 giữ filters, invalidate COD. Page giữ controller qua loading/history để hoàn tất reconciliation; lịch sử chỉ kết quả/retry đọc, không mutation mới.
 
 Call mở tel composer, không tự gọi; map link vẫn UUID. P07 thất bại/trả hàng còn disabled. P04.2/P04→P05 đã nghiệm thu real Auth/JWT + Flutter widget/repositories/cloud RPC, chưa điện thoại vật lý/MH17 renderer. Không sửa router hay UI teammate. [Bàn giao/kiểm thử/manifest](demos/p051_p052_production_outbound_completion.md).
+
+## P06.1–P06.4 — Nghiệm thu live 27/10/2026
+
+Các ghi chú P06 trước đây “chưa deploy/chưa nghiệm thu cloud” là mốc lịch sử. Đã nghiệm thu real Auth/JWT + CodRoutePage shipper/manager + production repositories/RPC trên project bqoyfytmrtvjwrpshuhh: phân trang hơn100 records, own-only/manager UUID filters, full receipt550.000, lost-ACK retry giữ key, simultaneous managers chỉ một receipt, COD không offset refund, và account-switch cache cleanup. Hai cloud SQL suites P06 PASS/ROLLBACK. Sửa one-shot latch dialog chống double pop; không migration/RLS/API mới.
+
+Cleanup xác nhận không còn fixture accounts/orders/COD/returns/receipts/notifications; giữ3products có sẵn. Live là Flutter widget runner nối cloud, chưa điện thoại vật lý/MH17 renderer. Phạm vi/lệnh/manifest, fixture phân trang có nhãn và kết quả chi tiết: [P06 live acceptance](demos/p06_live_acceptance.md).
+
+## P07.1 — MH11 backend failure (27/10/2026)
+
+Backend outbound fail_delivery_task được triển khai riêng; route/theme/shell không đổi. Không bật nút/dialog thất bại trong lượt P07.1; phần đó thuộc P07.3. Sau khi P07.3 nối production, cần dùng key ổn định, xử lý lỗi thật, refetch MH11/MH10 và hiển thị lần1 chờ chủ cửa hàng/lần2 chờ hoàn; không tự cho shipper lên lịch giao lại hoặc nhập tồn. Notification failure chỉ gửi chủ cửa hàng qua role manager; renderer/deep link MH17 vẫn của Bảo. [Contract, kiểm thử và trạng thái deploy](demos/p071_production_outbound_failure.md).
+
+## P07.2 — MH09 backend dependency (27/10/2026)
+
+MH09/Bảo được bàn giao RPC decide_outbound_retry với CAS failed task/retry task và stable request ID. Chủ cửa hàng chọn retry/hoàn sớm; không sửa màn MH09 hoặc tạo màn manager mới ở P07.2. MH11 shipper chỉ thấy task2 assigned, vẫn phải accept trước start; manager decision không tự thực nhận hàng. Hoàn trước start có thể hủy task2 nhưng giữ lịch sử/custody; sau start không đổi. Không cho shipper tự lên lịch hoặc đổi người sau nhận hàng. Notification decision chỉ holder shipper, link UUID; MH17 renderer còn của Bảo. [Contract và trạng thái nghiệm thu](demos/p072_production_outbound_retry.md).
+
+## P07.3 — MH11 báo thất bại production (27/10/2026)
+
+Route /shipper/tasks/:taskId giữ nguyên. Outbound current in_transit lần1/2 mới mở dialog reason/description; mở hoặc hủy không ghi. Bấm xác nhận gọi P07.1 với stable key, khóa nhấn lặp và opposite completion; refetch MH11/MH10 rồi hiển thị chờ manager lần1/chờ hoàn lần2. Recovery không render nút từ snapshot cũ; scope restricted che PII. Không lên lịch giao lại, thu tiền, nhận hàng hoàn hoặc nhập tồn. Pickup/redelivery vẫn chưa bật failure. Theme/client/shell/call/map UUID giữ nguyên. [Production implementation và kiểm thử](demos/p073_production_failed_delivery_dialog.md) thay fixture-only trước đây; chưa nghiệm thu app/JWT thật cho P07.3.
+
+## P07.4 — MH11 backend reporting (27/10/2026)
+
+Chỉ bổ sung RPC báo bàn giao/sự cố outbound, không thêm dialog hoặc đổi router/theme/shell trong P07.4. MH11 UI reporting và luồng receipt/inspection MH09 của Bảo chưa được giả lập hoàn tất. Report bàn giao không hiển thị như cửa hàng đã nhận/nhập tồn; incident không hiển thị như khách từ chối nhận hoặc đã tính bồi thường. Notification chủ cửa hàng dùng UUID task, MH17 renderer vẫn thuộc Bảo. Pickup/redelivery bị chặn đến khi có custody contract Sơn. [Scope/manifest/kiểm tra/deploy](demos/p074_production_delivery_reporting.md).

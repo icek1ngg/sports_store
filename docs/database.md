@@ -1,5 +1,41 @@
 # Database Sports Store
 
+**Cập nhật production 28/10/2026:** migration
+`20261028062908_p083_redelivery_production.sql` đã deploy, hiện 22 migrations.
+Thêm private append-only/FORCE RLS redelivery_requests, redelivery_return_receipts,
+redelivery_inspection_results, redelivery_release_plan_items, redelivery_task_items,
+redelivery_acceptances, redelivery_custody, redelivery_starts, redelivery_outcomes.
+Reuse restricted writer/reader, không base-table grant shipper, không đổi COD,
+inventory hoặc delivery_attempts. [Schema/API/tests hiện tại](demos/p083_production_redelivery.md)
+thay kết luận chưa migration của mốc P08.3 fixture bên dưới.
+
+Mốc fixture P08.3 trước khi bổ sung primitive không thêm migration/schema/RLS production. Enum hiện hữu đủ biểu diễn
+redelivery miễn phí và D9 mới chốt; schema chưa có proof manager receipt +
+inspection release/item plan/custody redelivery. Chỉ có SQL fixture rollback
+trong native test database, không deploy; không tái dùng pickup handover report
+làm manager receipt. [Chi tiết](demos/p083_redelivery_backend_contract.md).
+
+Pickup handover bổ sung: migration `20261028011128_return_pickup_store_handover.sql`
+đã deploy, thêm ledger private append-only/RLS FORCE và hai RPC hẹp. Không đổi
+bảng trạng thái, stock/COD hoặc quyền đọc base tables client.
+[Chi tiết](demos/p082_pickup_handover_acceptance.md).
+
+P08.1: hợp đồng pickup exact-full/combined collect-start đã được người dùng
+chốt. `return_items` là kế hoạch hàng thực tế đã duyệt, không thay bằng toàn bộ
+order_items. Thu hồi không dispatch/restock, không ghi outbound attempts hoặc
+sửa COD/refund. Schema/API mới và chứng cứ kiểm thử được ghi tại
+[P08.1](demos/p081_return_pickup_backend.md); approval/manager receive của Sơn
+vẫn là dependency độc lập, không có chỉ vì enum/cột đã tồn tại.
+Migration P08.1 `20261027142031_return_pickup_tasks.sql` đã qua 20-migration local
+regression và đã áp dụng lên cloud ngày 28/10/2026 sau khi bật VPN. Có snapshot/custody/ledger
+private, không mở thêm client base-table reads.
+
+P07.5 thêm migration `20261027140241_delivery_reporting_context.sql` cho một
+RPC đọc hẹp phục vụ báo cáo MH11: reuse constrained reporting owner/validator,
+không table/schema/enum mới, không nới grants/RLS client. Chỉ latest outbound
+task của holder hợp lệ nhận flags/item snapshot; không PII/order UUID/giá.
+Chi tiết [P07.5](demos/p075_production_reporting_interfaces.md).
+
 Mô tả baseline/P00.2 bên dưới là lịch sử thiết kế. P01.1 cuối file ghi thay
 đổi read projection và policy mới; không dùng predicate shipper của baseline
 như quyền hiện hành sau khi áp dụng migration P01.1.
@@ -334,9 +370,10 @@ Các mã dưới đây lấy từ P00.1 và vẫn là câu hỏi mở, chưa đ�
 - **D8 — Sơn + Minh Đức, Văn Đức cho tồn:** item/quantity thực nhận của
   return pickup, start riêng hay gộp với nhận, pickup thất bại/hẹn lại,
   receipt/inspection và đổi người/hủy trước custody.
-- **D9 — Sơn + Minh Đức:** redelivery failure dùng `redelivery_failed` hay
-  `manager_action_required`, task nào giữ active, cách manager đóng/mở lại
-  trước khi tạo task mới; không tự đóng return request khi giao lại thất bại.
+- **D9 — Sơn + Minh Đức:** P08.3 người dùng chốt failure T/R
+  `manager_action_required`, giữ active slot/custody/open; chỉ success mới đóng
+  request. Receipt/inspection/release plan/custody primitive đã có production theo
+  mốc mới; manager resolution để đóng/mở lại trước task mới và UI MH15 vẫn riêng.
 - **COD với owner orders/deliveries:** thời điểm tạo dòng `uncollected`, ý
   nghĩa lâu dài của `cod_collections.shipper_id`, actor của hand-over và
   policy đọc của shipper sau đổi người/return phải khớp với ledger custody.
@@ -815,3 +852,27 @@ Chi tiết phạm vi, retry, kiểm thử và giới hạn live: [P04.2 producti
 Migration CLI thật `20261026130645_complete_outbound_delivery.sql` đã deploy project bqoyfytmrtvjwrpshuhh, 12 local=12 remote. Thêm private.outbound_completion_requests (PK actor/request, payload/ACK) và private.outbound_completion_results (PK task, unique order/attempt và event/request). Ledgers force RLS/append-only, không client grants. Internal NOLOGIN/NOINHERIT/NOBYPASSRLS completion writer được grant tối thiểu; dùng private identity bridge, search_path rỗng. Không mở general order/item/Auth/Storage reads.
 
 RPC completion atomic trên delivery_attempts/delivery_tasks/orders/cod_collections/business_events/notifications, ghi server amount/by/time; COD chỉ collected, receipt manager là P06.3 riêng. Event reason=delivery_completed, không thêm event_type. P04 proof validator được gọi lại trước tiền. 14 SQL suites+4 concurrency native PASS; 9 scoped SQL cloud suites PASS; real JWT/UI P04→P05 PASS, scoped test rows/accounts cleanup. Các ghi chú P05 fixture-only phía trên là lịch sử đã được thay thế trong phạm vi này. [Schema/manifest/lệnh/giới hạn](demos/p051_p052_production_outbound_completion.md).
+
+## P06.1–P06.4 — Nghiệm thu live 27/10/2026
+
+Các ghi chú P06 trước đây “chưa deploy/chưa nghiệm thu cloud” là mốc lịch sử. Đã nghiệm thu real Auth/JWT + CodRoutePage shipper/manager + production repositories/RPC trên project bqoyfytmrtvjwrpshuhh: phân trang hơn100 records, own-only/manager UUID filters, full receipt550.000, lost-ACK retry giữ key, simultaneous managers chỉ một receipt, COD không offset refund, và account-switch cache cleanup. Hai cloud SQL suites P06 PASS/ROLLBACK. Sửa one-shot latch dialog chống double pop; không migration/RLS/API mới.
+
+Cleanup xác nhận không còn fixture accounts/orders/COD/returns/receipts/notifications; giữ3products có sẵn. Live là Flutter widget runner nối cloud, chưa điện thoại vật lý/MH17 renderer. Phạm vi/lệnh/manifest, fixture phân trang có nhãn và kết quả chi tiết: [P06 live acceptance](demos/p06_live_acceptance.md).
+
+## P07.1 — Failure schema (27/10/2026)
+
+Migration CLI `20261027060030_fail_outbound_delivery.sql` thêm nullable `delivery_attempts.failure_reason_code`/`failure_reason_description`, giữ tương thích result legacy/success; private.outbound_failure_requests/results append-only/force RLS và internal failure writer NOLOGIN/NOINHERIT/NOBYPASSRLS. Không cấp client đọc ledgers hoặc mở general order/item/return/Storage. `business_events.request_id` của failure là UUID do server sinh; client request thuộc ledger actor/key, nên hai shipper dùng trùng client UUID không xung đột event.
+
+RPC ghi result/task/order/event/notification/ledgers trong một transaction; không đổi COD/tồn. Failure writer chỉ có UPDATE(order_id) trên COD để SELECT FOR UPDATE; policy WITH CHECK(false) chặn ghi COD thực tế. Mã/lý do cấu trúc giữ riêng, legacy reason phục vụ tương thích. Đồng bộ ba migration checkout từ đúng SQL đã lưu cloud, không sửa nguồn đồng đội hoặc repair lịch sử. [Manifest, cross-operation idempotency, migration provenance và kiểm thử](demos/p071_production_outbound_failure.md).
+
+## P07.2 — Outbound retry decision schema (27/10/2026)
+
+Migration CLI `20261027062118_decide_outbound_retry.sql` dành cho manager decision; private request/decision ledgers riêng, append-only/force RLS, internal NOLOGIN/NOINHERIT/NOBYPASSRLS writer. Không ghi vào ledger assignment/COD để giả custody. Tạo task2 theo snapshot server và holder hiện giữ hàng; không sửa task1/result1/dispatch/inventory/COD/counter. Task2 custody chỉ được ghi bởi accept thực hiện sau quyết định.
+
+Guard custody chỉ được mở ngoại lệ có bằng chứng decision server để hủy task2 chưa start khi chuyển hoàn, giữ nguyên cấm đổi assigned fields sau nhận hàng. Không tắt RLS/trigger/FK hoặc dùng GUC client để vượt guard. [Schema/ACL/transaction/manifest và kết quả deploy](demos/p072_production_outbound_retry.md).
+
+## P07.4 — Reporting schema production (27/10/2026)
+
+Migration CLI 20261027093919_report_delivery_handover_incidents.sql đã deploy. Thêm private.outbound_reporting_requests (PK actor/request, operation/payload/hash/ACK) dùng chung hai RPC, private.outbound_handover_reports (PK order) và internal sports_store_outbound_reporting_writer NOLOGIN/NOINHERIT/NOBYPASSRLS. Ledgers force RLS/append-only, không client grants. Public wrappers report_store_handover/task+request+items và report_delivery_incident/task+request+enum+reason chạy với writer bị giới hạn; helper private không executable bởi client, search_path rỗng, không Auth schema grant.
+
+Khóa request→shared order advisory→order→outbound tasks UUID→COD; role/assignment/holder recheck trước replay. Chỉ INSERT report/event/notification; các grant UPDATE khóa id/order_id có WITH CHECK(false), không đổi state/COD/tồn/attempt. Historical dispatch validator đọc proof cũ nhưng không coi damaged là thiếu quantity; handover full bị chặn nếu có lost. Không sửa proofvalidator hiện tại của accept/start/fail/complete. Event request_id là UUID server, client key giữ riêng ledger. Notification chỉ profiles role manager, không customer. Pickup/redelivery UNSUPPORTED_TASK_KIND. [Contract/schema/checks/giới hạn](demos/p074_production_delivery_reporting.md).

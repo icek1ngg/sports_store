@@ -10,6 +10,10 @@ import { testCodReceiptConcurrency } from './cod_receipt_concurrency.mjs';
 import { testOutboundCommandsDemo } from './outbound_commands_demo_concurrency.mjs';
 import { testAcceptStartConcurrency } from './outbound_accept_start_concurrency.mjs';
 import { testOutboundCompletionProductionConcurrency } from './outbound_completion_production_concurrency.mjs';
+import { testOutboundFailureProductionConcurrency } from './outbound_failure_production_concurrency.mjs';
+import { testOutboundRetryProductionConcurrency } from './outbound_retry_production_concurrency.mjs';
+import { testDeliveryReportingProductionConcurrency } from './delivery_reporting_production_concurrency.mjs';
+import { testReturnPickupProductionConcurrency } from './return_pickup_production_concurrency.mjs';
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const runtime = resolve(testDir, '../.temp/p011_pg_runtime');
@@ -69,34 +73,17 @@ try {
     'outbound_assignment.sql',
     'outbound_accept_start.sql',
     'outbound_completion_production.sql',
+    'outbound_failure_production.sql',
+    'outbound_retry_production.sql',
     'outbound_commands_dependencies.sql',
-    'outbound_failure_dependencies.sql',
-    'outbound_retry_dependencies.sql',
-    'delivery_reporting_dependencies.sql',
+    'delivery_reporting_production.sql',
+    'return_pickup_production.sql',
     'cod_collection_list.sql',
     'cod_receipt.sql',
     ...(runOutboundDemo ? ['outbound_commands_demo.sql'] : []),
     ...(runCompletionFixture ? ['outbound_completion.sql'] : []),
   ]) {
     let sql = await readFile(resolve(testDir, name), 'utf8');
-    if (name === 'delivery_reporting_dependencies.sql') {
-      const marker = '-- P074_REPORTING_CONTRACT_FIXTURE';
-      if (sql.split(marker).length !== 2) throw new Error('P07.4 fixture marker must occur exactly once');
-      const fixture = await readFile(resolve(testDir, 'fixtures/p074_reporting_contract.sql.fixture'), 'utf8');
-      sql = sql.replace(marker, () => fixture);
-    }
-    if (name === 'outbound_retry_dependencies.sql') {
-      const marker = '-- P072_RETRY_CONTRACT_FIXTURE';
-      if (sql.split(marker).length !== 2) throw new Error('P07.2 fixture marker must occur exactly once');
-      const fixture = await readFile(resolve(testDir, 'fixtures/p072_retry_contract.sql.fixture'), 'utf8');
-      sql = sql.replace(marker, () => fixture);
-    }
-    if (name === 'outbound_failure_dependencies.sql') {
-      const marker = '-- P071_FAILURE_CONTRACT_FIXTURE';
-      if (sql.split(marker).length !== 2) throw new Error('P07.1 fixture marker must occur exactly once');
-      const fixture = await readFile(resolve(testDir, 'fixtures/p071_failure_contract.sql.fixture'), 'utf8');
-      sql = sql.replace(marker, () => fixture);
-    }
     if (name === 'outbound_commands_dependencies.sql' || name === 'outbound_commands_demo.sql') {
       const isDemo = name === 'outbound_commands_demo.sql';
       const marker = isDemo ? '-- P041_DEMO_FIXTURE' : '-- P041_INTERFACE_FIXTURE';
@@ -128,6 +115,10 @@ try {
   await testCodReceiptConcurrency(Client, { ...options, database }, client);
   await testAcceptStartConcurrency(Client, { ...options, database }, client);
   await testOutboundCompletionProductionConcurrency(Client, { ...options, database }, client);
+  await testOutboundFailureProductionConcurrency(Client, { ...options, database }, client);
+  await testOutboundRetryProductionConcurrency(Client, { ...options, database }, client);
+  await testDeliveryReportingProductionConcurrency(Client, { ...options, database }, client);
+  await testReturnPickupProductionConcurrency(Client, { ...options, database }, client);
   if (runOutboundDemo) {
     await testOutboundCommandsDemo(Client, { ...options, database }, client,
       await readFile(resolve(testDir, 'fixtures/p041_demo.sql.fixture'), 'utf8'));
@@ -150,6 +141,12 @@ try {
            (select count(*) from private.outbound_completion_results) as outbound_completion_results,
            (select count(*) from private.outbound_dispatches) as outbound_dispatches,
            (select count(*) from private.outbound_custody_acceptances) as outbound_custody_acceptances,
+           (select count(*) from private.return_pickup_requests) as return_pickup_requests,
+           (select count(*) from private.return_pickup_task_items) as return_pickup_task_items,
+           (select count(*) from private.return_pickup_custody) as return_pickup_custody,
+           (select count(*) from private.return_pickup_assignment_audits) as return_pickup_assignment_audits,
+           (select count(*) from private.return_pickup_failure_results) as return_pickup_failure_results,
+           (select count(*) from private.return_pickup_handover_reports) as return_pickup_handover_reports,
            (select count(*) from public.business_events) as events,
            (select count(*) from public.notifications) as notifications,
            (select count(*) from storage.objects) as objects`);

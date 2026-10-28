@@ -5,11 +5,17 @@ import '../../domain/models/delivery_task.dart';
 import '../../domain/models/outbound_completion_failure.dart';
 import '../../domain/models/outbound_task_command.dart';
 import '../view_models/outbound_completion_view_model.dart';
+import '../view_models/outbound_result_gate.dart';
 
 class OutboundCompletionAction extends ConsumerStatefulWidget {
-  const OutboundCompletionAction({super.key, required this.taskId});
+  const OutboundCompletionAction({
+    super.key,
+    required this.taskId,
+    this.allowSubmit = true,
+  });
 
   final String taskId;
+  final bool allowSubmit;
 
   @override
   ConsumerState<OutboundCompletionAction> createState() =>
@@ -23,7 +29,12 @@ class _OutboundCompletionActionState
   Route<bool>? _dialog;
 
   Future<void> _openConfirmation(OutboundCompletionState state) async {
-    if (_dialogOpen || !state.canComplete || !state.details.hasValue) return;
+    if (_dialogOpen ||
+        !state.canComplete ||
+        !state.details.hasValue ||
+        ref.read(outboundResultGateProvider(widget.taskId)) != null) {
+      return;
+    }
     final vm = ref.read(
       outboundCompletionViewModelProvider(widget.taskId).notifier,
     );
@@ -72,8 +83,10 @@ class _OutboundCompletionActionState
   @override
   void dispose() {
     final dialog = _dialog;
-    if (dialog != null && dialog.isActive && mounted) {
-      Navigator.of(context).removeRoute(dialog);
+    if (dialog != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (dialog.isActive) dialog.navigator?.removeRoute(dialog);
+      });
     }
     super.dispose();
   }
@@ -81,6 +94,7 @@ class _OutboundCompletionActionState
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(outboundCompletionViewModelProvider(widget.taskId));
+    final gate = ref.watch(outboundResultGateProvider(widget.taskId));
     final amount = state.authoritativeAmountVnd;
     final error = state.error;
     final vm = ref.read(
@@ -89,7 +103,7 @@ class _OutboundCompletionActionState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (amount != null) Text(_formatVnd(amount)),
+        if (amount != null && widget.allowSubmit) Text(_formatVnd(amount)),
         if (state.confirmed)
           const Text(
             'Đã giao thành công theo trạng thái server.',
@@ -102,10 +116,10 @@ class _OutboundCompletionActionState
             key: const ValueKey('completion-error'),
             style: TextStyle(color: Theme.of(context).colorScheme.error),
           ),
-        if (!state.confirmed && state.canComplete)
+        if (widget.allowSubmit && !state.confirmed && state.canComplete)
           FilledButton(
             key: const ValueKey('completion-open'),
-            onPressed: state.busy || _dialogOpen
+            onPressed: state.busy || _dialogOpen || gate != null
                 ? null
                 : () => _openConfirmation(state),
             child: const Text('Giao thành công'),
@@ -113,7 +127,9 @@ class _OutboundCompletionActionState
         if (state.pendingCommand != null || state.requiresReadRetry)
           OutlinedButton(
             key: const ValueKey('completion-retry'),
-            onPressed: state.busy ? null : vm.retry,
+            onPressed: state.busy || (gate != null && !identical(gate, vm))
+                ? null
+                : vm.retry,
             child: Text(
               state.pendingCommand != null
                   ? 'Thử lại cùng yêu cầu'
@@ -160,6 +176,7 @@ class _CompletionConfirmationDialogState
       outboundCompletionViewModelProvider(widget.taskId).notifier,
     );
     final changed =
+        ref.read(outboundResultGateProvider(widget.taskId)) != null ||
         vm.sessionRevisionForConfirmation != widget.revision ||
         state.actionsDenied ||
         !state.details.hasValue ||
@@ -174,6 +191,7 @@ class _CompletionConfirmationDialogState
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(outboundResultGateProvider(widget.taskId));
     final state = ref.watch(outboundCompletionViewModelProvider(widget.taskId));
     _redactIfStale(state);
     if (_closed) return const SizedBox.shrink();

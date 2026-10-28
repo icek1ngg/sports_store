@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'delivery_task_list_page.dart';
 import 'delivery_task_detail_page.dart';
+import 'delivery_task_map_page.dart';
 
 /// MH10 entry point inside the shared, authenticated shipper shell.
 class DeliveryTasksRoutePage extends StatelessWidget {
@@ -33,7 +34,7 @@ class DeliveryTaskRoutePage extends StatelessWidget {
   }
 }
 
-/// Temporary outlet for MH18 until the shared map shell is integrated.
+/// MH18 uses the authorized saved destination from the shared task repository.
 class DeliveryTaskMapRoutePage extends StatelessWidget {
   const DeliveryTaskMapRoutePage({required this.taskId, super.key});
 
@@ -44,15 +45,7 @@ class DeliveryTaskMapRoutePage extends StatelessWidget {
     return Semantics(
       key: ValueKey('mh18-outlet'),
       label: 'Bản đồ điểm đến nhiệm vụ giao hàng',
-      child: Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text(
-            'Giao diện bản đồ điểm đến nhiệm vụ chưa được tích hợp.',
-            textAlign: TextAlign.center,
-          ),
-        ),
-      ),
+      child: DeliveryTaskMapPage(taskId: taskId),
     );
   }
 }
