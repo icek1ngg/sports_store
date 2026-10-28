@@ -129,6 +129,99 @@ void _expectRoot() {
 }
 
 void main() {
+  for (final suffix in ['', '/map']) {
+    testWidgets(
+      'TEST-ONLY MH17 handoff rejects revoked task destination $suffix',
+      (tester) async {
+        var authorized = true;
+        var guardReads = 0;
+        final guardRequests = <http.Request>[];
+        final target = '/shipper/tasks/${delivery_fixtures.taskId}$suffix';
+        final client = await _roleClient(
+          tester,
+          userId: shipperA,
+          roles: {shipperA: 'shipper'},
+          dataHandler: (request) async {
+            if (request.url.path.endsWith('/read_my_delivery_tasks')) {
+              guardReads++;
+              guardRequests.add(request);
+              return jsonResponse(
+                request,
+                authorized ? [delivery_fixtures.currentTaskDto()] : [],
+              );
+            }
+            if (request.url.path.endsWith('/get_my_delivery_task')) {
+              return jsonResponse(request, {
+                'task': delivery_fixtures.currentTaskDto(),
+                'items': [],
+                'notes': null,
+                'notes_source': 'unavailable_schema',
+                'as_of': '2026-10-28T03:00:00Z',
+              });
+            }
+            return jsonResponse(request, const <Object>[]);
+          },
+        );
+        addTearDown(() => _disposeApp(tester, client));
+        final router = await _pumpApp(
+          tester,
+          client,
+          notificationBuilder: (context) => Scaffold(
+            body: Column(
+              children: [
+                const Text(
+                  'TEST-ONLY MH17 handoff; not the notifications screen',
+                ),
+                FilledButton(
+                  key: const ValueKey('fixture-notification-task-link'),
+                  onPressed: () => GoRouter.of(context).go(target),
+                  child: const Text('Open fixture destination'),
+                ),
+              ],
+            ),
+          ),
+        );
+        router.go('/shipper/tasks/${delivery_fixtures.taskId}');
+        await _pumpUntil(
+          tester,
+          () => _hasText('Nguyễn Văn A'),
+          description:
+              'authorized cached recipient before notification handoff',
+        );
+        router.go('/notifications');
+        await _pumpUntil(
+          tester,
+          () => _hasKey('fixture-notification-task-link'),
+          description: 'explicit fixture handoff',
+        );
+        final before = guardReads;
+        authorized = false;
+        await tester.tap(
+          find.byKey(const ValueKey('fixture-notification-task-link')),
+        );
+        await _pumpUntil(
+          tester,
+          () =>
+              router.state.uri.path == '/' &&
+              _hasText('Ứng dụng đang được xây dựng.'),
+          description: 'revoked notification destination rejected',
+        );
+        expect(guardReads, greaterThan(before));
+        expect(
+          guardRequests.every(
+            (request) =>
+                (jsonDecode(request.body) as Map)['p_task_id'] ==
+                delivery_fixtures.taskId,
+          ),
+          isTrue,
+        );
+        expect(router.state.uri.query, isEmpty);
+        expect(_hasKey('mh11-outlet'), isFalse);
+        expect(_hasKey('mh18-outlet'), isFalse);
+        expect(find.text('Nguyễn Văn A'), findsNothing);
+      },
+    );
+  }
   testWidgets('pop rechecks the revealed task and rejects revoked access', (
     tester,
   ) async {
