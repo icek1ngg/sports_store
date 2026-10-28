@@ -1,6 +1,19 @@
 # Sports Store
 
-Base project PRM393 dùng Flutter + Supabase, tổ chức theo feature-first MVVM, Riverpod và go_router. Các thư mục feature hiện giữ bằng `.gitkeep`; chức năng nghiệp vụ MH01–MH20 chưa được triển khai.
+Project PRM393 dùng Flutter + Supabase, tổ chức theo feature-first MVVM, Riverpod và go_router. Tình trạng từng phần được ghi trong `docs/`; bản giao diện xem thử MH01, MH02, MH03 và MH19 nhập từ `prm` được mô tả bên dưới.
+
+## Giao diện Dung An nhập từ prm
+
+Đã nhập bốn màn MH01 đăng nhập, MH02 đăng ký, MH03 quản lý sản phẩm và MH19 danh sách hội thoại vào `lib/features/<feature>/presentation/pages/`, cùng ba ảnh STRIDE trong `assets/images/`. Các widget và theme của bản xem thử nằm trong `lib/shared/widgets/prm_preview_widgets.dart`.
+
+Chạy bản xem thử bằng entrypoint riêng:
+
+```powershell
+flutter pub get
+flutter run -d chrome -t tool/ui_preview/prm_main.dart
+```
+
+Phần nhập này giữ hành vi của source `prm`: MH01/MH02 chưa kết nối xác thực; MH03/MH19 dùng dữ liệu demo trong bộ nhớ. Điều hướng và theme trong entrypoint xem thử chỉ phục vụ demo. Việc nối các màn vào router, ViewModel, repository và backend dùng chung chưa nằm trong lần nhập source này. Điểm khởi động `lib/main.dart`, cấu hình Android và các module hiện có được giữ nguyên. Không nhập cache, build, cấu hình máy cá nhân hoặc các bản tài liệu Word/PDF từ thư mục nguồn.
 
 ## Chạy ứng dụng
 
