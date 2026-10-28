@@ -1,5 +1,44 @@
 # Hợp đồng truy cập database
 
+**Cập nhật production 28/10/2026:** người dùng đã giao và chốt bổ sung primitive
+manager receipt/inspection release và redelivery. Migration
+`20261028062908_p083_redelivery_production.sql` đã deploy tám RPC:
+approve_return_pickup_plan, receive_customer_return, reject_return_after_inspection,
+assign_redelivery_task, accept_redelivery_task, start_redelivery_task,
+complete_redelivery, fail_redelivery_task. Redelivery projection chỉ mở immutable
+task plan, không bảng return/evidence. [Chữ ký/ACK/quyền/tests hiện tại](demos/p083_production_redelivery.md)
+thay trạng thái fixture-only P08.3 bên dưới; UI MH15 của Sơn vẫn không sửa.
+
+Mốc fixture P08.3 trước khi giao bổ sung primitive: D9 success/failure đã được người dùng chốt; chỉ có interface và SQL
+fixture cô lập vì Sơn receipt/inspection/immutable redelivery plan chưa có.
+`assign_redelivery_task`, `complete_redelivery`, `fail_redelivery_task` vẫn là
+tên proposed, không public RPC đã triển khai/deploy. Không đổi các RPC outbound
+hoặc pickup. [Contract, blockers và checks](demos/p083_redelivery_backend_contract.md).
+
+Pickup handover bổ sung ngày 28/10/2026 theo yêu cầu người dùng:
+`report_return_pickup_handover(uuid,uuid,jsonb)` và
+`get_my_return_pickup_handover(uuid)` đã triển khai/deploy; không dùng nhánh
+outbound của `report_store_handover`. Một report/request, exact custody, không
+state/receipt/inspection/restock/refund. Chữ ký, quyền, retry và nghiệm thu:
+[handover pickup](demos/p082_pickup_handover_acceptance.md).
+
+P08.2 frontend dùng `collect_return_items` / `fail_return_pickup_task` qua
+repository/Riverpod, giữ request UUID/payload khi retry và đọc lại MH11/MH10
+sau ACK. Bổ sung handover dùng `report_return_pickup_handover` và marker đọc
+riêng nêu trên; không gửi pickup qua RPC outbound `report_store_handover`.
+[Phạm vi/kiểm thử](demos/p082_return_pickup_frontend.md).
+
+P08.1 (27/10/2026): người dùng chốt pickup chỉ nhận đủ đúng kế hoạch đã duyệt,
+gộp thực nhận/start thành task in_transit + request returning_to_store; thất bại
+chỉ trước custody, không áp giới hạn hai lần outbound. Contract/hiện trạng API
+và upstream MH15 còn thiếu ghi tại
+[P08.1](demos/p081_return_pickup_backend.md); không coi các chữ ký đề xuất P00.2
+là endpoint sẵn có hoặc tự mở pickup trong RPC outbound.
+Ba RPC `assign_return_pickup_task`, `collect_return_items`,
+`fail_return_pickup_task` đã deploy ngày 28/10/2026 sau khi bật VPN; SQL cloud
+PASS/ROLLBACK, 20 migrations local/remote khớp. Chưa có live approval/receipt của Sơn
+hoặc nghiệm thu UI/JWT thật cho pickup.
+
 Hiện hành P07.5 (27/10/2026): MH11 nối hai mutation reporting production P07.4
 qua repository/ViewModel. Có thêm `get_my_delivery_reporting_context(uuid)` cho
 eligibility và item custody tối thiểu; không mở base-table reads. Xem contract,
@@ -152,7 +191,7 @@ Mọi dòng đều **pending approval** của owner ghi ở cột cuối; mã D 
 | `accept_delivery_task(task_id:uuid)` | Shipper hiện tại; assigned; chỉ outbound/redelivery; O3/R2; có đủ hàng và custody hợp lệ, chưa hủy | `TaskResult`; accepted_at, custody; outbound đầu dispatch một lần qua inventory **trong transaction**, redelivery không dispatch đơn lần nữa | ITEMS_MISMATCH, CUSTODY_UNRESOLVED, DEPENDENCY_NOT_READY; Văn Đức/Bảo/Sơn D1/D3/D4, S2 |
 | `start_delivery_task(task_id:uuid)` | Shipper hiện tại; accepted và có custody; O4/P3/R3; outbound số dự kiến=count+1≤2 | `TaskResult`; started_at/in_transit; chỉ outbound tăng count và O=delivering; không INSERT attempt; pickup giữ returning_to_store | ATTEMPT_LIMIT, CUSTODY_UNRESOLVED; D1/D3/D8, S2 |
 | `complete_outbound_delivery(task_id:uuid,received_all_items:boolean,collected_amount_vnd:bigint)` | Shipper hiện tại; outbound in_transit; nhận toàn bộ=true; task amount=order total=COD expected=tiền khai nhận; COD chưa thu | `TaskResult`; khóa COD cùng order/task; delivered, attempt success, collected/by/at và event/notification nguyên tử; không ghi tiền một phần | ITEMS_MISMATCH, AMOUNT_MISMATCH; Bảo/Văn Đức + Minh Đức D4/D7; S3 |
-| `fail_delivery_task(task_id:uuid,reason:text)` | Shipper hiện tại; outbound/redelivery đang in_transit; pickup assigned chưa nhận; lý do không rỗng; không kết quả trái ngược | `TaskResult`; outbound attempt failed, count=1 chờ manager, =2 chờ về; pickup failed/chờ lấy lại; redelivery pending mapping D9; lifecycle theo P00.1; không thu COD/restock | STATE_CONFLICT, CUSTODY_UNRESOLVED; Bảo/Sơn D6/D8/D9. D9 chưa duyệt thì nhánh redelivery bị chặn, không tự chọn enum |
+| `fail_delivery_task(task_id:uuid,reason:text)` — đề xuất tổng quát | Shipper hiện tại; outbound/redelivery đang in_transit; pickup assigned chưa nhận; lý do không rỗng; không kết quả trái ngược | `TaskResult`; outbound attempt failed, count=1 chờ manager, =2 chờ về; pickup failed/chờ lấy lại; P08.3 D9 user chốt redelivery T/R manager_action_required, giữ custody/open; không thu COD/restock | STATE_CONFLICT, CUSTODY_UNRESOLVED; nhánh redelivery vẫn blocked do thiếu proof/primitive Sơn, không đổi RPC outbound hiện hữu; xem interface P08.3 |
 | `decide_outbound_retry(order_id:uuid,decision:text)` | Manager; decision=`retry` hoặc `return_to_store`; lần 1 failed; không task active khác/custody chưa xử lý | `OrderResult`; retry tạo task pending số 2 theo O7; return đổi O sang awaiting_store_return theo O8; không reset count/dispatch; không gộp phân công | ATTEMPT_LIMIT, CUSTODY_UNRESOLVED; Bảo D1/D3/D5; retry chỉ mở sau hợp đồng custody |
 | `report_delivery_incident(task_id:uuid,kind:delivery_incident_kind,reason:text)` | Shipper hiện tại; chưa cancelled/delivered/returned_to_store; lý do hợp lệ; thời điểm sau nhận phải đúng custody | `TaskResult`; ghi business_events subject delivery_task, actor/task/request/kind; giữ trạng thái trừ mapping D6 được duyệt; không giả result khách từ chối | STATE_CONFLICT; Bảo/Sơn D6/D7; event kind hiện có, policy sự cố hiện có; không tự bồi thường |
 | `report_store_handover(task_id:uuid,items:receipt_items)` | Shipper hiện tại đang giữ hàng; O10/P5/R6a; đủ điều kiện bàn giao, số lượng khớp custody | `TaskResult`; report event/custody report S2, trạng thái không đổi; không receipt, inspection hay restock; không tác động COD | ITEMS_MISMATCH, CUSTODY_UNRESOLVED; Bảo/Sơn D2/D5/D8/D9; với outbound cần item schema riêng S2, không dùng return_item_id |
@@ -301,7 +340,7 @@ khác target (notifications có subject_type/id riêng, không ép mọi role c�
 | Dung An — auth/router | Session + profiles.role server; guard role và UUID routes ở screen_mapping; shared supabaseClientProvider/theme; không dùng user_metadata.role | Chốt role refresh, lỗi hết phiên, logout/account switch cleanup; deep link chờ role tải, không render PII trước quyền. Router mới chỉ `/`; không nói route đề xuất đã có |
 | Bảo — MH09/orders/notifications | create/assign/decide/receive_failed/inspect wrappers; hủy tranh chấp accept; event/recipient D7; O1/O11 mapping D1/D5 | Cùng transaction server, cùng thứ tự khóa L; không gọi lần lượt hai RPC Flutter để ghép orders + task. Xác nhận custody lần 2 D3 và snapshot order S1 |
 | Văn Đức — inventory/maps | Inventory primitive nội bộ nhận order/items/event/actor đã xác thực, trả ledger IDs và quantity sau cập nhật; không public RPC để shipper tự sửa tồn. Map interface đề xuất `SavedDestination(latitude,longitude,address,label,phone?)`, `openDirections(destination)` trả opened/unavailable/error | Chốt dispatch một lần tại accept, không dispatch lại lần 2; inspection restock lượng đạt; provider/license/key/nền tảng còn mở; map mở thất bại phải trả lỗi thật. MH16 chọn điểm riêng và validation Hà Nội ở server |
-| Sơn — MH15/returns | Duyệt lấy/kiểm tra/refund do returns sở hữu; gọi hợp đồng task nội bộ trong transaction; actual item plan, receipt và redelivery D8/D9 | Chốt thiếu/sai hàng, pickup retry/cancel/custody, redelivery_failed vs manager_action_required và danh sách giao lại S1/S2; không coi duyệt thu hồi là duyệt hoàn tiền |
+| Sơn — MH15/returns | Duyệt lấy/kiểm tra/refund do returns sở hữu; dùng tám RPC production được người dùng giao bổ sung trong contract P08.3 mới, không ghép aggregate bằng nhiều Flutter requests | D9 user chốt failure T/R manager_action_required; primitive receipt/inspection/release/custody đã có. UI MH15 và manager resolution sau failure vẫn riêng. Không coi pickup handover report là manager receipt hoặc duyệt thu hồi là duyệt hoàn tiền |
 
 **MH18 tập trung điểm đến đã lưu của task** theo yêu cầu P00.2, không bắt
 buộc pin cửa hàng. Lấy destination_* từ get_my_delivery_task với taskId,

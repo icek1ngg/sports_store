@@ -1,5 +1,39 @@
 # Ánh xạ màn hình Sports Store
 
+P08.4 đã rà riêng frontend: MH10/MH11 ghi rõ giao lại miễn phí/không COD lần hai,
+chỉ outbound có `/2`; action theo state và refetch detail → list. Tests widget
+với actual returnPlan bao phủ confirm/cancel/Other reason, terminal gating và
+success/failure, giữ outbound/pickup. Không route/API/schema mới trong lượt này.
+[Biên bản P08.4](demos/p084_redelivery_frontend.md).
+
+**Cập nhật 28/10/2026:** MH11 redelivery đã nối production accept/start/complete/
+fail theo state và immutable actual plan; MH18 route map dùng
+DeliveryTaskMapPage/Supabase task projection, có pin/địa chỉ/gọi/copy/recenter/
+directions và lỗi tile. Không thêm màn/router/client/theme. Backend manager
+receipt/inspection/release/assignment đã bổ sung cho MH15 gọi, không sửa UI Sơn.
+[Redelivery](demos/p083_production_redelivery.md), [MH18](demos/p09_maps_acceptance.md).
+Các đoạn fixture-only/chưa UI dưới đây là mốc trước thay đổi này.
+
+Mốc fixture P08.3 trước bổ sung primitive chỉ backend contract/fixture redelivery, chưa production do thiếu proof
+của Sơn; không UI/action/route P08.4. MH11 redelivery vẫn chỉ đọc projection
+hiện có, item_source unavailable_redelivery_plan, không gắn RPC proposed vào
+app hoặc hiển thị thành công giả. [P08.3](demos/p083_redelivery_backend_contract.md).
+
+MH11 pickup handover được bổ sung theo yêu cầu người dùng: dùng RPC pickup riêng,
+xác nhận đủ hàng, sau report vẫn chờ chủ cửa hàng nhận/kiểm tra. Không thêm màn,
+không gọi RPC outbound. Xem [nghiệm thu](demos/p082_pickup_handover_acceptance.md).
+
+P08.2 mở rộng MH10/MH11 cho return_pickup bằng các projection hiện có và RPC
+collect/fail P08.1. Không thêm route/màn; tách thu tại khách với nhận/kiểm tra tại
+cửa hàng. Pickup handover dùng RPC riêng nêu trên và đọc marker sau report,
+không gọi RPC outbound. Xem [P08.2](demos/p082_return_pickup_frontend.md).
+
+P08.1 chỉ backend pickup cho MH15/MH11: manager phân công từ kế hoạch đã duyệt,
+shipper thu đủ hàng thực tế rồi vận chuyển về; lấy thất bại báo chủ cửa hàng.
+Không sửa UI MH15 của Sơn hoặc thêm giao diện MH11 trong phase này. Store
+handover report và manager receive/inspection vẫn riêng. Xem
+[contract và giới hạn tích hợp P08.1](demos/p081_return_pickup_backend.md).
+
 MH11 P07.5: tại route task-detail hiện có, thêm dialog báo bàn giao và sự cố
 outbound theo quyền context server, kể cả task failed/cancelled restricted.
 Không thêm màn/route. Report không có nghĩa chủ cửa hàng nhận, kiểm tra hoặc

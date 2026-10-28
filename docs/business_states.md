@@ -1,5 +1,40 @@
 # Trạng thái nghiệp vụ
 
+**Mốc production mới 28/10/2026:** người dùng giao bổ sung các primitive còn thiếu;
+receipt manager sau full pickup handover → T returned_to_store/R under_inspection;
+inspection rejected với lý do → R awaiting_redelivery + immutable full actual plan;
+redelivery assigned → accepted (physical custody) → in_transit → delivered/
+rejected_after_inspection/closed_at hoặc T/R manager_action_required (giữ custody,
+completed_at/closed_at null). Tám RPC đã deploy; không COD mới/attempt/restock/refund.
+[Contract và chứng cứ mới](demos/p083_production_redelivery.md) thay blocker
+receipt/inspection/proof của mốc fixture cũ. Không suy manager resolution sau
+redelivery failure hoặc UI MH15 đã được triển khai.
+
+Mốc fixture P08.3/D9 trước khi giao bổ sung primitive: người dùng chốt redelivery thất bại T/R đều
+`manager_action_required`, giữ custody/open; thành công chỉ từ T in_transit và
+R awaiting_redelivery sang delivered/rejected_after_inspection + closed_at.
+Giữ chặn production khi thiếu receipt/inspection/item-plan proof của Sơn;
+[interface và fixture P08.3](demos/p083_redelivery_backend_contract.md) không
+phải RPC đã triển khai hoặc approval của Sơn.
+
+Pickup P5 đã bổ sung shipper report: task in_transit/request returning_to_store
+giữ nguyên sau báo bàn giao đủ custody; chỉ event/report/notification chủ cửa
+hàng. Manager P6 receipt/inspection vẫn thuộc Sơn và không được coi đã thực hiện.
+[Contract và nghiệm thu handover](demos/p082_pickup_handover_acceptance.md).
+
+P08.2 chỉ trình bày/điều phối P08.1: pickup nhận đủ tại khách → in_transit;
+lấy thất bại trước custody → failed chờ manager; không tự returned_to_store,
+inspection, nhập tồn hoặc refund. UI pickup không áp giới hạn outbound hai lần
+hoặc thu COD. [Hành vi và kiểm thử](demos/p082_return_pickup_frontend.md).
+
+P08.1 cập nhật D8 theo quyết định người dùng ngày 27/10/2026: collect pickup
+phải đủ đúng kế hoạch đã duyệt, gộp P2/P3 thành assigned → in_transit với
+accepted_at=started_at server; request returning_to_store. P4 thất bại chỉ trước
+nhận, request vẫn awaiting_return_pickup và cho task mới không trần hai lần.
+Chỉ đổi shipper trước custody. Không manager receipt/inspection/restock/refund.
+[Bảng transition, dependencies và kiểm chứng P08.1](demos/p081_return_pickup_backend.md)
+thay các lựa chọn D8 cũ trong phạm vi này, không suy ra approval của Sơn.
+
 P07.5 chỉ nối giao diện reporting outbound P07.4. Báo bàn giao/sự cố không đổi
 task/order/COD/attempt/stock; marker bàn giao lấy từ server không phải trạng thái
 manager receipt. UI đọc flags custody từ RPC hẹp, không suy từ `failed` đơn lẻ.
@@ -249,7 +284,7 @@ tra. O giữ `delivered`; COD/count outbound giữ nguyên; số tiền task b�
 | R2 / KH | Shipper nhận hàng tại cửa hàng | T=`assigned`; đúng hàng/custody của request | T → `accepted`; R giữ `awaiting_redelivery` | Ghi `accepted_at`, custody; không xuất lại stock outbound, không COD. D4, D8. |
 | R3 / KH | Shipper bắt đầu giao lại | T=`accepted`, thực nhận đủ hàng | T → `in_transit`; R giữ `awaiting_redelivery` | Ghi `started_at`; không tăng count, không ghi `delivery_attempts`. |
 | R4 / NV, KH | Shipper giao lại thành công | T=`in_transit`; khách nhận đủ hàng giao lại | T → `delivered`; R → `rejected_after_inspection` | Ghi kết quả và đóng yêu cầu cùng transaction; không thu COD mới/không giảm COD cũ. D9. |
-| R5 / NV, KH | Shipper giao lại thất bại | T=`in_transit`; lý do hợp lệ | ĐX T → `manager_action_required`; R → `manager_action_required` | Không đóng request; lựa chọn thay thế T=`failed`, R=`redelivery_failed` cũng có enum, chưa được Sơn chốt D9. Không tự tạo lần tiếp theo. |
+| R5 / NV, KH | Shipper giao lại thất bại | T=`in_transit`; R=`awaiting_redelivery`; lý do và custody hợp lệ | T → `manager_action_required`; R → `manager_action_required` | Người dùng chốt D9 ngày 28/10/2026; giữ custody, completed_at/closed_at null, không đóng request hoặc tự tạo lần tiếp theo. Chưa có production proof/writer của Sơn. |
 | R6 / KH | Shipper báo bàn giao sau thất bại; manager nhận | R5 đã xảy ra; có hàng thực tế | Báo: giữ nguyên trạng thái; nhận: ĐX T → `returned_to_store`, R giữ `manager_action_required` | Không hoàn tất kết quả từ chối; không tự restock. Manager quyết định xử lý/giao lại; D2, D9. |
 
 ### Ngoại lệ và quyết định cần phối hợp
@@ -292,7 +327,7 @@ dữ liệu, báo manager và chờ hợp đồng tương ứng; không mở quy
 | D6 | Bảo, Sơn + Minh Đức | Sự cố trước/sau start, hủy sau thực nhận, task đang đi bị gián đoạn: có được ghi result `failed` hay cần chờ manager; không giả lập kết quả khách từ chối để lấp chỗ trống. Count đã start không giảm. |
 | D7 | Bảo | Event/recipient/thời điểm thông báo ở từng hàng, mở deep link kiểm tra lại quyền; không nhúng dữ liệu riêng tư. |
 | D8 | Sơn + Minh Đức; Văn Đức cho phần tồn | Chốt P1–P7: hàng/số lượng thực nhận, thiếu/sai món, start riêng hay gộp nhận hàng, pickup thất bại/hẹn lại, receipt/inspection, đổi người/hủy trước nhận và cách giữ custody. Không bắt khách trả món chưa nhận. |
-| D9 | Sơn + Minh Đức | Chốt R1–R6, đặc biệt R5 dùng `redelivery_failed` hay `manager_action_required`, task nào giữ active và cách manager mở lại/đóng task cũ trước tạo task mới; không tự đóng request khi thất bại. |
+| D9 | Sơn + Minh Đức | Người dùng đã chốt mapping R4/R5 và giao bổ sung primitive: T/R manager_action_required khi thất bại, active slot/custody giữ nguyên; thành công mới rejected_after_inspection/closed_at. Receipt/inspection/release plan/accept/start đã production theo báo cáo mới; manager resolution/mở lại task sau failure và UI MH15 còn riêng, không suy ra agreement của Sơn. |
 | D10 | Nhóm / người giữ báo cáo | Cung cấp báo cáo v3.0 và file đính kèm còn thiếu để kiểm tra trực tiếp quy tắc/mã NT; không ghi nhận stakeholder agreement chỉ từ kế hoạch. |
 
 Lưu ý DB: unique active outbound chỉ bao gồm `pending_assignment`, `assigned`,
@@ -357,7 +392,7 @@ return_requests.status mô tả các mốc:
 | refunded | Đã ghi nhận hoàn đủ tiền hàng và phí giao ban đầu. |
 | rejected_after_inspection | Kết quả từ chối sau kiểm tra, chỉ ghi nhận như trạng thái kết thúc sau khi khách đã nhận lại hàng qua redelivery miễn phí. Trong thời gian chờ giao lại dùng awaiting_redelivery; nếu giao lại thất bại dùng manager_action_required. |
 | awaiting_redelivery | Đang chờ giao lại miễn phí cho khách, không thu COD lần hai. |
-| redelivery_failed | Giao lại thất bại, yêu cầu còn chờ quyết định của manager. |
+| redelivery_failed | Enum có trong schema nhưng không được chọn cho nhánh P08.3; mapping D9 người dùng chốt dùng manager_action_required. |
 | manager_action_required | Có vấn đề cần manager xử lý tiếp, không tự đóng yêu cầu. |
 
 Mỗi đơn chỉ có một yêu cầu trả đang hoạt động. return_items luôn gắn với cùng

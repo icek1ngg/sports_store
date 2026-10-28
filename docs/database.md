@@ -1,5 +1,35 @@
 # Database Sports Store
 
+**Cập nhật production 28/10/2026:** migration
+`20261028062908_p083_redelivery_production.sql` đã deploy, hiện 22 migrations.
+Thêm private append-only/FORCE RLS redelivery_requests, redelivery_return_receipts,
+redelivery_inspection_results, redelivery_release_plan_items, redelivery_task_items,
+redelivery_acceptances, redelivery_custody, redelivery_starts, redelivery_outcomes.
+Reuse restricted writer/reader, không base-table grant shipper, không đổi COD,
+inventory hoặc delivery_attempts. [Schema/API/tests hiện tại](demos/p083_production_redelivery.md)
+thay kết luận chưa migration của mốc P08.3 fixture bên dưới.
+
+Mốc fixture P08.3 trước khi bổ sung primitive không thêm migration/schema/RLS production. Enum hiện hữu đủ biểu diễn
+redelivery miễn phí và D9 mới chốt; schema chưa có proof manager receipt +
+inspection release/item plan/custody redelivery. Chỉ có SQL fixture rollback
+trong native test database, không deploy; không tái dùng pickup handover report
+làm manager receipt. [Chi tiết](demos/p083_redelivery_backend_contract.md).
+
+Pickup handover bổ sung: migration `20261028011128_return_pickup_store_handover.sql`
+đã deploy, thêm ledger private append-only/RLS FORCE và hai RPC hẹp. Không đổi
+bảng trạng thái, stock/COD hoặc quyền đọc base tables client.
+[Chi tiết](demos/p082_pickup_handover_acceptance.md).
+
+P08.1: hợp đồng pickup exact-full/combined collect-start đã được người dùng
+chốt. `return_items` là kế hoạch hàng thực tế đã duyệt, không thay bằng toàn bộ
+order_items. Thu hồi không dispatch/restock, không ghi outbound attempts hoặc
+sửa COD/refund. Schema/API mới và chứng cứ kiểm thử được ghi tại
+[P08.1](demos/p081_return_pickup_backend.md); approval/manager receive của Sơn
+vẫn là dependency độc lập, không có chỉ vì enum/cột đã tồn tại.
+Migration P08.1 `20261027142031_return_pickup_tasks.sql` đã qua 20-migration local
+regression và đã áp dụng lên cloud ngày 28/10/2026 sau khi bật VPN. Có snapshot/custody/ledger
+private, không mở thêm client base-table reads.
+
 P07.5 thêm migration `20261027140241_delivery_reporting_context.sql` cho một
 RPC đọc hẹp phục vụ báo cáo MH11: reuse constrained reporting owner/validator,
 không table/schema/enum mới, không nới grants/RLS client. Chỉ latest outbound
@@ -336,9 +366,10 @@ Các mã dưới đây lấy từ P00.1 và vẫn là câu hỏi mở, chưa đ�
 - **D8 — Sơn + Minh Đức, Văn Đức cho tồn:** item/quantity thực nhận của
   return pickup, start riêng hay gộp với nhận, pickup thất bại/hẹn lại,
   receipt/inspection và đổi người/hủy trước custody.
-- **D9 — Sơn + Minh Đức:** redelivery failure dùng `redelivery_failed` hay
-  `manager_action_required`, task nào giữ active, cách manager đóng/mở lại
-  trước khi tạo task mới; không tự đóng return request khi giao lại thất bại.
+- **D9 — Sơn + Minh Đức:** P08.3 người dùng chốt failure T/R
+  `manager_action_required`, giữ active slot/custody/open; chỉ success mới đóng
+  request. Receipt/inspection/release plan/custody primitive đã có production theo
+  mốc mới; manager resolution để đóng/mở lại trước task mới và UI MH15 vẫn riêng.
 - **COD với owner orders/deliveries:** thời điểm tạo dòng `uncollected`, ý
   nghĩa lâu dài của `cod_collections.shipper_id`, actor của hand-over và
   policy đọc của shipper sau đổi người/return phải khớp với ledger custody.
