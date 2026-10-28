@@ -14,6 +14,7 @@ import { testOutboundFailureProductionConcurrency } from './outbound_failure_pro
 import { testOutboundRetryProductionConcurrency } from './outbound_retry_production_concurrency.mjs';
 import { testDeliveryReportingProductionConcurrency } from './delivery_reporting_production_concurrency.mjs';
 import { testReturnPickupProductionConcurrency } from './return_pickup_production_concurrency.mjs';
+import { testDeliveryCodConcurrency } from './p101_delivery_cod_concurrency.mjs';
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const runtime = resolve(testDir, '../.temp/p011_pg_runtime');
@@ -22,6 +23,8 @@ const { Client } = require('pg');
 const database = process.argv[2] || 'p011_read_fixture';
 const runOutboundDemo = process.argv.slice(3).includes('--p041-demo');
 const runCompletionFixture = process.argv.slice(3).includes('--p051-fixture');
+const runQa = process.argv.slice(3).includes('--p101');
+const runHandoverDemo = process.argv.slice(3).includes('--p103-demo');
 if (!/^p011_[a-z0-9_]+$/.test(database)) {
   throw new Error('Use a new p011_ prefixed isolated test database name.');
 }
@@ -45,6 +48,17 @@ try {
 
 const client = new Client({ ...options, database });
 await client.connect();
+async function fixtureBoundarySnapshot() {
+  const relations=(await client.query(`select format('%I.%I',n.nspname,c.relname) relation
+    from pg_class c join pg_namespace n on n.oid=c.relnamespace
+    where c.relkind='r' and n.nspname in ('auth','storage','public','private') order by 1`)).rows;
+  const counts={};
+  for(const {relation} of relations) counts[relation]=(await client.query(`select count(*)::text n from ${relation}`)).rows[0].n;
+  const triggers=(await client.query(`select n.nspname,c.relname,t.tgname,t.tgenabled from pg_trigger t
+    join pg_class c on c.oid=t.tgrelid join pg_namespace n on n.oid=c.relnamespace
+    where n.nspname in ('auth','storage','public','private') order by 1,2,3`)).rows;
+  return {counts,triggers};
+}
 try {
   await client.query("SET sports_store.fixture_mode = 'p011_isolated'");
   await client.query(await readFile(resolve(testDir, 'fixtures/p011_auth_storage.sql.fixture'), 'utf8'));
@@ -64,8 +78,11 @@ try {
       throw error;
     }
   }
+  const qaBaseline=runQa ? await fixtureBoundarySnapshot() : null;
   for (const name of [
     'database_security.sql',
+    ...(runHandoverDemo ? ['p103_demo_catalog.sql'] : []),
+    ...(runQa ? ['p101_security_contracts.sql'] : []),
     'internal_auth_identity.sql',
     'delivery_read_security.sql',
     'delivery_task_list.sql',
@@ -80,10 +97,14 @@ try {
     'return_pickup_production.sql',
     'cod_collection_list.sql',
     'cod_receipt.sql',
+    ...(runQa ? ['redelivery_production.sql'] : []),
     ...(runOutboundDemo ? ['outbound_commands_demo.sql'] : []),
     ...(runCompletionFixture ? ['outbound_completion.sql'] : []),
   ]) {
     let sql = await readFile(resolve(testDir, name), 'utf8');
+    if(name==='redelivery_production.sql') {
+      sql='begin;\n'+await readFile(resolve(testDir,'fixtures/p083_redelivery.sql.fixture'),'utf8')+'\n'+sql;
+    }
     if (name === 'outbound_commands_dependencies.sql' || name === 'outbound_commands_demo.sql') {
       const isDemo = name === 'outbound_commands_demo.sql';
       const marker = isDemo ? '-- P041_DEMO_FIXTURE' : '-- P041_INTERFACE_FIXTURE';
@@ -98,7 +119,7 @@ try {
       sql = sql.replace(marker, () => completionFixture);
     }
     const results = await client.query(sql);
-    if (name === 'outbound_commands_demo.sql' || name === 'outbound_completion.sql') {
+    if (name === 'outbound_commands_demo.sql' || name === 'outbound_completion.sql' || name === 'p103_demo_catalog.sql') {
       for (const result of results) {
         for (const row of result.rows ?? []) {
           if (row.demo_step) console.log(`DEMO TRACE ${row.demo_step}: ${JSON.stringify(row.snapshot)}`);
@@ -119,6 +140,7 @@ try {
   await testOutboundRetryProductionConcurrency(Client, { ...options, database }, client);
   await testDeliveryReportingProductionConcurrency(Client, { ...options, database }, client);
   await testReturnPickupProductionConcurrency(Client, { ...options, database }, client);
+  if(runQa) await testDeliveryCodConcurrency(Client,{...options,database},client);
   if (runOutboundDemo) {
     await testOutboundCommandsDemo(Client, { ...options, database }, client,
       await readFile(resolve(testDir, 'fixtures/p041_demo.sql.fixture'), 'utf8'));
@@ -151,6 +173,13 @@ try {
            (select count(*) from public.notifications) as notifications,
            (select count(*) from storage.objects) as objects`);
   if (Object.values(rows[0]).some((value) => value !== '0')) throw new Error('Fixture rows survived rollback');
+  if(runQa) {
+    const after=await fixtureBoundarySnapshot();
+    if(JSON.stringify(after)!==JSON.stringify(qaBaseline)) {
+      throw new Error('P10.1 fixture data or trigger enablement differs from post-migration baseline');
+    }
+    console.log(`P10.1 cleanup: PASS (${Object.keys(after.counts).length} tables restored to baseline; all trigger enablement unchanged)`);
+  }
   console.log('PASS: SQL fixtures rolled back and concurrency fixtures cleaned; no users/profiles/orders/tasks/COD/assignment ledger/audit/Storage rows remain.');
 } finally {
   await client.end();
