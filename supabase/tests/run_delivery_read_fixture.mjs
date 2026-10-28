@@ -13,6 +13,7 @@ import { testOutboundCompletionProductionConcurrency } from './outbound_completi
 import { testOutboundFailureProductionConcurrency } from './outbound_failure_production_concurrency.mjs';
 import { testOutboundRetryProductionConcurrency } from './outbound_retry_production_concurrency.mjs';
 import { testDeliveryReportingProductionConcurrency } from './delivery_reporting_production_concurrency.mjs';
+import { testReturnPickupProductionConcurrency } from './return_pickup_production_concurrency.mjs';
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const runtime = resolve(testDir, '../.temp/p011_pg_runtime');
@@ -76,6 +77,7 @@ try {
     'outbound_retry_production.sql',
     'outbound_commands_dependencies.sql',
     'delivery_reporting_production.sql',
+    'return_pickup_production.sql',
     'cod_collection_list.sql',
     'cod_receipt.sql',
     ...(runOutboundDemo ? ['outbound_commands_demo.sql'] : []),
@@ -116,6 +118,7 @@ try {
   await testOutboundFailureProductionConcurrency(Client, { ...options, database }, client);
   await testOutboundRetryProductionConcurrency(Client, { ...options, database }, client);
   await testDeliveryReportingProductionConcurrency(Client, { ...options, database }, client);
+  await testReturnPickupProductionConcurrency(Client, { ...options, database }, client);
   if (runOutboundDemo) {
     await testOutboundCommandsDemo(Client, { ...options, database }, client,
       await readFile(resolve(testDir, 'fixtures/p041_demo.sql.fixture'), 'utf8'));
@@ -138,6 +141,12 @@ try {
            (select count(*) from private.outbound_completion_results) as outbound_completion_results,
            (select count(*) from private.outbound_dispatches) as outbound_dispatches,
            (select count(*) from private.outbound_custody_acceptances) as outbound_custody_acceptances,
+           (select count(*) from private.return_pickup_requests) as return_pickup_requests,
+           (select count(*) from private.return_pickup_task_items) as return_pickup_task_items,
+           (select count(*) from private.return_pickup_custody) as return_pickup_custody,
+           (select count(*) from private.return_pickup_assignment_audits) as return_pickup_assignment_audits,
+           (select count(*) from private.return_pickup_failure_results) as return_pickup_failure_results,
+           (select count(*) from private.return_pickup_handover_reports) as return_pickup_handover_reports,
            (select count(*) from public.business_events) as events,
            (select count(*) from public.notifications) as notifications,
            (select count(*) from storage.objects) as objects`);
