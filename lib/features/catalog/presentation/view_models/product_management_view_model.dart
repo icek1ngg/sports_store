@@ -3,13 +3,8 @@ import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/supabase/supabase_providers.dart';
-import '../../data/repositories/supabase_catalog_repository.dart';
 import '../../domain/models/managed_product.dart';
-import '../../domain/repositories/catalog_repository.dart';
-
-final catalogRepositoryProvider = Provider<CatalogRepository>(
-  (ref) => SupabaseCatalogRepository(ref.watch(supabaseClientProvider)),
-);
+import 'catalog_providers.dart';
 
 final _catalogIdentityProvider = StreamProvider<String?>((ref) async* {
   final client = ref.watch(supabaseClientProvider);

@@ -135,6 +135,13 @@ void main() {
       final router = ProviderScope.containerOf(
         tester.element(find.byType(SportsStoreApp)),
       ).read(appRouterProvider);
+      await tester.tap(find.byTooltip('Danh mục sản phẩm'));
+      await until(tester, () => router.state.uri.path == '/customer/products');
+      router.go('/');
+      await until(
+        tester,
+        () => find.text('Liên hệ cửa hàng').evaluate().isNotEmpty,
+      );
       router.go('/manager/products');
       await until(
         tester,

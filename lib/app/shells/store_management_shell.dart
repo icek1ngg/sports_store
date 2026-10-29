@@ -26,6 +26,12 @@ class StoreManagementShell extends ConsumerWidget {
       appBar: AppBar(
         title: Text(profile.fullName ?? 'Sports Store'),
         actions: [
+          if (profile.role == AppRole.customer)
+            IconButton(
+              tooltip: 'Danh mục sản phẩm',
+              onPressed: () => context.go('/customer/products'),
+              icon: const Icon(Icons.storefront_outlined),
+            ),
           TextButton.icon(
             onPressed: form.busy
                 ? null

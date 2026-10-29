@@ -116,8 +116,9 @@ class _AccessStatus extends ConsumerWidget {
                 onPressed: form.busy
                     ? null
                     : () async {
-                        if (await logout!() && context.mounted)
+                        if (await logout!() && context.mounted) {
                           context.go('/login');
+                        }
                       },
                 child: const Text('Đăng xuất'),
               ),
