@@ -287,12 +287,13 @@ void main() {
 
     expect(find.text('GIAO HÀNG'), findsOneWidget);
     expect(find.text('THU HỒI HÀNG'), findsOneWidget);
-    expect(find.text('GIAO LẠI'), findsOneWidget);
+    expect(find.text('GIAO LẠI MIỄN PHÍ'), findsWidgets);
     expect(find.text('Đã phân công'), findsOneWidget);
     expect(find.text('Đã nhận hàng'), findsOneWidget);
     expect(find.text('Đang vận chuyển'), findsOneWidget);
     expect(find.text('550.000 đ'), findsOneWidget);
-    expect(find.text('Không thu COD'), findsNWidgets(2));
+    expect(find.text('Không thu COD'), findsOneWidget);
+    expect(find.text('Không thu tiền'), findsOneWidget);
     expect(find.text('42 nhiệm vụ theo bộ lọc hiện tại'), findsOneWidget);
     expect(
       find.descendant(

@@ -10,6 +10,7 @@ import '../../domain/models/operational_failure.dart';
 import '../../domain/models/outbound_completion_command.dart';
 import '../../domain/models/outbound_task_command.dart';
 import 'outbound_completion_providers.dart';
+import 'outbound_result_gate.dart';
 
 class OutboundCompletionState {
   const OutboundCompletionState({
@@ -112,6 +113,7 @@ class OutboundCompletionViewModel extends Notifier<OutboundCompletionState> {
 
   @override
   OutboundCompletionState build() {
+    final resultGate = ref.read(outboundResultGateProvider(taskId).notifier);
     _disposed = false;
     _visible = true;
     _sessionRevision++;
@@ -158,6 +160,7 @@ class OutboundCompletionViewModel extends Notifier<OutboundCompletionState> {
       });
     });
     ref.onDispose(() {
+      scheduleMicrotask(() => resultGate.release(this));
       _disposed = true;
       _generation++;
       _sessionRevision++;
@@ -207,7 +210,11 @@ class OutboundCompletionViewModel extends Notifier<OutboundCompletionState> {
       // A token refresh creates a new authorization epoch. Keep the pending
       // envelope or acknowledged read state, but stop the old busy indicator;
       // the same request ID can be retried after the new epoch is current.
-      state = state.copyWith(busy: false);
+      state = state.copyWith(
+        busy: false,
+        requiresReadRetry:
+            state.requiresReadRetry || state.awaitingAuthoritativeRead,
+      );
       if (state.pendingCommand != null ||
           state.awaitingAuthoritativeRead ||
           state.requiresReadRetry ||
@@ -226,6 +233,7 @@ class OutboundCompletionViewModel extends Notifier<OutboundCompletionState> {
       return;
     }
     if (!sameActor) {
+      ref.read(outboundResultGateProvider(taskId).notifier).release(this);
       _awaitingRead = false;
       _taskRefreshNeeded = false;
       _codRefreshNeeded = false;
@@ -343,6 +351,9 @@ class OutboundCompletionViewModel extends Notifier<OutboundCompletionState> {
     int revision,
   ) async {
     if (!_epochCurrent(session, revision)) return;
+    if (!ref.read(outboundResultGateProvider(taskId).notifier).acquire(this)) {
+      return;
+    }
     state = state.copyWith(
       busy: true,
       error: null,
@@ -515,6 +526,7 @@ class OutboundCompletionViewModel extends Notifier<OutboundCompletionState> {
 
   void _setDenied(OutboundCommandFailure failure) {
     if (_disposed) return;
+    ref.read(outboundResultGateProvider(taskId).notifier).release(this);
     state = state.copyWith(
       busy: false,
       error: failure,
@@ -551,6 +563,7 @@ class OutboundCompletionViewModel extends Notifier<OutboundCompletionState> {
         _codRefreshNeeded) {
       return;
     }
+    ref.read(outboundResultGateProvider(taskId).notifier).release(this);
     _closeKeepAlive?.call();
     _closeKeepAlive = null;
   }
