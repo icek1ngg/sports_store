@@ -1,45 +1,9 @@
 # Trạng thái nghiệp vụ
 
-**Mốc production mới 28/10/2026:** người dùng giao bổ sung các primitive còn thiếu;
-receipt manager sau full pickup handover → T returned_to_store/R under_inspection;
-inspection rejected với lý do → R awaiting_redelivery + immutable full actual plan;
-redelivery assigned → accepted (physical custody) → in_transit → delivered/
-rejected_after_inspection/closed_at hoặc T/R manager_action_required (giữ custody,
-completed_at/closed_at null). Tám RPC đã deploy; không COD mới/attempt/restock/refund.
-[Contract và chứng cứ mới](demos/p083_production_redelivery.md) thay blocker
-receipt/inspection/proof của mốc fixture cũ. Không suy manager resolution sau
-redelivery failure hoặc UI MH15 đã được triển khai.
-
-Mốc fixture P08.3/D9 trước khi giao bổ sung primitive: người dùng chốt redelivery thất bại T/R đều
-`manager_action_required`, giữ custody/open; thành công chỉ từ T in_transit và
-R awaiting_redelivery sang delivered/rejected_after_inspection + closed_at.
-Giữ chặn production khi thiếu receipt/inspection/item-plan proof của Sơn;
-[interface và fixture P08.3](demos/p083_redelivery_backend_contract.md) không
-phải RPC đã triển khai hoặc approval của Sơn.
-
-Pickup P5 đã bổ sung shipper report: task in_transit/request returning_to_store
-giữ nguyên sau báo bàn giao đủ custody; chỉ event/report/notification chủ cửa
-hàng. Manager P6 receipt/inspection vẫn thuộc Sơn và không được coi đã thực hiện.
-[Contract và nghiệm thu handover](demos/p082_pickup_handover_acceptance.md).
-
-P08.2 chỉ trình bày/điều phối P08.1: pickup nhận đủ tại khách → in_transit;
-lấy thất bại trước custody → failed chờ manager; không tự returned_to_store,
-inspection, nhập tồn hoặc refund. UI pickup không áp giới hạn outbound hai lần
-hoặc thu COD. [Hành vi và kiểm thử](demos/p082_return_pickup_frontend.md).
-
-P08.1 cập nhật D8 theo quyết định người dùng ngày 27/10/2026: collect pickup
-phải đủ đúng kế hoạch đã duyệt, gộp P2/P3 thành assigned → in_transit với
-accepted_at=started_at server; request returning_to_store. P4 thất bại chỉ trước
-nhận, request vẫn awaiting_return_pickup và cho task mới không trần hai lần.
-Chỉ đổi shipper trước custody. Không manager receipt/inspection/restock/refund.
-[Bảng transition, dependencies và kiểm chứng P08.1](demos/p081_return_pickup_backend.md)
-thay các lựa chọn D8 cũ trong phạm vi này, không suy ra approval của Sơn.
-
-P07.5 chỉ nối giao diện reporting outbound P07.4. Báo bàn giao/sự cố không đổi
-task/order/COD/attempt/stock; marker bàn giao lấy từ server không phải trạng thái
-manager receipt. UI đọc flags custody từ RPC hẹp, không suy từ `failed` đơn lẻ.
-Pickup/redelivery và manager resolution/inspection/restock chưa được triển khai
-bởi phase này. Xem [P07.5](demos/p075_production_reporting_interfaces.md).
+MH03 dùng `products.is_active` và `product_variants.is_active` để ngừng bán,
+không xóa cứng hay thay snapshot đơn. MH19 chỉ lọc theo mốc đọc/người gửi tin
+cuối; không bổ sung enum trạng thái xử lý/hoàn tất hội thoại. Chi tiết tích hợp
+và hợp đồng ghi tại [Dung An Supabase](features/dung_an_supabase.md).
 
 Tài liệu này là hợp đồng trạng thái dùng chung cho MH01–MH20 và migration schema
 nền tảng. Các giá trị bên dưới đã được định nghĩa

@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../shared/widgets/prm_preview_widgets.dart';
+import '../view_models/auth_view_model.dart';
 
-class RegisterScreen extends StatefulWidget {
+class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key, required this.onLogin});
   final VoidCallback onLogin;
   @override
-  State<RegisterScreen> createState() => _RegisterScreenState();
+  ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> {
+class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _form = GlobalKey<FormState>();
   final _name = TextEditingController();
   final _email = TextEditingController();
@@ -18,6 +20,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _confirm = TextEditingController();
   bool _terms = true;
   bool _showPassword = false;
+
+  Future<void> _register() async {
+    if (!_form.currentState!.validate()) return;
+    if (!_terms) {
+      showNotice(context, 'Vui lòng đồng ý với điều khoản để tiếp tục.');
+      return;
+    }
+    await ref
+        .read(authViewModelProvider.notifier)
+        .register(
+          fullName: _name.text,
+          phone: _phone.text,
+          email: _email.text,
+          password: _password.text,
+        );
+    if (!mounted) return;
+    final notice = ref.read(authViewModelProvider).notice;
+    if (notice != null) {
+      _password.clear();
+      _confirm.clear();
+    }
+  }
+
   @override
   void dispose() {
     _name.dispose();
@@ -251,19 +276,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ],
       ),
       const SizedBox(height: 9),
+      if (ref.watch(authViewModelProvider).error case final message?)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Text(message, style: const TextStyle(color: Colors.red)),
+        ),
+      if (ref.watch(authViewModelProvider).notice case final message?)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Text(message, style: const TextStyle(color: forest)),
+        ),
       PrimaryButton(
         label: 'Đăng ký',
-        onPressed: () {
-          if (!_form.currentState!.validate()) return;
-          if (!_terms) {
-            showNotice(context, 'Vui lòng đồng ý với điều khoản để tiếp tục.');
-            return;
-          }
-          showNotice(
-            context,
-            'Chưa cấu hình Supabase Auth. Tài khoản chưa được tạo.',
-          );
-        },
+        busy: ref.watch(authViewModelProvider).busy,
+        onPressed: ref.watch(authViewModelProvider).busy ? null : _register,
       ),
       const SizedBox(height: 5),
       Center(

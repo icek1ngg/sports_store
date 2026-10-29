@@ -1,40 +1,19 @@
 # Database Sports Store
 
-**Cập nhật production 28/10/2026:** migration
-`20261028062908_p083_redelivery_production.sql` đã deploy, hiện 22 migrations.
-Thêm private append-only/FORCE RLS redelivery_requests, redelivery_return_receipts,
-redelivery_inspection_results, redelivery_release_plan_items, redelivery_task_items,
-redelivery_acceptances, redelivery_custody, redelivery_starts, redelivery_outcomes.
-Reuse restricted writer/reader, không base-table grant shipper, không đổi COD,
-inventory hoặc delivery_attempts. [Schema/API/tests hiện tại](demos/p083_production_redelivery.md)
-thay kết luận chưa migration của mốc P08.3 fixture bên dưới.
+## Tích hợp Dung An ngày 29/10/2026
 
-Mốc fixture P08.3 trước khi bổ sung primitive không thêm migration/schema/RLS production. Enum hiện hữu đủ biểu diễn
-redelivery miễn phí và D9 mới chốt; schema chưa có proof manager receipt +
-inspection release/item plan/custody redelivery. Chỉ có SQL fixture rollback
-trong native test database, không deploy; không tái dùng pickup handover report
-làm manager receipt. [Chi tiết](demos/p083_redelivery_backend_contract.md).
+Migration `20261029041230_dung_an_management_integration.sql` bổ sung RPC quản lý
+sản phẩm/tồn kho, RPC hội thoại, receipt private và lưu số điện thoại đăng ký.
+Sau khi người dùng chạy migration, probe Data API trên project
+`bqoyfytmrtvjwrpshuhh` xác nhận cả năm RPC đã tồn tại và chặn anon (`42501`),
+không còn `PGRST202`. 37 kiểm tra database cô lập và 30 test chức năng đã qua.
+Chưa xác minh RLS/trigger trực tiếp bằng SQL quản trị hay thao tác ghi bằng
+tài khoản ứng dụng thật trên cloud vì phiên hiện tại chưa có quyền/phiên phù hợp. Xem
+[hợp đồng, phân quyền và cách xác minh](features/dung_an_supabase.md).
 
-Pickup handover bổ sung: migration `20261028011128_return_pickup_store_handover.sql`
-đã deploy, thêm ledger private append-only/RLS FORCE và hai RPC hẹp. Không đổi
-bảng trạng thái, stock/COD hoặc quyền đọc base tables client.
-[Chi tiết](demos/p082_pickup_handover_acceptance.md).
-
-P08.1: hợp đồng pickup exact-full/combined collect-start đã được người dùng
-chốt. `return_items` là kế hoạch hàng thực tế đã duyệt, không thay bằng toàn bộ
-order_items. Thu hồi không dispatch/restock, không ghi outbound attempts hoặc
-sửa COD/refund. Schema/API mới và chứng cứ kiểm thử được ghi tại
-[P08.1](demos/p081_return_pickup_backend.md); approval/manager receive của Sơn
-vẫn là dependency độc lập, không có chỉ vì enum/cột đã tồn tại.
-Migration P08.1 `20261027142031_return_pickup_tasks.sql` đã qua 20-migration local
-regression và đã áp dụng lên cloud ngày 28/10/2026 sau khi bật VPN. Có snapshot/custody/ledger
-private, không mở thêm client base-table reads.
-
-P07.5 thêm migration `20261027140241_delivery_reporting_context.sql` cho một
-RPC đọc hẹp phục vụ báo cáo MH11: reuse constrained reporting owner/validator,
-không table/schema/enum mới, không nới grants/RLS client. Chỉ latest outbound
-task của holder hợp lệ nhận flags/item snapshot; không PII/order UUID/giá.
-Chi tiết [P07.5](demos/p075_production_reporting_interfaces.md).
+Trigger mốc đọc chat mới bảo toàn key người khác, chỉ tăng key của người gọi tới
+timestamp snapshot không vượt giờ server. Đây là hành vi thay thế trigger
+baseline luôn đóng dấu giờ hiện tại.
 
 Mô tả baseline/P00.2 bên dưới là lịch sử thiết kế. P01.1 cuối file ghi thay
 đổi read projection và policy mới; không dùng predicate shipper của baseline

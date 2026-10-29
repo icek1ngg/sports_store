@@ -1,359 +1,230 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/supabase/supabase_providers.dart';
 import '../../../../shared/widgets/prm_preview_widgets.dart';
+import '../../domain/models/chat_models.dart';
+import '../view_models/chat_providers.dart';
 
-class _Conversation {
-  const _Conversation({
-    required this.name,
-    required this.order,
-    required this.preview,
-    required this.time,
-    required this.initials,
-    required this.status,
-    this.unread = 0,
+class ConversationListScreen extends ConsumerStatefulWidget {
+  const ConversationListScreen({
+    super.key,
+    this.onOpenConversation,
+    this.isCustomer = false,
   });
-  final String name;
-  final String order;
-  final String preview;
-  final String time;
-  final String initials;
-  final String status;
-  final int unread;
-}
-
-class ConversationListScreen extends StatefulWidget {
-  const ConversationListScreen({super.key});
+  final ValueChanged<String>? onOpenConversation;
+  final bool isCustomer;
   @override
-  State<ConversationListScreen> createState() => _ConversationListScreenState();
+  ConsumerState<ConversationListScreen> createState() =>
+      _ConversationListScreenState();
 }
 
-class _ConversationListScreenState extends State<ConversationListScreen> {
+class _ConversationListScreenState
+    extends ConsumerState<ConversationListScreen> {
   final _search = TextEditingController();
   String _filter = 'Tất cả';
-  static const _conversations = <_Conversation>[
-    _Conversation(
-      name: 'Nguyễn Minh Anh',
-      order: '#DH00125',
-      preview: 'Shop ơi, giày đi êm còn đổi size không ạ?',
-      time: '10:24',
-      initials: 'NA',
-      status: 'Chưa trả lời',
-      unread: 2,
-    ),
-    _Conversation(
-      name: 'Trần Hùng Nam',
-      order: '#DH00108',
-      preview: 'Khi nào có hàng lại?',
-      time: '09:15',
-      initials: 'TK',
-      status: 'Đang xử lý',
-    ),
-    _Conversation(
-      name: 'Lê Thu Hà',
-      order: '#DH00102',
-      preview: 'Có thể đổi size được không ạ?',
-      time: 'Hôm qua',
-      initials: 'LH',
-      status: 'Chờ phản hồi',
-    ),
-    _Conversation(
-      name: 'Phạm Việt Anh',
-      order: '#DH00099',
-      preview: 'Cảm ơn shop! Sản phẩm rất đẹp.',
-      time: '12/09',
-      initials: 'PR',
-      status: 'Đã hoàn tất',
-    ),
-  ];
+  bool _starting = false;
+  Timer? _timer;
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 20), (_) {
+      if (mounted &&
+          ModalRoute.of(context)?.isCurrent == true &&
+          !ref.read(chatInboxProvider).isLoading) {
+        ref.invalidate(chatInboxProvider);
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _timer?.cancel();
     _search.dispose();
     super.dispose();
   }
 
-  List<_Conversation> get _filtered => _conversations.where((c) {
-    final q = _search.text.trim().toLowerCase();
-    final matches =
-        q.isEmpty ||
-        c.name.toLowerCase().contains(q) ||
-        c.order.toLowerCase().contains(q);
-    final status = switch (_filter) {
-      'Chưa trả lời' => c.status == 'Chưa trả lời',
-      'Đang xử lý' => c.status == 'Đang xử lý',
-      'Đã hoàn tất' => c.status == 'Đã hoàn tất',
-      _ => true,
-    };
-    return matches && status;
-  }).toList();
+  Future<void> _start() async {
+    setState(() => _starting = true);
+    try {
+      final id = await ref
+          .read(chatInboxProvider.notifier)
+          .startCustomerConversation();
+      if (mounted) widget.onOpenConversation?.call(id);
+    } catch (error) {
+      if (mounted) showNotice(context, chatErrorMessage(error));
+    } finally {
+      if (mounted) setState(() => _starting = false);
+    }
+  }
 
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      Expanded(
-        child: CustomScrollView(
-          slivers: [
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(17, 12, 17, 14),
-              sliver: SliverToBoxAdapter(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _adminHeader(),
-                    const SizedBox(height: 15),
-                    const Text(
+  Widget build(BuildContext context) {
+    final inbox = ref.watch(chatInboxProvider);
+    final userId = ref.watch(supabaseClientProvider).auth.currentUser?.id;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
                       'Hội thoại',
                       style: TextStyle(
-                        fontSize: 23,
+                        fontSize: 24,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: -.45,
                         color: ink,
                       ),
                     ),
-                    const SizedBox(height: 3),
-                    const Text(
-                      'Quản lý các cuộc hội thoại với khách hàng.',
-                      style: TextStyle(fontSize: 10, color: muted),
-                    ),
-                    const SizedBox(height: 13),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children:
-                            [
-                                  'Tất cả',
-                                  'Chưa trả lời',
-                                  'Đang xử lý',
-                                  'Đã hoàn tất',
-                                ]
-                                .map(
-                                  (label) => Padding(
-                                    padding: const EdgeInsets.only(right: 5),
-                                    child: _filterChip(label),
-                                  ),
-                                )
-                                .toList(),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: _search,
-                      onChanged: (_) => setState(() {}),
-                      decoration: const InputDecoration(
-                        hintText: 'Tìm mã đơn hàng hoặc tên khách hàng...',
-                        prefixIcon: Icon(Icons.search_rounded, size: 17),
-                        contentPadding: EdgeInsets.symmetric(vertical: 9),
-                        isDense: true,
-                      ),
-                    ),
-                    const SizedBox(height: 11),
-                  ],
-                ),
-              ),
-            ),
-            if (_filtered.isEmpty)
-              const SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(
-                  child: Text(
-                    'Không có hội thoại phù hợp.',
-                    style: TextStyle(fontSize: 11, color: muted),
                   ),
-                ),
-              )
-            else
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(13, 0, 13, 17),
-                sliver: SliverList.separated(
-                  itemCount: _filtered.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 5),
-                  itemBuilder: (context, index) =>
-                      _conversationRow(_filtered[index]),
+                  IconButton(
+                    tooltip: 'Tải lại',
+                    onPressed: inbox.isLoading
+                        ? null
+                        : () => ref.invalidate(chatInboxProvider),
+                    icon: const Icon(Icons.refresh),
+                  ),
+                  if (widget.isCustomer)
+                    FilledButton.icon(
+                      onPressed: _starting || widget.onOpenConversation == null
+                          ? null
+                          : _start,
+                      icon: const Icon(Icons.chat_bubble_outline),
+                      label: Text(_starting ? 'Đang mở…' : 'Liên hệ cửa hàng'),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _search,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  hintText: 'Tìm khách hàng hoặc nội dung tin nhắn…',
+                  prefixIcon: Icon(Icons.search),
                 ),
               ),
-          ],
-        ),
-      ),
-    ],
-  );
-
-  Widget _adminHeader() => Row(
-    children: [
-      const BrandMark(compact: true),
-      const Spacer(),
-      Container(
-        width: 29,
-        height: 29,
-        alignment: Alignment.center,
-        decoration: const BoxDecoration(
-          color: Color(0xFFE7EEE9),
-          shape: BoxShape.circle,
-        ),
-        child: const Text(
-          'A',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            color: ink,
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: ['Tất cả', 'Chưa đọc', 'Chờ cửa hàng trả lời']
+                    .map(
+                      (label) => ChoiceChip(
+                        label: Text(label),
+                        selected: _filter == label,
+                        onSelected: (_) => setState(() => _filter = label),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ],
           ),
         ),
-      ),
-    ],
-  );
-
-  int _count(String label) => switch (label) {
-    'Tất cả' => _conversations.length,
-    'Chưa trả lời' => _conversations.where((c) => c.status == label).length,
-    'Đang xử lý' => _conversations.where((c) => c.status == label).length,
-    'Đã hoàn tất' => _conversations.where((c) => c.status == label).length,
-    _ => 0,
-  };
-
-  Widget _filterChip(String label) {
-    final selected = _filter == label;
-    return ChoiceChip(
-      label: Text('$label  ${_count(label)}'),
-      selected: selected,
-      onSelected: (_) => setState(() => _filter = label),
-      showCheckmark: false,
-      labelStyle: TextStyle(
-        fontSize: 9,
-        color: selected ? Colors.white : muted,
-        fontWeight: FontWeight.w700,
-      ),
-      backgroundColor: Colors.white,
-      selectedColor: ink,
-      side: BorderSide(color: selected ? ink : line),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      padding: const EdgeInsets.symmetric(horizontal: 2),
+        Expanded(
+          child: inbox.when(
+            skipLoadingOnRefresh: false,
+            skipLoadingOnReload: false,
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => _error(e),
+            data: (conversations) {
+              final query = _search.text.trim().toLowerCase();
+              final rows = conversations
+                  .where(
+                    (c) =>
+                        (query.isEmpty ||
+                            c.customerName.toLowerCase().contains(query) ||
+                            (c.lastMessage ?? '').toLowerCase().contains(
+                              query,
+                            )) &&
+                        (_filter != 'Chưa đọc' || c.unreadCount > 0) &&
+                        (_filter != 'Chờ cửa hàng trả lời' ||
+                            c.needsManagerReply),
+                  )
+                  .toList();
+              if (rows.isEmpty) {
+                return const Center(child: Text('Chưa có hội thoại phù hợp.'));
+              }
+              return RefreshIndicator(
+                onRefresh: () async {
+                  ref.invalidate(chatInboxProvider);
+                  await ref.read(chatInboxProvider.future);
+                },
+                child: ListView.separated(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(16),
+                  itemCount: rows.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 6),
+                  itemBuilder: (context, index) => _row(rows[index], userId),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _conversationRow(_Conversation c) => InkWell(
-    onTap: () => _openConversation(c),
-    borderRadius: BorderRadius.circular(12),
-    child: Container(
-      padding: const EdgeInsets.fromLTRB(8, 9, 8, 9),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFEAF0F2)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+  Widget _error(Object error) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 35,
-            height: 35,
-            alignment: Alignment.center,
-            decoration: const BoxDecoration(
-              color: Color(0xFFEDEFF2),
-              shape: BoxShape.circle,
-            ),
-            child: Text(
-              c.initials,
-              style: const TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF555B61),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        c.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          color: ink,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    _statusBadge(c.status),
-                  ],
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  c.order,
-                  style: const TextStyle(fontSize: 8, color: muted),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  c.preview,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 9, color: Color(0xFF535D59)),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 7),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(c.time, style: const TextStyle(fontSize: 8, color: muted)),
-              if (c.unread > 0) ...[
-                const SizedBox(height: 4),
-                Container(
-                  width: 16,
-                  height: 16,
-                  alignment: Alignment.center,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFE65353),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text(
-                    '${c.unread}',
-                    style: const TextStyle(
-                      fontSize: 8,
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ],
-            ],
+          Text(chatErrorMessage(error)),
+          TextButton(
+            onPressed: () => ref.invalidate(chatInboxProvider),
+            child: const Text('Thử lại'),
           ),
         ],
       ),
     ),
   );
-
-  Widget _statusBadge(String status) {
-    final (background, foreground) = switch (status) {
-      'Chưa trả lời' => (const Color(0xFFFFE4E4), const Color(0xFFD75C5C)),
-      'Đang xử lý' => (const Color(0xFFE4EFFC), const Color(0xFF5886C2)),
-      'Chờ phản hồi' => (const Color(0xFFFFF1D7), const Color(0xFFB68528)),
-      _ => (const Color(0xFFE2F2E9), const Color(0xFF4D9771)),
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        status,
-        style: TextStyle(
-          fontSize: 7,
-          fontWeight: FontWeight.w700,
-          color: foreground,
+  Widget _row(ChatConversation c, String? userId) => Card(
+    child: ListTile(
+      onTap: widget.onOpenConversation == null
+          ? null
+          : () => widget.onOpenConversation!(c.id),
+      leading: CircleAvatar(
+        child: Text(
+          c.customerName.trim().isEmpty
+              ? '?'
+              : c.customerName.trim().substring(0, 1),
         ),
       ),
-    );
-  }
+      title: Text(
+        widget.isCustomer ? 'Cửa hàng STRIDE' : c.customerName,
+        style: TextStyle(
+          fontWeight: c.unreadCount > 0 ? FontWeight.w800 : FontWeight.w600,
+        ),
+      ),
+      subtitle: Text(
+        c.lastMessage == null
+            ? 'Chưa có tin nhắn'
+            : '${c.lastSenderId == userId ? 'Bạn: ' : ''}${c.lastMessage}',
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (c.lastMessageAt != null)
+            Text(
+              _date(c.lastMessageAt!),
+              style: const TextStyle(fontSize: 11, color: muted),
+            ),
+          if (c.unreadCount > 0) Badge(label: Text('${c.unreadCount}')),
+        ],
+      ),
+    ),
+  );
+}
 
-  void _openConversation(_Conversation c) {
-    showNotice(context, 'Màn hình chi tiết MH20 nằm ngoài phạm vi Dung An.');
-  }
+String _date(DateTime value) {
+  final d = value.toLocal();
+  return '${d.day}/${d.month} ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 }

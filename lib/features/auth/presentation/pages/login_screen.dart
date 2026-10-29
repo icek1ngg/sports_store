@@ -1,27 +1,38 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../shared/widgets/prm_preview_widgets.dart';
+import '../view_models/auth_view_model.dart';
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({
     super.key,
     required this.onRegister,
-    required this.onPreviewProducts,
-    required this.onPreviewInbox,
+    this.onPreviewProducts,
+    this.onPreviewInbox,
+    this.onAuthenticated,
   });
   final VoidCallback onRegister;
-  final VoidCallback onPreviewProducts;
-  final VoidCallback onPreviewInbox;
+  final VoidCallback? onPreviewProducts;
+  final VoidCallback? onPreviewInbox;
+  final VoidCallback? onAuthenticated;
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _form = GlobalKey<FormState>();
   final _email = TextEditingController();
   final _password = TextEditingController();
   bool _visible = false;
-  bool _remember = false;
+
+  Future<void> _login() async {
+    if (!_form.currentState!.validate()) return;
+    final accepted = await ref
+        .read(authViewModelProvider.notifier)
+        .login(_email.text, _password.text);
+    if (mounted && accepted) widget.onAuthenticated?.call();
+  }
 
   @override
   void dispose() {
@@ -147,7 +158,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     Expanded(
                       child: _Benefit(
                         icon: Icons.local_shipping_outlined,
-                        label: 'Giao hàng\ntoàn quốc',
+                        label: 'Giao hàng\ntại Hà Nội',
                       ),
                     ),
                     Expanded(
@@ -231,82 +242,17 @@ class _LoginScreenState extends State<LoginScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 6),
-        Row(
-          children: [
-            SizedBox(
-              width: 23,
-              height: 23,
-              child: Checkbox(
-                value: _remember,
-                onChanged: (v) => setState(() => _remember = v ?? false),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                activeColor: forest,
-                visualDensity: VisualDensity.compact,
-              ),
-            ),
-            const SizedBox(width: 5),
-            const Text(
-              'Ghi nhớ đăng nhập',
-              style: TextStyle(fontSize: 10, color: ink),
-            ),
-            const Spacer(),
-            TextButton(
-              onPressed: () => showNotice(
-                context,
-                'Khôi phục mật khẩu sẽ khả dụng khi kết nối Supabase.',
-              ),
-              style: TextButton.styleFrom(padding: EdgeInsets.zero),
-              child: const Text(
-                'Quên mật khẩu?',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: ink,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 5),
+        const SizedBox(height: 12),
+        if (ref.watch(authViewModelProvider).error case final message?)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Text(message, style: const TextStyle(color: Colors.red)),
+          ),
         PrimaryButton(
           label: 'Đăng nhập',
-          onPressed: () {
-            if (_form.currentState!.validate()) {
-              showNotice(
-                context,
-                'Chưa cấu hình Supabase Auth. Biểu mẫu đã sẵn sàng kết nối backend.',
-              );
-            }
-          },
+          busy: ref.watch(authViewModelProvider).busy,
+          onPressed: ref.watch(authViewModelProvider).busy ? null : _login,
         ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            const Expanded(child: Divider(color: line)),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: Text(
-                'hoặc',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: muted.withValues(alpha: .9),
-                ),
-              ),
-            ),
-            const Expanded(child: Divider(color: line)),
-          ],
-        ),
-        const SizedBox(height: 9),
-        _socialButton(
-          context,
-          'Đăng nhập với Google',
-          Icons.g_mobiledata_rounded,
-        ),
-        const SizedBox(height: 7),
-        _socialButton(context, 'Đăng nhập với Apple', Icons.apple_rounded),
         const SizedBox(height: 10),
         Center(
           child: Wrap(
@@ -332,60 +278,39 @@ class _LoginScreenState extends State<LoginScreen> {
             ],
           ),
         ),
-        Center(
-          child: Wrap(
-            spacing: 14,
-            children: [
-              TextButton(
-                onPressed: widget.onPreviewProducts,
-                style: TextButton.styleFrom(
-                  padding: EdgeInsets.zero,
-                  minimumSize: Size.zero,
+        if (widget.onPreviewProducts != null || widget.onPreviewInbox != null)
+          Center(
+            child: Wrap(
+              spacing: 14,
+              children: [
+                TextButton(
+                  onPressed: widget.onPreviewProducts,
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size.zero,
+                  ),
+                  child: const Text(
+                    'Quản lý sản phẩm',
+                    style: TextStyle(fontSize: 9, color: muted),
+                  ),
                 ),
-                child: const Text(
-                  'Xem trước quản lý sản phẩm',
-                  style: TextStyle(fontSize: 9, color: muted),
+                TextButton(
+                  onPressed: widget.onPreviewInbox,
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size.zero,
+                  ),
+                  child: const Text(
+                    'Hội thoại',
+                    style: TextStyle(fontSize: 9, color: muted),
+                  ),
                 ),
-              ),
-              TextButton(
-                onPressed: widget.onPreviewInbox,
-                style: TextButton.styleFrom(
-                  padding: EdgeInsets.zero,
-                  minimumSize: Size.zero,
-                ),
-                child: const Text(
-                  'Hội thoại demo',
-                  style: TextStyle(fontSize: 9, color: muted),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
       ],
     ),
   );
-
-  Widget _socialButton(BuildContext context, String title, IconData icon) =>
-      SizedBox(
-        width: double.infinity,
-        height: 40,
-        child: OutlinedButton.icon(
-          onPressed: () =>
-              showNotice(context, 'Đăng nhập OAuth cần cấu hình provider.'),
-          icon: Icon(icon, size: 19),
-          label: Text(
-            title,
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-          ),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: ink,
-            side: const BorderSide(color: line),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-        ),
-      );
 }
 
 class _Benefit extends StatelessWidget {
