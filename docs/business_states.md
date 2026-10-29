@@ -1,23 +1,5 @@
 # Trạng thái nghiệp vụ
 
-Các cập nhật đầu tài liệu bổ sung cho baseline và các mốc phase lịch sử bên
-dưới. Việc có enum/constraint không tự chứng minh endpoint đã triển khai;
-phạm vi đã triển khai được xác định theo từng cập nhật và chứng cứ liên kết.
-
-## MH16 — Điểm vào luồng đơn hàng (27/10/2026)
-
-Checkout tạo đơn `pending_confirmation`, `delivery_attempt_count = 0`, giá và
-phí COD snapshot do server xác định. Cùng transaction ghi reserve ledger, giữ
-`on_hand` và tăng `reserved`. Thêm giỏ không giữ tồn. Retry placement trả cùng
-đơn và trạng thái hiện hành, không đưa đơn đã xử lý trở lại trạng thái chờ.
-
-Trạng thái khôi phục cục bộ “đang xác minh” không phải trạng thái đơn trong DB.
-`not_found` không cho phép kết luận rollback hoặc đổi request ID đang chờ.
-Checkout không xác nhận đơn, không gán shipper, không ghi thu tiền; các chuyển
-trạng thái tiếp theo vẫn thuộc Orders/Delivery/COD theo hợp đồng bên dưới.
-
-## Giao nhận và trả hàng — cập nhật đến 28/10/2026
-
 P10.3 handover giữ nguyên state contracts: accept là physical custody, start
 mới tăng outbound count; failed1→task2 cùng holder, không đổi người sau nhận;
 report handover khác manager receipt/inspection/restock; pickup/redelivery
