@@ -15,6 +15,17 @@ Trigger mốc đọc chat mới bảo toàn key người khác, chỉ tăng key 
 timestamp snapshot không vượt giờ server. Đây là hành vi thay thế trigger
 baseline luôn đóng dấu giờ hiện tại.
 
+P10.3: [Migration order 22 files, fixture/demo/cleanup và setup](handover/delivery_p103.md).
+Catalog mới chỉ local guarded BEGIN/ROLLBACK, có manager/2shipper/2customer,
+3kind, COD collected/received và denied cases. Không migration/schema/RLS mới,
+không persistent demo accounts hoặc reset database dùng chung.
+
+P10.1 bổ sung SQL/security/concurrency QA, không migration/RPC/grant mới.
+Local PG17: 22 migrations, 17 SQL suites, 9 concurrency modules PASS; 51 bảng
+về baseline và trigger enablement không đổi. Không coi Auth/Storage SQL stubs
+là cloud acceptance; cancellation chỉ kiểm trusted fixture/trigger boundary.
+[Lệnh, traceability và giới hạn](qa/p101_sql_security_transactions.md).
+
 **Cập nhật production 28/10/2026:** migration
 `20261028062908_p083_redelivery_production.sql` đã deploy, hiện 22 migrations.
 Thêm private append-only/FORCE RLS redelivery_requests, redelivery_return_receipts,

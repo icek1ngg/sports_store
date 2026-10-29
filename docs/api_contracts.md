@@ -9,6 +9,11 @@ Chat dùng `list_chat_conversations`, `ensure_customer_conversation`,
 Chi tiết tham số, kết quả, mốc đọc theo snapshot và kết quả kiểm tra sau migration
 cloud tại [hợp đồng Dung An](features/dung_an_supabase.md).
 
+P10.3: [Inventory RPC hiện hữu và hướng dẫn bàn giao](handover/delivery_p103.md)
+liệt kê 28 delivery/COD/return primitives, phân biệt Dart interface, proposed
+names và test fixture. Reuse client/role authorization; không thêm RPC/grants.
+Request UUID retry giữ nguyên payload; actor/money/count/state do server kiểm.
+
 P09.4 thêm **Dart interface** DeliveryMapReader.getMapTaskDetails, tái sử dụng
 get_my_delivery_task hiện có, không RPC/schema/grant mới. Chỉ map-mode nhận
 contact đầy đủ + nullable coordinates để text fallback; mapper chung vẫn strict.

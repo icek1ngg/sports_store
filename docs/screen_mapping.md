@@ -4,6 +4,17 @@ MH01/MH02/MH03/MH19 đã nối router và repository Supabase của ứng dụng
 MH20 có trang đọc/gửi tin dùng chung theo ID. Routes, quyền và bước migration
 cloud còn lại tại [tích hợp Dung An](features/dung_an_supabase.md).
 
+P10.3: [Bàn giao Delivery/COD/Maps](handover/delivery_p103.md) ghi rõ MH10/11/12/18,
+owner/dependency, demo fixture có nhãn/cleanup, build/setup và status từng mức
+implemented/integrated/tested/blocked. NT25 dùng task destination theo user,
+không thêm màn/store pin. Không coi MH17/MH15 UI là phần đã tích hợp bởi Minh Đức.
+
+P10.2 QA bổ sung composition tests outbound→COD, failed1→same-holder task2→
+failed2→handover, redelivery hai kết quả và revoked task/map link bằng fixture
+MH17 handoff. Live MH11/MH12/pickup/redelivery đã chạy lại; MH17 production
+bindings và failed-outbound manager receipt UI vẫn chưa được coi tích hợp.
+[Coverage, lệnh, kết quả và blockers](qa/p102_flutter_integration_tests.md).
+
 P09.4 hoàn thiện feedback launch/fallback, text-only khi thiếu tọa độ, che PII
 khi app vào nền và recheck khi resume/foreground. Web navigation dùng same-tab
 để tránh popup sau network read; không fake success. Nghiệm thu launcher thật

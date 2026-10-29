@@ -5,6 +5,12 @@ không xóa cứng hay thay snapshot đơn. MH19 chỉ lọc theo mốc đọc/n
 cuối; không bổ sung enum trạng thái xử lý/hoàn tất hội thoại. Chi tiết tích hợp
 và hợp đồng ghi tại [Dung An Supabase](features/dung_an_supabase.md).
 
+P10.3 handover giữ nguyên state contracts: accept là physical custody, start
+mới tăng outbound count; failed1→task2 cùng holder, không đổi người sau nhận;
+report handover khác manager receipt/inspection/restock; pickup/redelivery
+không outbound cap/COD mới. [Demo/state audit và blockers](handover/delivery_p103.md).
+Không có transition/enum hoặc stakeholder approval mới trong phase tài liệu.
+
 **Mốc production mới 28/10/2026:** người dùng giao bổ sung các primitive còn thiếu;
 receipt manager sau full pickup handover → T returned_to_store/R under_inspection;
 inspection rejected với lý do → R awaiting_redelivery + immutable full actual plan;
