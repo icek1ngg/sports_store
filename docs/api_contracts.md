@@ -1,13 +1,73 @@
 # Hợp đồng truy cập database
 
-## Hợp đồng Dung An 29/10/2026
+P10.3: [Inventory RPC hiện hữu và hướng dẫn bàn giao](handover/delivery_p103.md)
+liệt kê 28 delivery/COD/return primitives, phân biệt Dart interface, proposed
+names và test fixture. Reuse client/role authorization; không thêm RPC/grants.
+Request UUID retry giữ nguyên payload; actor/money/count/state do server kiểm.
 
-Auth dùng Supabase email/password và đọc role từ `profiles`. Repository catalog
-dùng `save_managed_product` giao dịch có request ID và kiểm tra dữ liệu đọc cũ.
-Chat dùng `list_chat_conversations`, `ensure_customer_conversation`,
-`get_chat_messages`, `send_chat_message`; các RPC chat dùng RLS người gọi.
-Chi tiết tham số, kết quả, mốc đọc theo snapshot và kết quả kiểm tra sau migration
-cloud tại [hợp đồng Dung An](features/dung_an_supabase.md).
+P09.4 thêm **Dart interface** DeliveryMapReader.getMapTaskDetails, tái sử dụng
+get_my_delivery_task hiện có, không RPC/schema/grant mới. Chỉ map-mode nhận
+contact đầy đủ + nullable coordinates để text fallback; mapper chung vẫn strict.
+Lifecycle che PII/resume recheck; foreground recheck 15s không phải realtime.
+[Contract, tests, platform blockers](demos/p094_navigation_failures_access_revocation.md).
+
+P09.2: người dùng chốt OSM raster tiles + Google Maps URL cho demo Web/Android
+ngày 28/10/2026. Core có MapLocation, MapDisplayAdapter và MapNavigationAdapter
+coordinate-only cho MH16 tái sử dụng; chưa triển khai picker/địa chỉ MH16 và
+server vẫn kiểm Hà Nội. Native cache file bounded, Web browser cache; không API
+key hoặc Supabase API mới. [Quyết định/provider/license/cấu hình/tests](demos/p092_reusable_maps_adapter.md).
+
+P09.1 MH18 tái sử dụng `get_my_delivery_task(p_task_id uuid)` production và
+session-scoped repository/provider; chỉ current assigned/accepted/in_transit có
+destination. Denial/reassignment/session/data invalid xóa snapshot cũ; không
+projection/RPC/grant mới. Notes=null/unavailable_schema; null/sai location fail
+closed, không geocode hoặc dựng 0,0. [Contract/checks](demos/p091_authorized_destination_data.md).
+
+**Cập nhật production 28/10/2026:** người dùng đã giao và chốt bổ sung primitive
+manager receipt/inspection release và redelivery. Migration
+`20261028062908_p083_redelivery_production.sql` đã deploy tám RPC:
+approve_return_pickup_plan, receive_customer_return, reject_return_after_inspection,
+assign_redelivery_task, accept_redelivery_task, start_redelivery_task,
+complete_redelivery, fail_redelivery_task. Redelivery projection chỉ mở immutable
+task plan, không bảng return/evidence. [Chữ ký/ACK/quyền/tests hiện tại](demos/p083_production_redelivery.md)
+thay trạng thái fixture-only P08.3 bên dưới; UI MH15 của Sơn vẫn không sửa.
+
+Mốc fixture P08.3 trước khi giao bổ sung primitive: D9 success/failure đã được người dùng chốt; chỉ có interface và SQL
+fixture cô lập vì Sơn receipt/inspection/immutable redelivery plan chưa có.
+`assign_redelivery_task`, `complete_redelivery`, `fail_redelivery_task` vẫn là
+tên proposed, không public RPC đã triển khai/deploy. Không đổi các RPC outbound
+hoặc pickup. [Contract, blockers và checks](demos/p083_redelivery_backend_contract.md).
+
+Pickup handover bổ sung ngày 28/10/2026 theo yêu cầu người dùng:
+`report_return_pickup_handover(uuid,uuid,jsonb)` và
+`get_my_return_pickup_handover(uuid)` đã triển khai/deploy; không dùng nhánh
+outbound của `report_store_handover`. Một report/request, exact custody, không
+state/receipt/inspection/restock/refund. Chữ ký, quyền, retry và nghiệm thu:
+[handover pickup](demos/p082_pickup_handover_acceptance.md).
+
+P08.2 frontend dùng `collect_return_items` / `fail_return_pickup_task` qua
+repository/Riverpod, giữ request UUID/payload khi retry và đọc lại MH11/MH10
+sau ACK. Bổ sung handover dùng `report_return_pickup_handover` và marker đọc
+riêng nêu trên; không gửi pickup qua RPC outbound `report_store_handover`.
+[Phạm vi/kiểm thử](demos/p082_return_pickup_frontend.md).
+
+P08.1 (27/10/2026): người dùng chốt pickup chỉ nhận đủ đúng kế hoạch đã duyệt,
+gộp thực nhận/start thành task in_transit + request returning_to_store; thất bại
+chỉ trước custody, không áp giới hạn hai lần outbound. Contract/hiện trạng API
+và upstream MH15 còn thiếu ghi tại
+[P08.1](demos/p081_return_pickup_backend.md); không coi các chữ ký đề xuất P00.2
+là endpoint sẵn có hoặc tự mở pickup trong RPC outbound.
+Ba RPC `assign_return_pickup_task`, `collect_return_items`,
+`fail_return_pickup_task` đã deploy ngày 28/10/2026 sau khi bật VPN; SQL cloud
+PASS/ROLLBACK, 20 migrations local/remote khớp. Chưa có live approval/receipt của Sơn
+hoặc nghiệm thu UI/JWT thật cho pickup.
+
+Hiện hành P07.5 (27/10/2026): MH11 nối hai mutation reporting production P07.4
+qua repository/ViewModel. Có thêm `get_my_delivery_reporting_context(uuid)` cho
+eligibility và item custody tối thiểu; không mở base-table reads. Xem contract,
+whitelist, khóa và kiểm chứng trong
+[P07.5](demos/p075_production_reporting_interfaces.md). Task cũ có attempt mới hơn
+không mở context task mới. Pickup/redelivery vẫn unsupported theo scope đã chốt.
 
 Lưu ý phiên bản: baseline và P00.2 dưới đây ghi hiện trạng trước P01.1.
 Lớp đọc task mới và các quyền bị thu hẹp được mô tả tại mục P01.1 cuối file;
