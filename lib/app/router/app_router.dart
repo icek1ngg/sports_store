@@ -5,12 +5,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/cod/presentation/pages/cod_route_page.dart';
+import '../../features/auth/presentation/pages/register_screen.dart';
+import '../../features/auth/presentation/view_models/auth_providers.dart';
+import '../../features/chat/presentation/pages/conversation_detail_screen.dart';
 import '../../features/cod/presentation/view_models/cod_providers.dart';
 import '../../features/deliveries/data/repositories/operational_providers.dart';
 import '../../features/deliveries/presentation/pages/delivery_route_pages.dart';
 import '../../features/deliveries/presentation/view_models/delivery_providers.dart';
 import '../shells/shipper_shell.dart';
 import 'operational_route_guard.dart';
+import 'dung_an_route_pages.dart';
 
 /// Bảo can supply MH17 without replacing the shared router or implementing it
 /// inside deliveries. Null is an explicit missing-integration boundary.
@@ -30,18 +34,64 @@ final operationalRouteGuardProvider = Provider<OperationalRouteGuard>((ref) {
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final guard = ref.watch(operationalRouteGuardProvider);
+  final navigatorKey = GlobalKey<NavigatorState>();
   late final GoRouter router;
   void recheckAfterPop() => scheduleMicrotask(() {
     if (ref.mounted) router.refresh();
   });
   router = GoRouter(
+    navigatorKey: navigatorKey,
     observers: [_RecheckOnPop(recheckAfterPop)],
     refreshListenable: guard,
     redirect: (context, state) => guard.redirect(state),
     errorBuilder: (context, state) =>
         const _NavigationStatusPage(message: 'Không tìm thấy trang.'),
     routes: [
-      GoRoute(path: '/', builder: (context, state) => const _BaseProjectPage()),
+      GoRoute(
+        path: '/',
+        builder: (context, state) =>
+            const DungAnRoutePage(key: ValueKey('app-entry')),
+      ),
+      GoRoute(
+        path: '/login',
+        builder: (context, state) => const DungAnRoutePage(),
+      ),
+      GoRoute(
+        path: '/register',
+        builder: (context, state) => Scaffold(
+          body: SafeArea(
+            child: RegisterScreen(onLogin: () => context.go('/login')),
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/manager/products',
+        builder: (context, state) => const DungAnRoutePage(),
+      ),
+      GoRoute(
+        path: '/chat',
+        builder: (context, state) => const DungAnRoutePage(inbox: true),
+        routes: [
+          GoRoute(
+            path: ':conversationId',
+            builder: (context, state) {
+              final id = state.pathParameters['conversationId']!;
+              if (!RegExp(
+                r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+              ).hasMatch(id)) {
+                return const _NavigationStatusPage(
+                  message: 'Mã hội thoại không hợp lệ.',
+                );
+              }
+              return DungAnRoutePage(
+                inbox: true,
+                detailBuilder: (_) =>
+                    ConversationDetailScreen(conversationId: id),
+              );
+            },
+          ),
+        ],
+      ),
       ShellRoute(
         observers: [_RecheckOnPop(recheckAfterPop)],
         builder: (context, state, child) => _OperationalRouteBoundary(
@@ -96,6 +146,23 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
+  var observedSession = false;
+  String? observedUserId;
+  ref.listen(authSessionProvider, (previous, next) {
+    if (!next.hasValue || next.isLoading) return;
+    final userId = next.requireValue.userId;
+    final switched = observedSession && observedUserId != userId;
+    observedSession = true;
+    observedUserId = userId;
+    if (switched) {
+      scheduleMicrotask(() {
+        if (!ref.mounted) return;
+        // Imperative editor sheets belong to the old account too.
+        navigatorKey.currentState?.popUntil((route) => route.isFirst);
+        router.go('/');
+      });
+    }
+  });
   ref.onDispose(router.dispose);
   return router;
 });
@@ -178,17 +245,4 @@ class _NavigationStatusPage extends StatelessWidget {
       ),
     ),
   );
-}
-
-// Temporary app shell; business routes will be added by their feature owners.
-class _BaseProjectPage extends StatelessWidget {
-  const _BaseProjectPage();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Sports Store')),
-      body: const Center(child: Text('Ứng dụng đang được xây dựng.')),
-    );
-  }
 }
