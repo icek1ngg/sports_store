@@ -11,7 +11,8 @@ import '../models/delivery_task_page_dto.dart';
 import 'operational_read_access.dart';
 
 /// Real P01.1 read RPC adapter. It has no demo fallback or business writes.
-class SupabaseDeliveryRepository implements DeliveryRepository {
+class SupabaseDeliveryRepository
+    implements DeliveryRepository, DeliveryMapReader {
   SupabaseDeliveryRepository({required this.access});
 
   final OperationalReadAccess access;
@@ -115,35 +116,57 @@ class SupabaseDeliveryRepository implements DeliveryRepository {
     );
   }
 
+  Future<DeliveryTaskDetails> _readTaskDetails(
+    String taskId,
+    ReadIdentity identity, {
+    required bool allowMissingDestinationCoordinates,
+  }) async {
+    identity.ensureCurrent();
+    dynamic response;
+    try {
+      response = await access.client
+          .rpc('get_my_delivery_task', params: {'p_task_id': taskId})
+          .retry(enabled: false);
+    } on PostgrestException catch (error) {
+      // The detail RPC uses NOT_FOUND_OR_FORBIDDEN (P0002) for a task
+      // that is no longer assigned or is outside the permitted history.
+      // Keep this mapping local: P0002 has no meaning for other reads.
+      if (error.code == 'P0002') {
+        throw const OperationalFailure(OperationalFailureCode.staleAssignment);
+      }
+      rethrow;
+    }
+    identity.ensureCurrent();
+    return DeliveryTaskDetailsDto.fromJson(
+      _object(response),
+      requestedTaskId: taskId,
+      allowMissingDestinationCoordinates: allowMissingDestinationCoordinates,
+    ).toDomain();
+  }
+
   @override
   Future<DeliveryTaskDetails> getTaskDetails(String taskId) async {
     _validateId(taskId);
     return access.run(
       roles: const {'shipper'},
-      action: (identity) async {
-        identity.ensureCurrent();
-        dynamic response;
-        try {
-          response = await access.client
-              .rpc('get_my_delivery_task', params: {'p_task_id': taskId})
-              .retry(enabled: false);
-        } on PostgrestException catch (error) {
-          // The detail RPC uses NOT_FOUND_OR_FORBIDDEN (P0002) for a task
-          // that is no longer assigned or is outside the permitted history.
-          // Keep this mapping local: P0002 has no meaning for other reads.
-          if (error.code == 'P0002') {
-            throw const OperationalFailure(
-              OperationalFailureCode.staleAssignment,
-            );
-          }
-          rethrow;
-        }
-        identity.ensureCurrent();
-        return DeliveryTaskDetailsDto.fromJson(
-          _object(response),
-          requestedTaskId: taskId,
-        ).toDomain();
-      },
+      action: (identity) => _readTaskDetails(
+        taskId,
+        identity,
+        allowMissingDestinationCoordinates: false,
+      ),
+    );
+  }
+
+  @override
+  Future<DeliveryTaskDetails> getMapTaskDetails(String taskId) async {
+    _validateId(taskId);
+    return access.run(
+      roles: const {'shipper'},
+      action: (identity) => _readTaskDetails(
+        taskId,
+        identity,
+        allowMissingDestinationCoordinates: true,
+      ),
     );
   }
 

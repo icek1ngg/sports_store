@@ -1,0 +1,1046 @@
+{
+  "task": "MH08-03B",
+  "date": "2026-10-15",
+  "approval": "NOT YET APPROVED",
+  "verification": {
+    "focusedTests": 19,
+    "fullSuiteTests": 265,
+    "analyze": "PASS",
+    "format": "PASS",
+    "diffCheck": "PASS",
+    "protectedUnchanged": 145,
+    "unexpectedProtectedChanges": 0
+  },
+  "android": {
+    "device": "emulator-5554",
+    "model": "Pixel_5",
+    "api": 35,
+    "entrypoint": "tool/ui_preview/main.dart",
+    "runtime": "SMOKE PASS",
+    "visualAcceptance": "NOT RUN",
+    "uncaughtFlutterErrorsObserved": 0
+  },
+  "baselineGitStatus": [
+    " M docs/phase_2_completion_report.md",
+    " M lib/features/notifications/presentation/pages/notifications_page.dart",
+    " M lib/features/notifications/presentation/widgets/notification_tile.dart",
+    " M lib/features/notifications/presentation/widgets/unread_badge.dart",
+    " M lib/features/orders/presentation/widgets/order_card.dart",
+    " M lib/features/orders/presentation/widgets/order_feed.dart",
+    " M lib/features/orders/presentation/widgets/order_items_section.dart",
+    " M lib/features/orders/presentation/widgets/order_lifecycle_sections.dart",
+    " M lib/features/orders/presentation/widgets/order_payment_section.dart",
+    " M lib/features/orders/presentation/widgets/order_recipient_section.dart",
+    " M lib/features/orders/presentation/widgets/order_timeline.dart",
+    " M test/features/notifications/presentation/pages/notifications_page_test.dart",
+    " M test/features/notifications/presentation/pages/notifications_session_test.dart",
+    "?? .ui_review_tmp/",
+    "?? docs/features/",
+    "?? docs/mock1.jpg",
+    "?? docs/mock2.jpg",
+    "?? docs/mock3.jpg",
+    "?? docs/phase_2_visual_refinement_report.md",
+    "?? docs/ui_mocks/MH08_Manager_Order_List.html",
+    "?? docs/ui_mocks/MH09_Manager_Order_Details.html",
+    "?? docs/ui_mocks/MH17_Notifications.html",
+    "?? docs/ui_mocks/REFERENCE_Return_Request_Details_OUT_OF_SCOPE.html",
+    "?? docs/ui_review_artifacts/mh07_320_dialog.png",
+    "?? docs/ui_review_artifacts/mh07_320_dialog_submit.png",
+    "?? docs/ui_review_artifacts/mh07_320_empty.png",
+    "?? docs/ui_review_artifacts/mh07_320_error.png",
+    "?? docs/ui_review_artifacts/mh07_320_expired.png",
+    "?? docs/ui_review_artifacts/mh07_320_loading.png",
+    "?? docs/ui_review_artifacts/mh07_320_s1_bottom.png",
+    "?? docs/ui_review_artifacts/mh07_320_s1_top.png",
+    "?? docs/ui_review_artifacts/mh07_320_s2_bottom.png",
+    "?? docs/ui_review_artifacts/mh07_320_s2_top.png",
+    "?? docs/ui_review_artifacts/mh07_320_session_loading.png",
+    "?? docs/ui_review_artifacts/mh07_320_stale.png",
+    "?? docs/ui_review_artifacts/mh07_360_s1_bottom.png",
+    "?? docs/ui_review_artifacts/mh07_360_s1_top.png",
+    "?? docs/ui_review_artifacts/mh07_360_s2_bottom.png",
+    "?? docs/ui_review_artifacts/mh07_360_s2_top.png",
+    "?? docs/ui_review_artifacts/mh07_412_s1_bottom.png",
+    "?? docs/ui_review_artifacts/mh07_412_s1_top.png",
+    "?? docs/ui_review_artifacts/mh07_412_s2_bottom.png",
+    "?? docs/ui_review_artifacts/mh07_412_s2_top.png",
+    "?? docs/ui_review_artifacts/mh07_detail_320_s1_bottom.png",
+    "?? docs/ui_review_artifacts/mh07_detail_320_s1_top.png",
+    "?? docs/ui_review_artifacts/mh07_detail_320_s2_bottom.png",
+    "?? docs/ui_review_artifacts/mh07_detail_320_s2_top.png",
+    "?? docs/ui_review_artifacts/mh07_detail_360_s1_bottom.png",
+    "?? docs/ui_review_artifacts/mh07_detail_360_s1_top.png",
+    "?? docs/ui_review_artifacts/mh07_detail_360_s2_bottom.png",
+    "?? docs/ui_review_artifacts/mh07_detail_360_s2_top.png",
+    "?? docs/ui_review_artifacts/mh07_detail_412_s1_bottom.png",
+    "?? docs/ui_review_artifacts/mh07_detail_412_s1_top.png",
+    "?? docs/ui_review_artifacts/mh07_detail_412_s2_bottom.png",
+    "?? docs/ui_review_artifacts/mh07_detail_412_s2_top.png",
+    "?? docs/ui_review_artifacts/mh08_320_dialog.png",
+    "?? docs/ui_review_artifacts/mh08_320_dialog_submit.png",
+    "?? docs/ui_review_artifacts/mh08_320_dialog_unavailable.png",
+    "?? docs/ui_review_artifacts/mh08_320_empty.png",
+    "?? docs/ui_review_artifacts/mh08_320_error.png",
+    "?? docs/ui_review_artifacts/mh08_320_expired.png",
+    "?? docs/ui_review_artifacts/mh08_320_loading.png",
+    "?? docs/ui_review_artifacts/mh08_320_s1_bottom.png",
+    "?? docs/ui_review_artifacts/mh08_320_s1_top.png",
+    "?? docs/ui_review_artifacts/mh08_320_s2_bottom.png",
+    "?? docs/ui_review_artifacts/mh08_320_s2_top.png",
+    "?? docs/ui_review_artifacts/mh08_320_session_loading.png",
+    "?? docs/ui_review_artifacts/mh08_320_stale.png",
+    "?? docs/ui_review_artifacts/mh08_360_s1_bottom.png",
+    "?? docs/ui_review_artifacts/mh08_360_s1_top.png",
+    "?? docs/ui_review_artifacts/mh08_360_s2_bottom.png",
+    "?? docs/ui_review_artifacts/mh08_360_s2_top.png",
+    "?? docs/ui_review_artifacts/mh08_412_s1_bottom.png",
+    "?? docs/ui_review_artifacts/mh08_412_s1_top.png",
+    "?? docs/ui_review_artifacts/mh08_412_s2_bottom.png",
+    "?? docs/ui_review_artifacts/mh08_412_s2_top.png",
+    "?? docs/ui_review_artifacts/mh09_320_dependency_unavailable.png",
+    "?? docs/ui_review_artifacts/mh09_320_dialog.png",
+    "?? docs/ui_review_artifacts/mh09_320_dialog_submit.png",
+    "?? docs/ui_review_artifacts/mh09_320_dialog_unavailable.png",
+    "?? docs/ui_review_artifacts/mh09_320_error.png",
+    "?? docs/ui_review_artifacts/mh09_320_expired.png",
+    "?? docs/ui_review_artifacts/mh09_320_loading.png",
+    "?? docs/ui_review_artifacts/mh09_320_s1_assignment_disabled.png",
+    "?? docs/ui_review_artifacts/mh09_320_s1_bottom.png",
+    "?? docs/ui_review_artifacts/mh09_320_s1_lifecycle_cod.png",
+    "?? docs/ui_review_artifacts/mh09_320_s1_lifecycle_delivery.png",
+    "?? docs/ui_review_artifacts/mh09_320_s1_lifecycle_returns.png",
+    "?? docs/ui_review_artifacts/mh09_320_s1_top.png",
+    "?? docs/ui_review_artifacts/mh09_320_s2_assignment_disabled.png",
+    "?? docs/ui_review_artifacts/mh09_320_s2_bottom.png",
+    "?? docs/ui_review_artifacts/mh09_320_s2_lifecycle_cod.png",
+    "?? docs/ui_review_artifacts/mh09_320_s2_lifecycle_delivery.png",
+    "?? docs/ui_review_artifacts/mh09_320_s2_lifecycle_returns.png",
+    "?? docs/ui_review_artifacts/mh09_320_s2_top.png",
+    "?? docs/ui_review_artifacts/mh09_320_session_loading.png",
+    "?? docs/ui_review_artifacts/mh09_320_stale.png",
+    "?? docs/ui_review_artifacts/mh09_360_s1_bottom.png",
+    "?? docs/ui_review_artifacts/mh09_360_s1_top.png",
+    "?? docs/ui_review_artifacts/mh09_360_s2_bottom.png",
+    "?? docs/ui_review_artifacts/mh09_360_s2_top.png",
+    "?? docs/ui_review_artifacts/mh09_412_s1_bottom.png",
+    "?? docs/ui_review_artifacts/mh09_412_s1_top.png",
+    "?? docs/ui_review_artifacts/mh09_412_s2_bottom.png",
+    "?? docs/ui_review_artifacts/mh09_412_s2_top.png",
+    "?? docs/ui_review_artifacts/mh17_320_empty.png",
+    "?? docs/ui_review_artifacts/mh17_320_error.png",
+    "?? docs/ui_review_artifacts/mh17_320_expired.png",
+    "?? docs/ui_review_artifacts/mh17_320_loading.png",
+    "?? docs/ui_review_artifacts/mh17_320_s1_bottom.png",
+    "?? docs/ui_review_artifacts/mh17_320_s1_top.png",
+    "?? docs/ui_review_artifacts/mh17_320_s2_bottom.png",
+    "?? docs/ui_review_artifacts/mh17_320_s2_top.png",
+    "?? docs/ui_review_artifacts/mh17_320_session_loading.png",
+    "?? docs/ui_review_artifacts/mh17_320_stale.png",
+    "?? docs/ui_review_artifacts/mh17_320_stale_tap.png",
+    "?? docs/ui_review_artifacts/mh17_360_s1_bottom.png",
+    "?? docs/ui_review_artifacts/mh17_360_s1_top.png",
+    "?? docs/ui_review_artifacts/mh17_360_s2_bottom.png",
+    "?? docs/ui_review_artifacts/mh17_360_s2_top.png",
+    "?? docs/ui_review_artifacts/mh17_412_s1_bottom.png",
+    "?? docs/ui_review_artifacts/mh17_412_s1_top.png",
+    "?? docs/ui_review_artifacts/mh17_412_s2_bottom.png",
+    "?? docs/ui_review_artifacts/mh17_412_s2_top.png",
+    "?? docs/ui_review_artifacts/render_manifest.json",
+    "?? docs/visual_refinement_artifacts/",
+    "?? lib/features/notifications/presentation/view_models/notification_interaction_view_model.dart",
+    "?? lib/features/orders/presentation/pages/manager_order_details_page.dart",
+    "?? lib/features/orders/presentation/pages/manager_orders_page.dart",
+    "?? lib/features/orders/presentation/pages/mh08/",
+    "?? lib/features/orders/presentation/view_models/mh08/",
+    "?? lib/features/orders/presentation/widgets/mh08/",
+    "?? test/features/notifications/presentation/view_models/notification_interaction_view_model_test.dart",
+    "?? test/features/orders/presentation/pages/manager_order_details_page_test.dart",
+    "?? test/features/orders/presentation/pages/manager_orders_page_test.dart",
+    "?? test/features/orders/presentation/pages/mh08/",
+    "?? test/features/orders/presentation/widgets/mh08/",
+    "?? test/shared/widgets/feature_access_gate_test.dart",
+    "?? test/shared/widgets/foreground_refresh_test.dart",
+    "?? test/visual_refinement/preview_app_test.dart",
+    "?? test/visual_refinement/visual_layout_test.dart",
+    "?? tool/ui_preview/preview_app.dart",
+    "?? tool/ui_preview/render_mh08_reference.cjs"
+  ],
+  "files": [
+    {
+      "path": "assets/fonts/README.md",
+      "protected": true,
+      "before": "A2FD670ADEAF8896DECC111240DEAF1E367EF0DFF497488929035CB1D9953FEA",
+      "after": "A2FD670ADEAF8896DECC111240DEAF1E367EF0DFF497488929035CB1D9953FEA"
+    },
+    {
+      "path": "assets/fonts/Inter-Variable.ttf",
+      "protected": true,
+      "before": "29160A80FF49DDCAB2C97711247E08B1FAB27A484A329CE8B813D820DC559031",
+      "after": "29160A80FF49DDCAB2C97711247E08B1FAB27A484A329CE8B813D820DC559031"
+    },
+    {
+      "path": "assets/fonts/Inter-OFL.txt",
+      "protected": true,
+      "before": "5DD548D31A85F756E01D63E00D7FAF1E324103ED3E9102FCBBABF2CC2DB6DD39",
+      "after": "5DD548D31A85F756E01D63E00D7FAF1E324103ED3E9102FCBBABF2CC2DB6DD39"
+    },
+    {
+      "path": "assets/fonts/BarlowCondensed-OFL.txt",
+      "protected": true,
+      "before": "10B0E6BB43166A50FBE7CDE2895BD7F703738A5DA843ACB5C97C95DC9EA26817",
+      "after": "10B0E6BB43166A50FBE7CDE2895BD7F703738A5DA843ACB5C97C95DC9EA26817"
+    },
+    {
+      "path": "assets/fonts/BarlowCondensed-Bold.ttf",
+      "protected": true,
+      "before": "E476562EC9C1E16CF16475895B511F08C804F438CC9A9F80A44EA50A0EEB5B65",
+      "after": "E476562EC9C1E16CF16475895B511F08C804F438CC9A9F80A44EA50A0EEB5B65"
+    },
+    {
+      "path": "config/supabase.json",
+      "protected": true,
+      "before": "73E4763B06B0F9AD16E4322995820363047C05D64FA0DA55CE5B53E5BBBB5FCA",
+      "after": "73E4763B06B0F9AD16E4322995820363047C05D64FA0DA55CE5B53E5BBBB5FCA"
+    },
+    {
+      "path": "lib/shared/widgets/foreground_refresh.dart",
+      "protected": true,
+      "before": "3927E251EC9185090CF77E61A0A80A4FA74FDD86C0A48E669A2EE975EB6C00B8",
+      "after": "3927E251EC9185090CF77E61A0A80A4FA74FDD86C0A48E669A2EE975EB6C00B8"
+    },
+    {
+      "path": "lib/shared/widgets/feature_access_gate.dart",
+      "protected": true,
+      "before": "7C31D4680897E27E84DF2B8AB1657F364F06CC1719ABCF6A411EA7BBDD598D6A",
+      "after": "7C31D4680897E27E84DF2B8AB1657F364F06CC1719ABCF6A411EA7BBDD598D6A"
+    },
+    {
+      "path": "lib/shared/widgets/async_content.dart",
+      "protected": true,
+      "before": "16F088124430A343B12835F4F1B5CA12C1899BAF7D75AA4B608F720C8453A271",
+      "after": "16F088124430A343B12835F4F1B5CA12C1899BAF7D75AA4B608F720C8453A271"
+    },
+    {
+      "path": "lib/main.dart",
+      "protected": true,
+      "before": "892FFC89767A5B627FC11168C1966F6D3559A5D48AC39C8FCD593C387C8B3EF8",
+      "after": "892FFC89767A5B627FC11168C1966F6D3559A5D48AC39C8FCD593C387C8B3EF8"
+    },
+    {
+      "path": "lib/core/utils/display_formatters.dart",
+      "protected": true,
+      "before": "C162101D53E60B1DABF9B30CD13CDCE194B13C3523C88327A5509CE73C6BB051",
+      "after": "C162101D53E60B1DABF9B30CD13CDCE194B13C3523C88327A5509CE73C6BB051"
+    },
+    {
+      "path": "test/visual_refinement/visual_layout_test.dart",
+      "protected": true,
+      "before": "7F3BAFD52B8B9ADED3709ED62F221E5812D10CD5B1D7620A4B696355E6A190FA",
+      "after": "7F3BAFD52B8B9ADED3709ED62F221E5812D10CD5B1D7620A4B696355E6A190FA"
+    },
+    {
+      "path": "test/visual_refinement/preview_app_test.dart",
+      "protected": true,
+      "before": "8F8ADAA8626B2AFCE67B850EE2F201C7E0EE99008D45EFF70FBE9FFFC86B0FBF",
+      "after": "8F8ADAA8626B2AFCE67B850EE2F201C7E0EE99008D45EFF70FBE9FFFC86B0FBF"
+    },
+    {
+      "path": "test/visual_refinement/mh07_visual_review_test.dart",
+      "protected": true,
+      "before": "D45E96EEEE4E5ACF35FDD239C96F839A1097CCAE0B9C8993CCA533B61AB1F2D7",
+      "after": "D45E96EEEE4E5ACF35FDD239C96F839A1097CCAE0B9C8993CCA533B61AB1F2D7"
+    },
+    {
+      "path": "test/shared/widgets/foreground_refresh_test.dart",
+      "protected": true,
+      "before": "4362255A2403270D507BD701A860378D3C47C8D15AFA37198104619B69C969CD",
+      "after": "4362255A2403270D507BD701A860378D3C47C8D15AFA37198104619B69C969CD"
+    },
+    {
+      "path": "lib/app/theme/app_theme.dart",
+      "protected": true,
+      "before": "7F4040B7BD11FA08209452399BC057202167F79F3C8F936EAB4119D55793420C",
+      "after": "7F4040B7BD11FA08209452399BC057202167F79F3C8F936EAB4119D55793420C"
+    },
+    {
+      "path": "test/shared/widgets/feature_access_gate_test.dart",
+      "protected": true,
+      "before": "B9BBEB05DD6BCF8AF17BDA9DF1DF538F620041719DA3A5018CC847F28D0BAF46",
+      "after": "B9BBEB05DD6BCF8AF17BDA9DF1DF538F620041719DA3A5018CC847F28D0BAF46"
+    },
+    {
+      "path": "test/shared/widgets/async_content_test.dart",
+      "protected": true,
+      "before": "E09096C7E8CB143C7463A13BB3FE4C6C304E714DB5CB256780DE4E0644416BBA",
+      "after": "E09096C7E8CB143C7463A13BB3FE4C6C304E714DB5CB256780DE4E0644416BBA"
+    },
+    {
+      "path": "lib/app/sports_store_app.dart",
+      "protected": true,
+      "before": "0104627FB049E5A7A9524AD8F3169DD82BB77C759E520A8A488E8EBE3DB664F2",
+      "after": "0104627FB049E5A7A9524AD8F3169DD82BB77C759E520A8A488E8EBE3DB664F2"
+    },
+    {
+      "path": "tool/ui_preview/render_mh08_reference.cjs",
+      "protected": true,
+      "before": "909C9F7797653C58003A277B0BC55ADB879C70ECE60E8884AE5E0E35291B036C",
+      "after": "909C9F7797653C58003A277B0BC55ADB879C70ECE60E8884AE5E0E35291B036C"
+    },
+    {
+      "path": "tool/ui_preview/render_mh07_reference.cjs",
+      "protected": true,
+      "before": "A1895EC1F9751E5849F7C4F06B01205090C32513BD3AACE0B42AC2E361E11DFB",
+      "after": "A1895EC1F9751E5849F7C4F06B01205090C32513BD3AACE0B42AC2E361E11DFB"
+    },
+    {
+      "path": "tool/ui_preview/preview_app.dart",
+      "protected": true,
+      "before": "4436E3BB160E57BF63149BBA0C5968D46D94B10E32F76E81F34E6A5AF97008F2",
+      "after": "4436E3BB160E57BF63149BBA0C5968D46D94B10E32F76E81F34E6A5AF97008F2"
+    },
+    {
+      "path": "tool/ui_preview/mh07_preview_data.dart",
+      "protected": true,
+      "before": "D39D7D97D63F3BEF5067EC264D25BC1DFB0799BB130CA8B4C5BCBC36A827D966",
+      "after": "D39D7D97D63F3BEF5067EC264D25BC1DFB0799BB130CA8B4C5BCBC36A827D966"
+    },
+    {
+      "path": "tool/ui_preview/mh07_preview_app.dart",
+      "protected": true,
+      "before": "6B59FFAF41EC274DCEB82ADAF5202BC64B69073038A098517D9C0D69B50879AA",
+      "after": "6B59FFAF41EC274DCEB82ADAF5202BC64B69073038A098517D9C0D69B50879AA"
+    },
+    {
+      "path": "tool/ui_preview/main.dart",
+      "protected": false,
+      "before": "855CB048739504B9F0BA4DAF46A98ACFB7D791D2B397500D1CE0F4341C4E3C38",
+      "after": "CB22CD604A4C422E4324202056327210790FF8EFFD8A1568FF91DE599CDCAD88"
+    },
+    {
+      "path": "tool/check_supabase_connection.dart",
+      "protected": true,
+      "before": "3C5D7273F806718504F96C4ABAC45AAAF00861008A1F5345FBB8E487228B72D1",
+      "after": "3C5D7273F806718504F96C4ABAC45AAAF00861008A1F5345FBB8E487228B72D1"
+    },
+    {
+      "path": "test/fixtures/order_notification_fixtures.dart",
+      "protected": true,
+      "before": "BDCB414FE02D4CA6F337155B7F62F7E0EF1D5EAB8A048E1BCCF07964BC134434",
+      "after": "BDCB414FE02D4CA6F337155B7F62F7E0EF1D5EAB8A048E1BCCF07964BC134434"
+    },
+    {
+      "path": "test/fixtures/order_list_page_fixtures.dart",
+      "protected": true,
+      "before": "E39EBAD39661589A0AD057C8A60113720D29DF43A04463C2822286DC7A2E9526",
+      "after": "E39EBAD39661589A0AD057C8A60113720D29DF43A04463C2822286DC7A2E9526"
+    },
+    {
+      "path": "lib/app/router/app_router.dart",
+      "protected": true,
+      "before": "3E2D761A91B61D7422A7B7C224AC8A9A91AF0AF0CD4C301D366C4DD80F7076B2",
+      "after": "3E2D761A91B61D7422A7B7C224AC8A9A91AF0AF0CD4C301D366C4DD80F7076B2"
+    },
+    {
+      "path": "test/features/orders/presentation/widgets/order_widgets_test.dart",
+      "protected": true,
+      "before": "0D86C6FA4270FEBFA25165C518EFC5822069E2BF93120B0C9D579B491AAA79FA",
+      "after": "0D86C6FA4270FEBFA25165C518EFC5822069E2BF93120B0C9D579B491AAA79FA"
+    },
+    {
+      "path": "test/features/orders/presentation/widgets/order_action_dialog_test.dart",
+      "protected": true,
+      "before": "B516C128490E6860A2727208DE1DF5D09F7CDB76F459FC4CA3C1FAA0F77FC28A",
+      "after": "B516C128490E6860A2727208DE1DF5D09F7CDB76F459FC4CA3C1FAA0F77FC28A"
+    },
+    {
+      "path": "lib/core/errors/wire_parsing.dart",
+      "protected": true,
+      "before": "F2C83BD21DCAAAD4E75D13DEE4F8256B97CDDA4F3F849B7DA587370B1E7DEBF0",
+      "after": "F2C83BD21DCAAAD4E75D13DEE4F8256B97CDDA4F3F849B7DA587370B1E7DEBF0"
+    },
+    {
+      "path": "lib/core/errors/wire_data_exception.dart",
+      "protected": true,
+      "before": "6E63688EA22659BAB31C294DB70F8EBAEE80914A6C14C5871044955E10B7DCF2",
+      "after": "6E63688EA22659BAB31C294DB70F8EBAEE80914A6C14C5871044955E10B7DCF2"
+    },
+    {
+      "path": "lib/core/errors/unsupported_data_exception.dart",
+      "protected": true,
+      "before": "F4CBA511F167B5F75E734E53B269FCA2D9D04158774A2364C865DBA6C0BC6D92",
+      "after": "F4CBA511F167B5F75E734E53B269FCA2D9D04158774A2364C865DBA6C0BC6D92"
+    },
+    {
+      "path": "lib/core/errors/presentation_failure_message.dart",
+      "protected": true,
+      "before": "66096A679231C2BDBC917E6606A7D6003755A3CAD8E039DEDFAF227AB722D709",
+      "after": "66096A679231C2BDBC917E6606A7D6003755A3CAD8E039DEDFAF227AB722D709"
+    },
+    {
+      "path": "lib/core/errors/app_failure.dart",
+      "protected": true,
+      "before": "8D9A9B3E2636FC1BE0EF787F86A7380F5DD9E055F46734481A03E0EE1CD9596C",
+      "after": "8D9A9B3E2636FC1BE0EF787F86A7380F5DD9E055F46734481A03E0EE1CD9596C"
+    },
+    {
+      "path": "lib/core/errors/app_error.dart",
+      "protected": true,
+      "before": "296E640B622DDE1DE03CB59B3CAFA0BEE5C5CF83A7C86E1CFE8C962ADC492EA0",
+      "after": "296E640B622DDE1DE03CB59B3CAFA0BEE5C5CF83A7C86E1CFE8C962ADC492EA0"
+    },
+    {
+      "path": "test/features/orders/presentation/widgets/mh08/mh08_test_support.dart",
+      "protected": true,
+      "before": "2CDB73C8ED9DB8E8AE405F5B7BBE5236BBB2D840901980F24EA9E9393F59DD7F",
+      "after": "2CDB73C8ED9DB8E8AE405F5B7BBE5236BBB2D840901980F24EA9E9393F59DD7F"
+    },
+    {
+      "path": "test/features/orders/presentation/widgets/mh08/mh08_sections_test.dart",
+      "protected": true,
+      "before": "955F147D1D0A397D04A362ACABD5C6294B102F010D44708E2B74D469064DC453",
+      "after": "955F147D1D0A397D04A362ACABD5C6294B102F010D44708E2B74D469064DC453"
+    },
+    {
+      "path": "test/features/orders/presentation/widgets/mh08/mh08_order_card_test.dart",
+      "protected": true,
+      "before": "4A434940423362E2D5E854FD32B5DEE16C463B22EBBD014A88CB386AA6C0FCD4",
+      "after": "4A434940423362E2D5E854FD32B5DEE16C463B22EBBD014A88CB386AA6C0FCD4"
+    },
+    {
+      "path": "test/features/orders/presentation/widgets/mh08/mh08_controls_test.dart",
+      "protected": true,
+      "before": "F4BAFC3B09C16BB317082FB0138AB63E7316AC89F8F276185B477DCD04FB531E",
+      "after": "F4BAFC3B09C16BB317082FB0138AB63E7316AC89F8F276185B477DCD04FB531E"
+    },
+    {
+      "path": "test/features/orders/presentation/widgets/mh08/mh08_card_actions_test.dart",
+      "protected": true,
+      "before": "E094F0E07B3F2F9F3995A34E9D74E09F33FA5936A2A0C777938DECD61585849C",
+      "after": "E094F0E07B3F2F9F3995A34E9D74E09F33FA5936A2A0C777938DECD61585849C"
+    },
+    {
+      "path": "test/features/orders/presentation/view_models/order_foundation_test.dart",
+      "protected": true,
+      "before": "C1B1D6249F8770C71ABA5FB9DABAD5196B71E8E6F5B4D7B2E0495CBE41F3AC59",
+      "after": "C1B1D6249F8770C71ABA5FB9DABAD5196B71E8E6F5B4D7B2E0495CBE41F3AC59"
+    },
+    {
+      "path": "test/features/notifications/presentation/widgets/notification_widgets_test.dart",
+      "protected": true,
+      "before": "1B3F897863FE1ADE66D1699E5098C28722998E40B41D473E541ED72422620BD9",
+      "after": "1B3F897863FE1ADE66D1699E5098C28722998E40B41D473E541ED72422620BD9"
+    },
+    {
+      "path": "lib/core/state/snapshot_read_view_model.dart",
+      "protected": true,
+      "before": "A59840F57AFCAA2FD957CF22AA1465A7855327479B0CE6445510AAF8F1239072",
+      "after": "A59840F57AFCAA2FD957CF22AA1465A7855327479B0CE6445510AAF8F1239072"
+    },
+    {
+      "path": "lib/core/state/session_scope.dart",
+      "protected": true,
+      "before": "F37A61E6D9E8BBECA2394B7B5912A3390FD53C4D5B2CE70B42EDD2DB1557C03C",
+      "after": "F37A61E6D9E8BBECA2394B7B5912A3390FD53C4D5B2CE70B42EDD2DB1557C03C"
+    },
+    {
+      "path": "lib/core/state/read_snapshot.dart",
+      "protected": true,
+      "before": "C427CECB48F8DF7F0697040EFEE8829AEE6EB04D2BCED8ACA83EFA0FAA91AF14",
+      "after": "C427CECB48F8DF7F0697040EFEE8829AEE6EB04D2BCED8ACA83EFA0FAA91AF14"
+    },
+    {
+      "path": "lib/core/state/read_retry_policy.dart",
+      "protected": true,
+      "before": "CF38D44BA553905A0C81577E35354967170EF83ED67E922DA15103A3D6295507",
+      "after": "CF38D44BA553905A0C81577E35354967170EF83ED67E922DA15103A3D6295507"
+    },
+    {
+      "path": "lib/core/state/foundation_providers.dart",
+      "protected": true,
+      "before": "03041DA6536B1DE94674CAE265C5CA0A7457F970EE1201E8F81F90EACF1E90BF",
+      "after": "03041DA6536B1DE94674CAE265C5CA0A7457F970EE1201E8F81F90EACF1E90BF"
+    },
+    {
+      "path": "lib/core/state/epoch_cache.dart",
+      "protected": true,
+      "before": "C30EF247936F721E2999C369DA74D38197135D87E3EA6D2A40BDCE4903B3DF3B",
+      "after": "C30EF247936F721E2999C369DA74D38197135D87E3EA6D2A40BDCE4903B3DF3B"
+    },
+    {
+      "path": "lib/core/supabase/supabase_providers.dart",
+      "protected": true,
+      "before": "E5BB717A25EEC21CC2264C744732B45417DAC307B4C61851F6D387DF3A849136",
+      "after": "E5BB717A25EEC21CC2264C744732B45417DAC307B4C61851F6D387DF3A849136"
+    },
+    {
+      "path": "test/features/notifications/presentation/view_models/notification_interaction_view_model_test.dart",
+      "protected": true,
+      "before": "2C92147CB3E7E841B5819D008C5513BD24302C5DB26FCE97A59063007B644BD6",
+      "after": "2C92147CB3E7E841B5819D008C5513BD24302C5DB26FCE97A59063007B644BD6"
+    },
+    {
+      "path": "test/features/notifications/presentation/view_models/notification_foundation_test.dart",
+      "protected": true,
+      "before": "74496B8E1ED213C1C2C96AC277ACBF6BB8D5769ADAA5FA0FA2D6A3AFEAE3434A",
+      "after": "74496B8E1ED213C1C2C96AC277ACBF6BB8D5769ADAA5FA0FA2D6A3AFEAE3434A"
+    },
+    {
+      "path": "test/features/notifications/presentation/pages/notifications_session_test.dart",
+      "protected": true,
+      "before": "7E68646C6DEE952733BBB30EF75E2C0441C113FB71D445EBF3B62446EB2AC248",
+      "after": "7E68646C6DEE952733BBB30EF75E2C0441C113FB71D445EBF3B62446EB2AC248"
+    },
+    {
+      "path": "test/features/notifications/presentation/pages/notifications_page_test.dart",
+      "protected": true,
+      "before": "C4DCE25D6E697202F8FD8E75AA91FB8F777FDDEC084B217696301AA582CF26EA",
+      "after": "C4DCE25D6E697202F8FD8E75AA91FB8F777FDDEC084B217696301AA582CF26EA"
+    },
+    {
+      "path": "test/features/orders/presentation/pages/mh08/pagination_test.dart",
+      "protected": true,
+      "before": "A88BFE46395A67C44C6191EC1C97415CAA7BF3F7C7D137C230846004C8D8ECB8",
+      "after": "A88BFE46395A67C44C6191EC1C97415CAA7BF3F7C7D137C230846004C8D8ECB8"
+    },
+    {
+      "path": "test/features/orders/presentation/pages/mh08/mh08_page_test_support.dart",
+      "protected": true,
+      "before": "0A8B49FE7FAC53E8C1C36C7DFF66F06F08D33A4AA5D62C25170C8E4BB65F41AF",
+      "after": "0A8B49FE7FAC53E8C1C36C7DFF66F06F08D33A4AA5D62C25170C8E4BB65F41AF"
+    },
+    {
+      "path": "test/features/orders/presentation/pages/mh08/manager_orders_query_test.dart",
+      "protected": true,
+      "before": "BD5AB1715D2828DF5E9BC3CFD851A464544215354D41225023D31EE1A6FC23E0",
+      "after": "BD5AB1715D2828DF5E9BC3CFD851A464544215354D41225023D31EE1A6FC23E0"
+    },
+    {
+      "path": "test/features/orders/presentation/pages/mh08/manager_orders_integration_test.dart",
+      "protected": true,
+      "before": "DF5B00968BA4573C1DC5C22DE73D16BC9A928D55344CDCCB69C24AE616B9E231",
+      "after": "DF5B00968BA4573C1DC5C22DE73D16BC9A928D55344CDCCB69C24AE616B9E231"
+    },
+    {
+      "path": "test/features/orders/presentation/pages/mh08/manager_orders_coordinators_test.dart",
+      "protected": true,
+      "before": "4AAD94552BC3C35301B3162201CC6D814EDBE50E4D04BFC54222610583B58DB7",
+      "after": "4AAD94552BC3C35301B3162201CC6D814EDBE50E4D04BFC54222610583B58DB7"
+    },
+    {
+      "path": "test/features/orders/presentation/pages/mh08/actions_test.dart",
+      "protected": true,
+      "before": "6811C84A8FFD916A96F5D15A7C654C6381B03747F29E87CECFF24E296E2B7D1D",
+      "after": "6811C84A8FFD916A96F5D15A7C654C6381B03747F29E87CECFF24E296E2B7D1D"
+    },
+    {
+      "path": "test/features/orders/presentation/pages/manager_order_details_page_test.dart",
+      "protected": true,
+      "before": "24151AB971B7F6C3EFD049E1204642A32CA12EDD5174A61896EB9DEAF17345A6",
+      "after": "24151AB971B7F6C3EFD049E1204642A32CA12EDD5174A61896EB9DEAF17345A6"
+    },
+    {
+      "path": "test/features/orders/presentation/pages/manager_orders_page_test.dart",
+      "protected": true,
+      "before": "15EB7397934B0E63BC5B8C9FE6EB96CD8810BBE3F0CEFC86453E83E8F677EDE4",
+      "after": "15EB7397934B0E63BC5B8C9FE6EB96CD8810BBE3F0CEFC86453E83E8F677EDE4"
+    },
+    {
+      "path": "test/features/orders/presentation/pages/customer_orders_page_test.dart",
+      "protected": true,
+      "before": "DD19C3947C1B3110EC1572AACB9DF45848F4A90607921234D51E29B6E3F6E263",
+      "after": "DD19C3947C1B3110EC1572AACB9DF45848F4A90607921234D51E29B6E3F6E263"
+    },
+    {
+      "path": "test/features/notifications/data/notification_dto_test.dart",
+      "protected": true,
+      "before": "9D63FC0394332D27CC0C24DE604634759206B2C6515BAA3C66862142C6E31607",
+      "after": "9D63FC0394332D27CC0C24DE604634759206B2C6515BAA3C66862142C6E31607"
+    },
+    {
+      "path": "lib/core/config/supabase_config.dart",
+      "protected": true,
+      "before": "BD6617511D91586BD48CBF9341457E7CE1F904D5878847508B00EE30BB0630D6",
+      "after": "BD6617511D91586BD48CBF9341457E7CE1F904D5878847508B00EE30BB0630D6"
+    },
+    {
+      "path": "test/features/orders/data/order_dto_test.dart",
+      "protected": true,
+      "before": "05360AC1B399F3FE6885F19E19C1B40200D3F850AA84D8BD22056B46E0053FAE",
+      "after": "05360AC1B399F3FE6885F19E19C1B40200D3F850AA84D8BD22056B46E0053FAE"
+    },
+    {
+      "path": "test/core/utils/display_formatters_test.dart",
+      "protected": true,
+      "before": "DE71D30F2949F8B7D069CB3EE1C5EBB6494E341A0692C91243B8947E94ED891A",
+      "after": "DE71D30F2949F8B7D069CB3EE1C5EBB6494E341A0692C91243B8947E94ED891A"
+    },
+    {
+      "path": "test/core/state/epoch_cache_test.dart",
+      "protected": true,
+      "before": "5E363B9F000B10F86BA14758FF8EAB25C1972CE96E4B768133ADEA791E95FDBC",
+      "after": "5E363B9F000B10F86BA14758FF8EAB25C1972CE96E4B768133ADEA791E95FDBC"
+    },
+    {
+      "path": "test/core/config/supabase_config_test.dart",
+      "protected": true,
+      "before": "E2DB7C421E7C4221AF7DA3F8CF32160149E64B5B08CBE16FF48495648CE77971",
+      "after": "E2DB7C421E7C4221AF7DA3F8CF32160149E64B5B08CBE16FF48495648CE77971"
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/order_timeline.dart",
+      "protected": true,
+      "before": "B99B8D7CEF3DD7A29F619E928D5F91470BDB79FD65E43A1C84B170590A6201EE",
+      "after": "B99B8D7CEF3DD7A29F619E928D5F91470BDB79FD65E43A1C84B170590A6201EE"
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/order_status_badge.dart",
+      "protected": true,
+      "before": "9441728240E23F68B6DB11C583A3024AF6881D406307D1ACA81FD92A1D838D2E",
+      "after": "9441728240E23F68B6DB11C583A3024AF6881D406307D1ACA81FD92A1D838D2E"
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/order_recipient_section.dart",
+      "protected": true,
+      "before": "1C9B23F5231301AE2A9A619EEA33F99B32E6DC4F52E2F75D842270D7E09579CD",
+      "after": "1C9B23F5231301AE2A9A619EEA33F99B32E6DC4F52E2F75D842270D7E09579CD"
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/order_payment_section.dart",
+      "protected": true,
+      "before": "169C03E3766862CDAAEF895F1E69544F1FAD87FBC3E8CBC72BA82B7355272BB0",
+      "after": "169C03E3766862CDAAEF895F1E69544F1FAD87FBC3E8CBC72BA82B7355272BB0"
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/order_notification_theme.dart",
+      "protected": true,
+      "before": "B01AC6F55AAE874603D9A20348A613E0191B499CBFB8007C7BC2F22D7FD0C773",
+      "after": "B01AC6F55AAE874603D9A20348A613E0191B499CBFB8007C7BC2F22D7FD0C773"
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/order_lifecycle_sections.dart",
+      "protected": true,
+      "before": "0CAA4A933F8428C8F6B0F1BA3A826860D2208811AFA08AB90044FD95BC1462AF",
+      "after": "0CAA4A933F8428C8F6B0F1BA3A826860D2208811AFA08AB90044FD95BC1462AF"
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/order_items_section.dart",
+      "protected": true,
+      "before": "278C919C04718FE1AD127B73E52BB23F7183E15D5E7DFBB82C0944B5C1DE9FCD",
+      "after": "278C919C04718FE1AD127B73E52BB23F7183E15D5E7DFBB82C0944B5C1DE9FCD"
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/order_feed.dart",
+      "protected": true,
+      "before": "81389BCAE8309F3B6D90E6EA090D70167518C5F135847E31D53FC4A190AF7A1C",
+      "after": "81389BCAE8309F3B6D90E6EA090D70167518C5F135847E31D53FC4A190AF7A1C"
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/order_card.dart",
+      "protected": true,
+      "before": "57C1E3E48094849FA2AB17975191F0AD7D8480CC174E92656980D923C0D57BEC",
+      "after": "57C1E3E48094849FA2AB17975191F0AD7D8480CC174E92656980D923C0D57BEC"
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/order_action_dialog.dart",
+      "protected": true,
+      "before": "8594642CF88E44A80FF4DDC375A5A4AE51D60B936C3FBE8A0A78C0EEB35A4A2F",
+      "after": "8594642CF88E44A80FF4DDC375A5A4AE51D60B936C3FBE8A0A78C0EEB35A4A2F"
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/mh08/mh08_buyer_section.dart",
+      "protected": true,
+      "before": "B6134F757F71DDC48650486133B8656C3A3EFDAF676E77AA308B5BBA96A0BC2C",
+      "after": "B6134F757F71DDC48650486133B8656C3A3EFDAF676E77AA308B5BBA96A0BC2C"
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/mh08/mh08_status_chips.dart",
+      "protected": true,
+      "before": "A6ACEC1C94BFBAC31270715C27BE494A8448EBD664F997A76613BAEB22966A6C",
+      "after": "A6ACEC1C94BFBAC31270715C27BE494A8448EBD664F997A76613BAEB22966A6C"
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/mh07_order_card.dart",
+      "protected": true,
+      "before": "9C2CE656A87396D988CC205C8A0E453207E86DC6808B4AF0702A50E70C60FD79",
+      "after": "9C2CE656A87396D988CC205C8A0E453207E86DC6808B4AF0702A50E70C60FD79"
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/mh08/mh08_search_section.dart",
+      "protected": true,
+      "before": "744131C65CA0EE6EC70A6011E5F52F86825CC6296E84A2ACDA94B5F12A77A6CE",
+      "after": "744131C65CA0EE6EC70A6011E5F52F86825CC6296E84A2ACDA94B5F12A77A6CE"
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/mh08/mh08_payment_section.dart",
+      "protected": true,
+      "before": "8B0988E0039AC6A1580059D0C38AF8A76FCBDEA2F679CB2CED27AF6FA7B24611",
+      "after": "8B0988E0039AC6A1580059D0C38AF8A76FCBDEA2F679CB2CED27AF6FA7B24611"
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/mh08/mh08_page_layout.dart",
+      "protected": true,
+      "before": "E1E74CEFC09B9725E6CD260CC05423103B10C0D9BF492E575475949B172AD735",
+      "after": "E1E74CEFC09B9725E6CD260CC05423103B10C0D9BF492E575475949B172AD735"
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/mh08/mh08_order_card.dart",
+      "protected": true,
+      "before": "593F08DE89701715F82F3D87058B6C762ADF791AAE60F633388EEFD0A293AB21",
+      "after": "593F08DE89701715F82F3D87058B6C762ADF791AAE60F633388EEFD0A293AB21"
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/mh08/mh08_operational_notice.dart",
+      "protected": true,
+      "before": "D5C04918C19E36AECD9D8B34DC4250AD0C560911FC5DEC63481409D3E2DF70B0",
+      "after": "D5C04918C19E36AECD9D8B34DC4250AD0C560911FC5DEC63481409D3E2DF70B0"
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/mh08/mh08_list_controls.dart",
+      "protected": true,
+      "before": "33660A992F425D59DC1BE68A78A95B4F2361CD3F47B69305CAD0F45EE6EBE86E",
+      "after": "33660A992F425D59DC1BE68A78A95B4F2361CD3F47B69305CAD0F45EE6EBE86E"
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/mh08/mh08_kpi_strip.dart",
+      "protected": true,
+      "before": "5AD056467C2CDDCEE72C0B32ED2D93855365043B02731EAEE252BDC858BF9ACE",
+      "after": "5AD056467C2CDDCEE72C0B32ED2D93855365043B02731EAEE252BDC858BF9ACE"
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/mh08/mh08_item_preview.dart",
+      "protected": true,
+      "before": "515075D0AD54E08281DCA863C312D09354C2663FE4A8B3F0010DF57418EC8EFE",
+      "after": "515075D0AD54E08281DCA863C312D09354C2663FE4A8B3F0010DF57418EC8EFE"
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/mh08/mh08_header.dart",
+      "protected": true,
+      "before": "041E55B000000D13EE6B00354E57F7613E68B166FDDE20719332E52CEE3F61DC",
+      "after": "041E55B000000D13EE6B00354E57F7613E68B166FDDE20719332E52CEE3F61DC"
+    },
+    {
+      "path": "lib/features/orders/presentation/widgets/mh08/mh08_card_actions.dart",
+      "protected": true,
+      "before": "0F2CF5E1C50D26B345AC47D346DF6C9C79F49FDB49B94753A8F57F4C39CC6920",
+      "after": "0F2CF5E1C50D26B345AC47D346DF6C9C79F49FDB49B94753A8F57F4C39CC6920"
+    },
+    {
+      "path": "lib/features/orders/presentation/view_models/order_providers.dart",
+      "protected": true,
+      "before": "93FD8BF06022DA46E0AB6CBEA476ED20A22B92895E3A6C8C8B661D55D0003CC0",
+      "after": "93FD8BF06022DA46E0AB6CBEA476ED20A22B92895E3A6C8C8B661D55D0003CC0"
+    },
+    {
+      "path": "lib/features/orders/presentation/view_models/mh08/mh08_query_coordinator.dart",
+      "protected": true,
+      "before": "AA49A668FF42A2F6689F8B1EDF79A002B6F7A99B4C9E443094417A66E9E14D68",
+      "after": "AA49A668FF42A2F6689F8B1EDF79A002B6F7A99B4C9E443094417A66E9E14D68"
+    },
+    {
+      "path": "lib/features/orders/presentation/view_models/mh08/mh08_feed_coordinator.dart",
+      "protected": true,
+      "before": "73181B1E28D465C1ABF3981EDB1F5CD08B6C7A875D4FEA385DD799334FB1512C",
+      "after": "73181B1E28D465C1ABF3981EDB1F5CD08B6C7A875D4FEA385DD799334FB1512C"
+    },
+    {
+      "path": "lib/features/orders/presentation/pages/mh08/mh08_read_subscriptions.dart",
+      "protected": true,
+      "before": "04EDA8E92D76612DBEB486BA6D3C258F7EDF0683DEB92F20DE1E13AC1292B6B0",
+      "after": "04EDA8E92D76612DBEB486BA6D3C258F7EDF0683DEB92F20DE1E13AC1292B6B0"
+    },
+    {
+      "path": "lib/features/orders/presentation/pages/manager_order_details_page.dart",
+      "protected": true,
+      "before": "B23B191D3C3161359BF6CD31FD549A221A5EEFEBF7C2BEC81E49C73C17B372D5",
+      "after": "B23B191D3C3161359BF6CD31FD549A221A5EEFEBF7C2BEC81E49C73C17B372D5"
+    },
+    {
+      "path": "lib/features/orders/presentation/pages/manager_orders_page.dart",
+      "protected": true,
+      "before": "1E1D093A3590F86C7E793A07FD7DE8F69855772FE28A1A7F8EB0E4007A5A547A",
+      "after": "1E1D093A3590F86C7E793A07FD7DE8F69855772FE28A1A7F8EB0E4007A5A547A"
+    },
+    {
+      "path": "lib/features/orders/presentation/pages/customer_orders_page.dart",
+      "protected": true,
+      "before": "56EB03A956A6D1E0FFDB63ECF23AF2EC4E2A888B69D5AC8ABE96ECBCC9107604",
+      "after": "56EB03A956A6D1E0FFDB63ECF23AF2EC4E2A888B69D5AC8ABE96ECBCC9107604"
+    },
+    {
+      "path": "lib/features/notifications/presentation/widgets/unread_badge.dart",
+      "protected": true,
+      "before": "C3502B21B91C3D597C897A2407E88CD16DEA43E1BE09F01BCB0DE40C5699A919",
+      "after": "C3502B21B91C3D597C897A2407E88CD16DEA43E1BE09F01BCB0DE40C5699A919"
+    },
+    {
+      "path": "lib/features/notifications/presentation/widgets/notification_tile.dart",
+      "protected": true,
+      "before": "299065DA923554BA29A0C9F18373DA422F57C77202E47AB9280830F1E6D61846",
+      "after": "299065DA923554BA29A0C9F18373DA422F57C77202E47AB9280830F1E6D61846"
+    },
+    {
+      "path": "lib/features/notifications/domain/repositories/notification_repository_contract.dart",
+      "protected": true,
+      "before": "98B13735C62720B11052CD2D46187D3C6E24010679AE0A07B651B4C99C72F338",
+      "after": "98B13735C62720B11052CD2D46187D3C6E24010679AE0A07B651B4C99C72F338"
+    },
+    {
+      "path": "lib/features/notifications/domain/repositories/notification_repository.dart",
+      "protected": true,
+      "before": "6FAFB03124ECF7F5DB050F2989A936558C33E5E9F09F4DD471A61D6E3DD50E18",
+      "after": "6FAFB03124ECF7F5DB050F2989A936558C33E5E9F09F4DD471A61D6E3DD50E18"
+    },
+    {
+      "path": "lib/features/orders/data/models/order_dto.dart",
+      "protected": true,
+      "before": "BF5F9ACC8191F816545ABED9D23785D8C8726EB0E1703BD85F2E34DDB999B075",
+      "after": "BF5F9ACC8191F816545ABED9D23785D8C8726EB0E1703BD85F2E34DDB999B075"
+    },
+    {
+      "path": "lib/features/orders/domain/repositories/order_repository_contract.dart",
+      "protected": true,
+      "before": "A5E4842FC92D6779C4BE3B77A78C0C31ABB1A9A21FC31AE58F88497E538283C4",
+      "after": "A5E4842FC92D6779C4BE3B77A78C0C31ABB1A9A21FC31AE58F88497E538283C4"
+    },
+    {
+      "path": "lib/features/orders/domain/repositories/order_repository.dart",
+      "protected": true,
+      "before": "C09DFA2C12592ED9C0A39A47F406513DDD5BBABB80E366FAF8138D551E225DEE",
+      "after": "C09DFA2C12592ED9C0A39A47F406513DDD5BBABB80E366FAF8138D551E225DEE"
+    },
+    {
+      "path": "lib/features/notifications/domain/models/notification_item.dart",
+      "protected": true,
+      "before": "E6D61C823307BC3A80F064FB5DAEF3C0BB9F404F7D2E5CB18C25BB3D98D857CC",
+      "after": "E6D61C823307BC3A80F064FB5DAEF3C0BB9F404F7D2E5CB18C25BB3D98D857CC"
+    },
+    {
+      "path": "lib/features/notifications/domain/models/notification_page.dart",
+      "protected": true,
+      "before": "D0070C6DE29B37244737E488D52DAE84BC9A893AD7065F7876713E3BFD348DB3",
+      "after": "D0070C6DE29B37244737E488D52DAE84BC9A893AD7065F7876713E3BFD348DB3"
+    },
+    {
+      "path": "lib/features/notifications/domain/models/notification_target.dart",
+      "protected": true,
+      "before": "6D537A7D1F60FE06D3B9CC7094B2DAAA5AED73C8C6E27EF1B744C65B0A58035C",
+      "after": "6D537A7D1F60FE06D3B9CC7094B2DAAA5AED73C8C6E27EF1B744C65B0A58035C"
+    },
+    {
+      "path": "lib/features/notifications/domain/models/notification_query.dart",
+      "protected": true,
+      "before": "8D566345CFCA5CC246F721A8D56A191690BF328704BB4AC9E8C66AFF3342C6BD",
+      "after": "8D566345CFCA5CC246F721A8D56A191690BF328704BB4AC9E8C66AFF3342C6BD"
+    },
+    {
+      "path": "lib/features/orders/domain/models/buyer.dart",
+      "protected": true,
+      "before": "2B52CA03A1417E943C45EDFB7095AD695DF946CF416EEBDB1512D2F91F722ECF",
+      "after": "2B52CA03A1417E943C45EDFB7095AD695DF946CF416EEBDB1512D2F91F722ECF"
+    },
+    {
+      "path": "lib/features/orders/domain/models/cod_status.dart",
+      "protected": true,
+      "before": "BA297CB8CE86135A5125627EA2BAAD7D9160ED5A539834EBBE389C5F504D5467",
+      "after": "BA297CB8CE86135A5125627EA2BAAD7D9160ED5A539834EBBE389C5F504D5467"
+    },
+    {
+      "path": "lib/features/orders/domain/models/delivery_attempt_result.dart",
+      "protected": true,
+      "before": "695BBA5957CB2D011114FE6609254EFD77896144C2C88369505C408A38DBF29C",
+      "after": "695BBA5957CB2D011114FE6609254EFD77896144C2C88369505C408A38DBF29C"
+    },
+    {
+      "path": "lib/features/orders/domain/models/cod_summary.dart",
+      "protected": true,
+      "before": "3121AFE20D71C427AB0C3F10638E3A7F27102F1E0D3C440AF40A65C087E69EED",
+      "after": "3121AFE20D71C427AB0C3F10638E3A7F27102F1E0D3C440AF40A65C087E69EED"
+    },
+    {
+      "path": "lib/features/orders/domain/models/delivery_task_kind.dart",
+      "protected": true,
+      "before": "282CE3C220AF25760FDF8F3F68FB58DDD8C7FF90C28A49257C85CE367AAD8AD5",
+      "after": "282CE3C220AF25760FDF8F3F68FB58DDD8C7FF90C28A49257C85CE367AAD8AD5"
+    },
+    {
+      "path": "lib/features/orders/domain/models/delivery_summary.dart",
+      "protected": true,
+      "before": "5136D3922FCED75F00F6C74EAA169CC2F4A821C8738A6023CE37E9A63C0D6B19",
+      "after": "5136D3922FCED75F00F6C74EAA169CC2F4A821C8738A6023CE37E9A63C0D6B19"
+    },
+    {
+      "path": "lib/features/orders/domain/models/delivery_task_status.dart",
+      "protected": true,
+      "before": "FEAAD0333FD7E8628DBFDD1B5059FEA427D924B84F514AD775D74536FA8DF498",
+      "after": "FEAAD0333FD7E8628DBFDD1B5059FEA427D924B84F514AD775D74536FA8DF498"
+    },
+    {
+      "path": "lib/features/notifications/data/models/notification_dto.dart",
+      "protected": true,
+      "before": "27981A975037CBA1E9A7D26AC9AE2AB733A39D50144D94756309D4A632277A85",
+      "after": "27981A975037CBA1E9A7D26AC9AE2AB733A39D50144D94756309D4A632277A85"
+    },
+    {
+      "path": "lib/features/orders/domain/models/operation_result.dart",
+      "protected": true,
+      "before": "34E091A9AA44E5600260239AE325435A94532EB4B07927652030F4E7A3EBDC05",
+      "after": "34E091A9AA44E5600260239AE325435A94532EB4B07927652030F4E7A3EBDC05"
+    },
+    {
+      "path": "lib/features/orders/domain/models/model_validators.dart",
+      "protected": true,
+      "before": "0576E031EE28CAFDCB05EB27E3D245FEA9EF12111EDD963DEDB4A22BE05E2E1B",
+      "after": "0576E031EE28CAFDCB05EB27E3D245FEA9EF12111EDD963DEDB4A22BE05E2E1B"
+    },
+    {
+      "path": "lib/features/orders/domain/models/eligibility_reason.dart",
+      "protected": true,
+      "before": "F721B1B75132055DA71ED3666A45BB5C69889371F1FDEA62C310E64877644FE1",
+      "after": "F721B1B75132055DA71ED3666A45BB5C69889371F1FDEA62C310E64877644FE1"
+    },
+    {
+      "path": "lib/features/orders/domain/models/order_capabilities.dart",
+      "protected": true,
+      "before": "4D160E0202465C9ED696DD458E45366D63DE89401AF3617257C531611F8AB24C",
+      "after": "4D160E0202465C9ED696DD458E45366D63DE89401AF3617257C531611F8AB24C"
+    },
+    {
+      "path": "lib/features/orders/domain/models/order.dart",
+      "protected": true,
+      "before": "EFE6E3DEC29B0C9623AC0FABC9252E87DBF387616EC41B4E68860767510BA6E0",
+      "after": "EFE6E3DEC29B0C9623AC0FABC9252E87DBF387616EC41B4E68860767510BA6E0"
+    },
+    {
+      "path": "lib/features/orders/domain/models/order_command.dart",
+      "protected": true,
+      "before": "4CE4D25429E16C1C168756664347EE9580F2A238CEB08BDB38740D3F7F5F6AD2",
+      "after": "4CE4D25429E16C1C168756664347EE9580F2A238CEB08BDB38740D3F7F5F6AD2"
+    },
+    {
+      "path": "lib/features/orders/domain/models/order_details.dart",
+      "protected": true,
+      "before": "B2FCC1F408C73732D128E38F4A0F513F2A8CCCF81B1F5831D7C5E600524D5FFF",
+      "after": "B2FCC1F408C73732D128E38F4A0F513F2A8CCCF81B1F5831D7C5E600524D5FFF"
+    },
+    {
+      "path": "lib/features/notifications/presentation/pages/notifications_page.dart",
+      "protected": true,
+      "before": "7CA8C5C50945348E46BCB71C53B3E46F6E95E096B95245280262BCAD32C667F0",
+      "after": "7CA8C5C50945348E46BCB71C53B3E46F6E95E096B95245280262BCAD32C667F0"
+    },
+    {
+      "path": "lib/features/orders/domain/models/warning_code.dart",
+      "protected": true,
+      "before": "4D6A1CFBD51867798D276C40905CC74246FE0D25D4EF93EC77492048E10D61D1",
+      "after": "4D6A1CFBD51867798D276C40905CC74246FE0D25D4EF93EC77492048E10D61D1"
+    },
+    {
+      "path": "lib/features/orders/domain/models/return_summary.dart",
+      "protected": true,
+      "before": "C583277B34168203A21DD6218E1E2913144DFED8EC9FFED49F1EB63F16BDCC70",
+      "after": "C583277B34168203A21DD6218E1E2913144DFED8EC9FFED49F1EB63F16BDCC70"
+    },
+    {
+      "path": "lib/features/orders/domain/models/return_request_status.dart",
+      "protected": true,
+      "before": "AA4879BA48302EAFACBAC2024406A50BEEED2328DB7AE149089CE12FAF65EE23",
+      "after": "AA4879BA48302EAFACBAC2024406A50BEEED2328DB7AE149089CE12FAF65EE23"
+    },
+    {
+      "path": "lib/features/orders/domain/models/order_warning.dart",
+      "protected": true,
+      "before": "DC82DDB7B52B9396C855691BD57666D0F02AF97DF57C68817F7F191DEF0FC31F",
+      "after": "DC82DDB7B52B9396C855691BD57666D0F02AF97DF57C68817F7F191DEF0FC31F"
+    },
+    {
+      "path": "lib/features/orders/domain/models/order_timeline_entry.dart",
+      "protected": true,
+      "before": "7A57B03FAC6149A70DD8DAEE608FEA81812D2FA8B644B9DF078DB9B2CFD28F8E",
+      "after": "7A57B03FAC6149A70DD8DAEE608FEA81812D2FA8B644B9DF078DB9B2CFD28F8E"
+    },
+    {
+      "path": "lib/features/orders/domain/models/order_summary.dart",
+      "protected": true,
+      "before": "3179B4C0734FCBED590881AD5EA1D3B3883858147AC3D1593DD3A7A7B1680E80",
+      "after": "3179B4C0734FCBED590881AD5EA1D3B3883858147AC3D1593DD3A7A7B1680E80"
+    },
+    {
+      "path": "lib/features/orders/domain/models/order_status.dart",
+      "protected": true,
+      "before": "96D50A61532B7CB4701FCDF4A744F6496C70A2AB35DC1714E6253EB619C1D34A",
+      "after": "96D50A61532B7CB4701FCDF4A744F6496C70A2AB35DC1714E6253EB619C1D34A"
+    },
+    {
+      "path": "lib/features/orders/domain/models/order_state_reference.dart",
+      "protected": true,
+      "before": "9E7BD8BAB34340D04E2FE834F2EDB32FEDA0ACB5F8DB527E0EA49FB6D6EF85D0",
+      "after": "9E7BD8BAB34340D04E2FE834F2EDB32FEDA0ACB5F8DB527E0EA49FB6D6EF85D0"
+    },
+    {
+      "path": "lib/features/orders/domain/models/order_page.dart",
+      "protected": true,
+      "before": "5D25C206F021DF2B4822491FDFFC8092755933C7E6CF8F88B9F4C1F3682CBED6",
+      "after": "5D25C206F021DF2B4822491FDFFC8092755933C7E6CF8F88B9F4C1F3682CBED6"
+    },
+    {
+      "path": "lib/features/orders/domain/models/order_query.dart",
+      "protected": true,
+      "before": "9E7D412590DCEE436D9922BACB28CB0F40BE6BBBAE0384EDB57F94AA7D95C121",
+      "after": "9E7D412590DCEE436D9922BACB28CB0F40BE6BBBAE0384EDB57F94AA7D95C121"
+    },
+    {
+      "path": "lib/features/orders/domain/models/order_operation.dart",
+      "protected": true,
+      "before": "12AAE640F7DA13823C5E67BE16AB3B86E002C8AA8EF0855772AD57865D850043",
+      "after": "12AAE640F7DA13823C5E67BE16AB3B86E002C8AA8EF0855772AD57865D850043"
+    },
+    {
+      "path": "lib/features/orders/domain/models/order_mutation_receipt.dart",
+      "protected": true,
+      "before": "E4A870AA085400B9EF069A4767ABA0B25C732DF538E5E51FF0B15C6223E1557F",
+      "after": "E4A870AA085400B9EF069A4767ABA0B25C732DF538E5E51FF0B15C6223E1557F"
+    },
+    {
+      "path": "lib/features/orders/domain/models/order_item.dart",
+      "protected": true,
+      "before": "0BA01D391012252B28A60E669E15C4A86818341B3868F81DB2A653B31E845D0F",
+      "after": "0BA01D391012252B28A60E669E15C4A86818341B3868F81DB2A653B31E845D0F"
+    },
+    {
+      "path": "lib/features/notifications/presentation/view_models/notification_read_invalidation.dart",
+      "protected": true,
+      "before": "2DAA0BA56788E9321F0920E501EB66AFFBE4CE8F912BB5B385E33CBE28FADA64",
+      "after": "2DAA0BA56788E9321F0920E501EB66AFFBE4CE8F912BB5B385E33CBE28FADA64"
+    },
+    {
+      "path": "lib/features/notifications/presentation/view_models/notification_providers.dart",
+      "protected": true,
+      "before": "7C06234BE0B817F12617FACAAD010100A91854E9EE867458EFACE5B44DF03427",
+      "after": "7C06234BE0B817F12617FACAAD010100A91854E9EE867458EFACE5B44DF03427"
+    },
+    {
+      "path": "lib/features/notifications/presentation/view_models/notification_interaction_view_model.dart",
+      "protected": true,
+      "before": "BA986646A582C1D43ECF1916AFA05B8DCA6EA88021C7B64641EDB7C39D797359",
+      "after": "BA986646A582C1D43ECF1916AFA05B8DCA6EA88021C7B64641EDB7C39D797359"
+    },
+    {
+      "path": "AGENTS.md",
+      "protected": true,
+      "before": "7A25BC878CF3F1B8AD70B72A5903F81E795407DB4AFB6A40DB324ACABF6167C0",
+      "after": "7A25BC878CF3F1B8AD70B72A5903F81E795407DB4AFB6A40DB324ACABF6167C0"
+    },
+    {
+      "path": "pubspec.yaml",
+      "protected": true,
+      "before": "765A69069569091FEB28095DDA25140F994187FADAF83921CC22BD60EED029CC",
+      "after": "765A69069569091FEB28095DDA25140F994187FADAF83921CC22BD60EED029CC"
+    },
+    {
+      "path": "pubspec.lock",
+      "protected": true,
+      "before": "FB8E4B9DA3160CBFF93D29F487800A787C610F2B76E27AADB44692963CB64246",
+      "after": "FB8E4B9DA3160CBFF93D29F487800A787C610F2B76E27AADB44692963CB64246"
+    }
+  ]
+}

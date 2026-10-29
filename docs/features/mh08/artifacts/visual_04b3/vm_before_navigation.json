@@ -1,0 +1,5 @@
+{
+  "status": "unavailable",
+  "phase": "before_navigation",
+  "limitation": "VM service request failed: getVM"
+}

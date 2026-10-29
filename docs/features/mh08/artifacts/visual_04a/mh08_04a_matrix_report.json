@@ -1,0 +1,1474 @@
+{
+  "task": "MH08-04A",
+  "renderer": "Mh08PreviewApp(showControls: false)",
+  "expectedCommand": "flutter test --no-pub test/visual_refinement/mh08_04a_*_test.dart",
+  "outputFlag": "MH08_04A_OUTPUT=1",
+  "cases": [
+    {
+      "name": "mh08_04a_320x844_s1_0",
+      "viewport": {
+        "width": 320.0,
+        "height": 844.0
+      },
+      "textScale": 1.0,
+      "checks": [
+        {
+          "name": "horizontal status chips",
+          "pass": true
+        },
+        {
+          "name": "chips expose horizontal extent",
+          "pass": true,
+          "detail": "1540.6373252868652"
+        },
+        {
+          "name": "chips respond to horizontal gesture",
+          "pass": true,
+          "detail": "0.0 → 300.0"
+        },
+        {
+          "name": "KPI fits viewport",
+          "pass": true,
+          "detail": "280.0x82.0"
+        },
+        {
+          "name": "KPI reflows at large text scale",
+          "pass": true,
+          "detail": "82.0"
+        },
+        {
+          "name": "confirm hit target >=48",
+          "pass": true,
+          "detail": "248.0x48.0"
+        },
+        {
+          "name": "reject hit target >=48",
+          "pass": true,
+          "detail": "248.0x48.0"
+        },
+        {
+          "name": "details hit target >=48",
+          "pass": true,
+          "detail": "248.0x48.0"
+        },
+        {
+          "name": "all ten rows loaded",
+          "pass": true,
+          "detail": "loaded 10"
+        },
+        {
+          "name": "warning text is rendered",
+          "pass": true
+        },
+        {
+          "name": "long Vietnamese buyer is rendered",
+          "pass": true
+        },
+        {
+          "name": "long Vietnamese address is rendered",
+          "pass": true
+        },
+        {
+          "name": "SafeArea bottom is respected",
+          "pass": true,
+          "detail": "list bottom 810.0"
+        },
+        {
+          "name": "search remains available with keyboard",
+          "pass": true
+        },
+        {
+          "name": "KPI hides behind keyboard",
+          "pass": false
+        },
+        {
+          "name": "list respects keyboard inset",
+          "pass": true,
+          "detail": "list bottom 544.0"
+        }
+      ],
+      "failures": [
+        "KPI hides behind keyboard"
+      ],
+      "screenshots": [
+        "mh08_04a_320x844_s1_0_top",
+        "mh08_04a_320x844_s1_0_pending_actions",
+        "mh08_04a_320x844_s1_0_bottom",
+        "mh08_04a_320x844_s1_0_keyboard",
+        "mh08_04a_320x844_s1_0_failure"
+      ],
+      "regions": {},
+      "styles": {}
+    },
+    {
+      "name": "mh08_04a_320x844_s1_5",
+      "viewport": {
+        "width": 320.0,
+        "height": 844.0
+      },
+      "textScale": 1.5,
+      "checks": [
+        {
+          "name": "horizontal status chips",
+          "pass": true
+        },
+        {
+          "name": "chips expose horizontal extent",
+          "pass": true,
+          "detail": "2029.0958290100098"
+        },
+        {
+          "name": "chips respond to horizontal gesture",
+          "pass": true,
+          "detail": "0.0 → 300.0"
+        },
+        {
+          "name": "KPI fits viewport",
+          "pass": true,
+          "detail": "280.0x133.0"
+        },
+        {
+          "name": "KPI reflows at large text scale",
+          "pass": true,
+          "detail": "133.0"
+        },
+        {
+          "name": "confirm hit target >=48",
+          "pass": true,
+          "detail": "248.0x51.0"
+        },
+        {
+          "name": "reject hit target >=48",
+          "pass": true,
+          "detail": "248.0x51.0"
+        },
+        {
+          "name": "details hit target >=48",
+          "pass": true,
+          "detail": "248.0x84.0"
+        },
+        {
+          "name": "all ten rows loaded",
+          "pass": true,
+          "detail": "loaded 10"
+        },
+        {
+          "name": "warning text is rendered",
+          "pass": true
+        },
+        {
+          "name": "long Vietnamese buyer is rendered",
+          "pass": true
+        },
+        {
+          "name": "long Vietnamese address is rendered",
+          "pass": true
+        },
+        {
+          "name": "SafeArea bottom is respected",
+          "pass": true,
+          "detail": "list bottom 810.0"
+        },
+        {
+          "name": "search remains available with keyboard",
+          "pass": true
+        },
+        {
+          "name": "KPI hides behind keyboard",
+          "pass": false
+        },
+        {
+          "name": "list respects keyboard inset",
+          "pass": true,
+          "detail": "list bottom 544.0"
+        }
+      ],
+      "failures": [
+        "KPI hides behind keyboard"
+      ],
+      "screenshots": [
+        "mh08_04a_320x844_s1_5_top",
+        "mh08_04a_320x844_s1_5_pending_actions",
+        "mh08_04a_320x844_s1_5_bottom",
+        "mh08_04a_320x844_s1_5_keyboard",
+        "mh08_04a_320x844_s1_5_failure"
+      ],
+      "regions": {},
+      "styles": {}
+    },
+    {
+      "name": "mh08_04a_320x844_s2_0",
+      "viewport": {
+        "width": 320.0,
+        "height": 844.0
+      },
+      "textScale": 2.0,
+      "checks": [
+        {
+          "name": "horizontal status chips",
+          "pass": true
+        },
+        {
+          "name": "chips expose horizontal extent",
+          "pass": true,
+          "detail": "2527.3278579711914"
+        },
+        {
+          "name": "chips respond to horizontal gesture",
+          "pass": true,
+          "detail": "0.0 → 300.0"
+        },
+        {
+          "name": "KPI fits viewport",
+          "pass": true,
+          "detail": "280.0x198.0"
+        },
+        {
+          "name": "KPI reflows at large text scale",
+          "pass": true,
+          "detail": "198.0"
+        },
+        {
+          "name": "confirm hit target >=48",
+          "pass": true,
+          "detail": "248.0x60.0"
+        },
+        {
+          "name": "reject hit target >=48",
+          "pass": true,
+          "detail": "248.0x60.0"
+        },
+        {
+          "name": "details hit target >=48",
+          "pass": true,
+          "detail": "248.0x104.0"
+        },
+        {
+          "name": "all ten rows loaded",
+          "pass": true,
+          "detail": "loaded 10"
+        },
+        {
+          "name": "warning text is rendered",
+          "pass": true
+        },
+        {
+          "name": "long Vietnamese buyer is rendered",
+          "pass": true
+        },
+        {
+          "name": "long Vietnamese address is rendered",
+          "pass": true
+        },
+        {
+          "name": "SafeArea bottom is respected",
+          "pass": true,
+          "detail": "list bottom 810.0"
+        },
+        {
+          "name": "search remains available with keyboard",
+          "pass": true
+        },
+        {
+          "name": "KPI hides behind keyboard",
+          "pass": false
+        },
+        {
+          "name": "list respects keyboard inset",
+          "pass": true,
+          "detail": "list bottom 544.0"
+        }
+      ],
+      "failures": [
+        "KPI hides behind keyboard"
+      ],
+      "screenshots": [
+        "mh08_04a_320x844_s2_0_top",
+        "mh08_04a_320x844_s2_0_pending_actions",
+        "mh08_04a_320x844_s2_0_bottom",
+        "mh08_04a_320x844_s2_0_keyboard",
+        "mh08_04a_320x844_s2_0_failure"
+      ],
+      "regions": {},
+      "styles": {}
+    },
+    {
+      "name": "mh08_04a_360x844_s1_0",
+      "viewport": {
+        "width": 360.0,
+        "height": 844.0
+      },
+      "textScale": 1.0,
+      "checks": [
+        {
+          "name": "horizontal status chips",
+          "pass": true
+        },
+        {
+          "name": "chips expose horizontal extent",
+          "pass": true,
+          "detail": "1500.6373252868652"
+        },
+        {
+          "name": "chips respond to horizontal gesture",
+          "pass": true,
+          "detail": "0.0 → 300.0"
+        },
+        {
+          "name": "KPI fits viewport",
+          "pass": true,
+          "detail": "320.0x82.0"
+        },
+        {
+          "name": "KPI reflows at large text scale",
+          "pass": true,
+          "detail": "82.0"
+        },
+        {
+          "name": "confirm hit target >=48",
+          "pass": true,
+          "detail": "140.0x48.0"
+        },
+        {
+          "name": "reject hit target >=48",
+          "pass": true,
+          "detail": "140.0x48.0"
+        },
+        {
+          "name": "details hit target >=48",
+          "pass": true,
+          "detail": "288.0x48.0"
+        },
+        {
+          "name": "all ten rows loaded",
+          "pass": true,
+          "detail": "loaded 10"
+        },
+        {
+          "name": "warning text is rendered",
+          "pass": true
+        },
+        {
+          "name": "long Vietnamese buyer is rendered",
+          "pass": true
+        },
+        {
+          "name": "long Vietnamese address is rendered",
+          "pass": true
+        },
+        {
+          "name": "SafeArea bottom is respected",
+          "pass": true,
+          "detail": "list bottom 810.0"
+        },
+        {
+          "name": "search remains available with keyboard",
+          "pass": true
+        },
+        {
+          "name": "KPI hides behind keyboard",
+          "pass": false
+        },
+        {
+          "name": "list respects keyboard inset",
+          "pass": true,
+          "detail": "list bottom 544.0"
+        }
+      ],
+      "failures": [
+        "KPI hides behind keyboard"
+      ],
+      "screenshots": [
+        "mh08_04a_360x844_s1_0_top",
+        "mh08_04a_360x844_s1_0_pending_actions",
+        "mh08_04a_360x844_s1_0_bottom",
+        "mh08_04a_360x844_s1_0_keyboard",
+        "mh08_04a_360x844_s1_0_failure"
+      ],
+      "regions": {},
+      "styles": {}
+    },
+    {
+      "name": "mh08_04a_360x844_s1_5",
+      "viewport": {
+        "width": 360.0,
+        "height": 844.0
+      },
+      "textScale": 1.5,
+      "checks": [
+        {
+          "name": "horizontal status chips",
+          "pass": true
+        },
+        {
+          "name": "chips expose horizontal extent",
+          "pass": true,
+          "detail": "1989.0958290100098"
+        },
+        {
+          "name": "chips respond to horizontal gesture",
+          "pass": true,
+          "detail": "0.0 → 300.0"
+        },
+        {
+          "name": "KPI fits viewport",
+          "pass": true,
+          "detail": "320.0x112.0"
+        },
+        {
+          "name": "KPI reflows at large text scale",
+          "pass": true,
+          "detail": "112.0"
+        },
+        {
+          "name": "confirm hit target >=48",
+          "pass": true,
+          "detail": "140.0x51.0"
+        },
+        {
+          "name": "reject hit target >=48",
+          "pass": true,
+          "detail": "140.0x51.0"
+        },
+        {
+          "name": "details hit target >=48",
+          "pass": true,
+          "detail": "288.0x54.0"
+        },
+        {
+          "name": "all ten rows loaded",
+          "pass": true,
+          "detail": "loaded 10"
+        },
+        {
+          "name": "warning text is rendered",
+          "pass": true
+        },
+        {
+          "name": "long Vietnamese buyer is rendered",
+          "pass": true
+        },
+        {
+          "name": "long Vietnamese address is rendered",
+          "pass": true
+        },
+        {
+          "name": "SafeArea bottom is respected",
+          "pass": true,
+          "detail": "list bottom 810.0"
+        },
+        {
+          "name": "search remains available with keyboard",
+          "pass": true
+        },
+        {
+          "name": "KPI hides behind keyboard",
+          "pass": false
+        },
+        {
+          "name": "list respects keyboard inset",
+          "pass": true,
+          "detail": "list bottom 544.0"
+        }
+      ],
+      "failures": [
+        "KPI hides behind keyboard"
+      ],
+      "screenshots": [
+        "mh08_04a_360x844_s1_5_top",
+        "mh08_04a_360x844_s1_5_pending_actions",
+        "mh08_04a_360x844_s1_5_bottom",
+        "mh08_04a_360x844_s1_5_keyboard",
+        "mh08_04a_360x844_s1_5_failure"
+      ],
+      "regions": {},
+      "styles": {}
+    },
+    {
+      "name": "mh08_04a_360x844_s2_0",
+      "viewport": {
+        "width": 360.0,
+        "height": 844.0
+      },
+      "textScale": 2.0,
+      "checks": [
+        {
+          "name": "horizontal status chips",
+          "pass": true
+        },
+        {
+          "name": "chips expose horizontal extent",
+          "pass": true,
+          "detail": "2487.3278579711914"
+        },
+        {
+          "name": "chips respond to horizontal gesture",
+          "pass": true,
+          "detail": "0.0 → 300.0"
+        },
+        {
+          "name": "KPI fits viewport",
+          "pass": true,
+          "detail": "320.0x198.0"
+        },
+        {
+          "name": "KPI reflows at large text scale",
+          "pass": true,
+          "detail": "198.0"
+        },
+        {
+          "name": "confirm hit target >=48",
+          "pass": true,
+          "detail": "288.0x60.0"
+        },
+        {
+          "name": "reject hit target >=48",
+          "pass": true,
+          "detail": "288.0x60.0"
+        },
+        {
+          "name": "details hit target >=48",
+          "pass": true,
+          "detail": "288.0x104.0"
+        },
+        {
+          "name": "all ten rows loaded",
+          "pass": true,
+          "detail": "loaded 10"
+        },
+        {
+          "name": "warning text is rendered",
+          "pass": true
+        },
+        {
+          "name": "long Vietnamese buyer is rendered",
+          "pass": true
+        },
+        {
+          "name": "long Vietnamese address is rendered",
+          "pass": true
+        },
+        {
+          "name": "SafeArea bottom is respected",
+          "pass": true,
+          "detail": "list bottom 810.0"
+        },
+        {
+          "name": "search remains available with keyboard",
+          "pass": true
+        },
+        {
+          "name": "KPI hides behind keyboard",
+          "pass": false
+        },
+        {
+          "name": "list respects keyboard inset",
+          "pass": true,
+          "detail": "list bottom 544.0"
+        }
+      ],
+      "failures": [
+        "KPI hides behind keyboard"
+      ],
+      "screenshots": [
+        "mh08_04a_360x844_s2_0_top",
+        "mh08_04a_360x844_s2_0_pending_actions",
+        "mh08_04a_360x844_s2_0_bottom",
+        "mh08_04a_360x844_s2_0_keyboard",
+        "mh08_04a_360x844_s2_0_failure"
+      ],
+      "regions": {},
+      "styles": {}
+    },
+    {
+      "name": "mh08_04a_390x844_s1_0",
+      "viewport": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "textScale": 1.0,
+      "checks": [
+        {
+          "name": "horizontal status chips",
+          "pass": true
+        },
+        {
+          "name": "chips expose horizontal extent",
+          "pass": true,
+          "detail": "1470.6373252868652"
+        },
+        {
+          "name": "chips respond to horizontal gesture",
+          "pass": true,
+          "detail": "0.0 → 300.0"
+        },
+        {
+          "name": "KPI fits viewport",
+          "pass": true,
+          "detail": "350.0x82.0"
+        },
+        {
+          "name": "KPI reflows at large text scale",
+          "pass": true,
+          "detail": "82.0"
+        },
+        {
+          "name": "confirm hit target >=48",
+          "pass": true,
+          "detail": "155.0x48.0"
+        },
+        {
+          "name": "reject hit target >=48",
+          "pass": true,
+          "detail": "155.0x48.0"
+        },
+        {
+          "name": "details hit target >=48",
+          "pass": true,
+          "detail": "318.0x48.0"
+        },
+        {
+          "name": "all ten rows loaded",
+          "pass": true,
+          "detail": "loaded 10"
+        },
+        {
+          "name": "warning text is rendered",
+          "pass": true
+        },
+        {
+          "name": "long Vietnamese buyer is rendered",
+          "pass": true
+        },
+        {
+          "name": "long Vietnamese address is rendered",
+          "pass": true
+        },
+        {
+          "name": "SafeArea bottom is respected",
+          "pass": true,
+          "detail": "list bottom 810.0"
+        },
+        {
+          "name": "search remains available with keyboard",
+          "pass": true
+        },
+        {
+          "name": "KPI hides behind keyboard",
+          "pass": false
+        },
+        {
+          "name": "list respects keyboard inset",
+          "pass": true,
+          "detail": "list bottom 544.0"
+        }
+      ],
+      "failures": [
+        "KPI hides behind keyboard"
+      ],
+      "screenshots": [
+        "mh08_04a_390x844_s1_0_top",
+        "mh08_04a_390x844_s1_0_pending_actions",
+        "mh08_04a_390x844_s1_0_warning",
+        "mh08_04a_390x844_s1_0_longtext",
+        "mh08_04a_390x844_s1_0_bottom",
+        "mh08_04a_390x844_s1_0_safe_area",
+        "mh08_04a_390x844_s1_0_keyboard",
+        "mh08_04a_390x844_s1_0_failure"
+      ],
+      "regions": {},
+      "styles": {}
+    },
+    {
+      "name": "mh08_04a_390x844_s1_5",
+      "viewport": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "textScale": 1.5,
+      "checks": [
+        {
+          "name": "horizontal status chips",
+          "pass": true
+        },
+        {
+          "name": "chips expose horizontal extent",
+          "pass": true,
+          "detail": "1959.0958290100098"
+        },
+        {
+          "name": "chips respond to horizontal gesture",
+          "pass": true,
+          "detail": "0.0 → 300.0"
+        },
+        {
+          "name": "KPI fits viewport",
+          "pass": true,
+          "detail": "350.0x112.0"
+        },
+        {
+          "name": "KPI reflows at large text scale",
+          "pass": true,
+          "detail": "112.0"
+        },
+        {
+          "name": "confirm hit target >=48",
+          "pass": true,
+          "detail": "155.0x51.0"
+        },
+        {
+          "name": "reject hit target >=48",
+          "pass": true,
+          "detail": "155.0x51.0"
+        },
+        {
+          "name": "details hit target >=48",
+          "pass": true,
+          "detail": "318.0x54.0"
+        },
+        {
+          "name": "all ten rows loaded",
+          "pass": true,
+          "detail": "loaded 10"
+        },
+        {
+          "name": "warning text is rendered",
+          "pass": true
+        },
+        {
+          "name": "long Vietnamese buyer is rendered",
+          "pass": true
+        },
+        {
+          "name": "long Vietnamese address is rendered",
+          "pass": true
+        },
+        {
+          "name": "SafeArea bottom is respected",
+          "pass": true,
+          "detail": "list bottom 810.0"
+        },
+        {
+          "name": "search remains available with keyboard",
+          "pass": true
+        },
+        {
+          "name": "KPI hides behind keyboard",
+          "pass": false
+        },
+        {
+          "name": "list respects keyboard inset",
+          "pass": true,
+          "detail": "list bottom 544.0"
+        }
+      ],
+      "failures": [
+        "KPI hides behind keyboard"
+      ],
+      "screenshots": [
+        "mh08_04a_390x844_s1_5_top",
+        "mh08_04a_390x844_s1_5_pending_actions",
+        "mh08_04a_390x844_s1_5_warning",
+        "mh08_04a_390x844_s1_5_longtext",
+        "mh08_04a_390x844_s1_5_bottom",
+        "mh08_04a_390x844_s1_5_safe_area",
+        "mh08_04a_390x844_s1_5_keyboard",
+        "mh08_04a_390x844_s1_5_failure"
+      ],
+      "regions": {},
+      "styles": {}
+    },
+    {
+      "name": "mh08_04a_390x844_s2_0",
+      "viewport": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "textScale": 2.0,
+      "checks": [
+        {
+          "name": "horizontal status chips",
+          "pass": true
+        },
+        {
+          "name": "chips expose horizontal extent",
+          "pass": true,
+          "detail": "2457.3278579711914"
+        },
+        {
+          "name": "chips respond to horizontal gesture",
+          "pass": true,
+          "detail": "0.0 → 300.0"
+        },
+        {
+          "name": "KPI fits viewport",
+          "pass": true,
+          "detail": "350.0x170.0"
+        },
+        {
+          "name": "KPI reflows at large text scale",
+          "pass": true,
+          "detail": "170.0"
+        },
+        {
+          "name": "confirm hit target >=48",
+          "pass": true,
+          "detail": "318.0x60.0"
+        },
+        {
+          "name": "reject hit target >=48",
+          "pass": true,
+          "detail": "318.0x60.0"
+        },
+        {
+          "name": "details hit target >=48",
+          "pass": true,
+          "detail": "318.0x104.0"
+        },
+        {
+          "name": "all ten rows loaded",
+          "pass": true,
+          "detail": "loaded 10"
+        },
+        {
+          "name": "warning text is rendered",
+          "pass": true
+        },
+        {
+          "name": "long Vietnamese buyer is rendered",
+          "pass": true
+        },
+        {
+          "name": "long Vietnamese address is rendered",
+          "pass": true
+        },
+        {
+          "name": "SafeArea bottom is respected",
+          "pass": true,
+          "detail": "list bottom 810.0"
+        },
+        {
+          "name": "search remains available with keyboard",
+          "pass": true
+        },
+        {
+          "name": "KPI hides behind keyboard",
+          "pass": false
+        },
+        {
+          "name": "list respects keyboard inset",
+          "pass": true,
+          "detail": "list bottom 544.0"
+        }
+      ],
+      "failures": [
+        "KPI hides behind keyboard"
+      ],
+      "screenshots": [
+        "mh08_04a_390x844_s2_0_top",
+        "mh08_04a_390x844_s2_0_pending_actions",
+        "mh08_04a_390x844_s2_0_warning",
+        "mh08_04a_390x844_s2_0_longtext",
+        "mh08_04a_390x844_s2_0_bottom",
+        "mh08_04a_390x844_s2_0_safe_area",
+        "mh08_04a_390x844_s2_0_keyboard",
+        "mh08_04a_390x844_s2_0_failure"
+      ],
+      "regions": {},
+      "styles": {}
+    },
+    {
+      "name": "mh08_04a_412x844_s1_0",
+      "viewport": {
+        "width": 412.0,
+        "height": 844.0
+      },
+      "textScale": 1.0,
+      "checks": [
+        {
+          "name": "horizontal status chips",
+          "pass": true
+        },
+        {
+          "name": "chips expose horizontal extent",
+          "pass": true,
+          "detail": "1448.6373252868652"
+        },
+        {
+          "name": "chips respond to horizontal gesture",
+          "pass": true,
+          "detail": "0.0 → 300.0"
+        },
+        {
+          "name": "KPI fits viewport",
+          "pass": true,
+          "detail": "372.0x82.0"
+        },
+        {
+          "name": "KPI reflows at large text scale",
+          "pass": true,
+          "detail": "82.0"
+        },
+        {
+          "name": "confirm hit target >=48",
+          "pass": true,
+          "detail": "166.0x48.0"
+        },
+        {
+          "name": "reject hit target >=48",
+          "pass": true,
+          "detail": "166.0x48.0"
+        },
+        {
+          "name": "details hit target >=48",
+          "pass": true,
+          "detail": "340.0x48.0"
+        },
+        {
+          "name": "all ten rows loaded",
+          "pass": true,
+          "detail": "loaded 10"
+        },
+        {
+          "name": "warning text is rendered",
+          "pass": true
+        },
+        {
+          "name": "long Vietnamese buyer is rendered",
+          "pass": true
+        },
+        {
+          "name": "long Vietnamese address is rendered",
+          "pass": true
+        },
+        {
+          "name": "SafeArea bottom is respected",
+          "pass": true,
+          "detail": "list bottom 810.0"
+        },
+        {
+          "name": "search remains available with keyboard",
+          "pass": true
+        },
+        {
+          "name": "KPI hides behind keyboard",
+          "pass": false
+        },
+        {
+          "name": "list respects keyboard inset",
+          "pass": true,
+          "detail": "list bottom 544.0"
+        }
+      ],
+      "failures": [
+        "KPI hides behind keyboard"
+      ],
+      "screenshots": [
+        "mh08_04a_412x844_s1_0_top",
+        "mh08_04a_412x844_s1_0_pending_actions",
+        "mh08_04a_412x844_s1_0_bottom",
+        "mh08_04a_412x844_s1_0_keyboard",
+        "mh08_04a_412x844_s1_0_failure"
+      ],
+      "regions": {},
+      "styles": {}
+    },
+    {
+      "name": "mh08_04a_412x844_s1_5",
+      "viewport": {
+        "width": 412.0,
+        "height": 844.0
+      },
+      "textScale": 1.5,
+      "checks": [
+        {
+          "name": "horizontal status chips",
+          "pass": true
+        },
+        {
+          "name": "chips expose horizontal extent",
+          "pass": true,
+          "detail": "1937.0958290100098"
+        },
+        {
+          "name": "chips respond to horizontal gesture",
+          "pass": true,
+          "detail": "0.0 → 300.0"
+        },
+        {
+          "name": "KPI fits viewport",
+          "pass": true,
+          "detail": "372.0x112.0"
+        },
+        {
+          "name": "KPI reflows at large text scale",
+          "pass": true,
+          "detail": "112.0"
+        },
+        {
+          "name": "confirm hit target >=48",
+          "pass": true,
+          "detail": "166.0x51.0"
+        },
+        {
+          "name": "reject hit target >=48",
+          "pass": true,
+          "detail": "166.0x51.0"
+        },
+        {
+          "name": "details hit target >=48",
+          "pass": true,
+          "detail": "340.0x54.0"
+        },
+        {
+          "name": "all ten rows loaded",
+          "pass": true,
+          "detail": "loaded 10"
+        },
+        {
+          "name": "warning text is rendered",
+          "pass": true
+        },
+        {
+          "name": "long Vietnamese buyer is rendered",
+          "pass": true
+        },
+        {
+          "name": "long Vietnamese address is rendered",
+          "pass": true
+        },
+        {
+          "name": "SafeArea bottom is respected",
+          "pass": true,
+          "detail": "list bottom 810.0"
+        },
+        {
+          "name": "search remains available with keyboard",
+          "pass": true
+        },
+        {
+          "name": "KPI hides behind keyboard",
+          "pass": false
+        },
+        {
+          "name": "list respects keyboard inset",
+          "pass": true,
+          "detail": "list bottom 544.0"
+        }
+      ],
+      "failures": [
+        "KPI hides behind keyboard"
+      ],
+      "screenshots": [
+        "mh08_04a_412x844_s1_5_top",
+        "mh08_04a_412x844_s1_5_pending_actions",
+        "mh08_04a_412x844_s1_5_bottom",
+        "mh08_04a_412x844_s1_5_keyboard",
+        "mh08_04a_412x844_s1_5_failure"
+      ],
+      "regions": {},
+      "styles": {}
+    },
+    {
+      "name": "mh08_04a_412x844_s2_0",
+      "viewport": {
+        "width": 412.0,
+        "height": 844.0
+      },
+      "textScale": 2.0,
+      "checks": [
+        {
+          "name": "horizontal status chips",
+          "pass": true
+        },
+        {
+          "name": "chips expose horizontal extent",
+          "pass": true,
+          "detail": "2435.3278579711914"
+        },
+        {
+          "name": "chips respond to horizontal gesture",
+          "pass": true,
+          "detail": "0.0 → 300.0"
+        },
+        {
+          "name": "KPI fits viewport",
+          "pass": true,
+          "detail": "372.0x142.0"
+        },
+        {
+          "name": "KPI reflows at large text scale",
+          "pass": true,
+          "detail": "142.0"
+        },
+        {
+          "name": "confirm hit target >=48",
+          "pass": true,
+          "detail": "340.0x60.0"
+        },
+        {
+          "name": "reject hit target >=48",
+          "pass": true,
+          "detail": "340.0x60.0"
+        },
+        {
+          "name": "details hit target >=48",
+          "pass": true,
+          "detail": "340.0x64.0"
+        },
+        {
+          "name": "all ten rows loaded",
+          "pass": true,
+          "detail": "loaded 10"
+        },
+        {
+          "name": "warning text is rendered",
+          "pass": true
+        },
+        {
+          "name": "long Vietnamese buyer is rendered",
+          "pass": true
+        },
+        {
+          "name": "long Vietnamese address is rendered",
+          "pass": true
+        },
+        {
+          "name": "SafeArea bottom is respected",
+          "pass": true,
+          "detail": "list bottom 810.0"
+        },
+        {
+          "name": "search remains available with keyboard",
+          "pass": true
+        },
+        {
+          "name": "KPI hides behind keyboard",
+          "pass": false
+        },
+        {
+          "name": "list respects keyboard inset",
+          "pass": true,
+          "detail": "list bottom 544.0"
+        }
+      ],
+      "failures": [
+        "KPI hides behind keyboard"
+      ],
+      "screenshots": [
+        "mh08_04a_412x844_s2_0_top",
+        "mh08_04a_412x844_s2_0_pending_actions",
+        "mh08_04a_412x844_s2_0_bottom",
+        "mh08_04a_412x844_s2_0_keyboard",
+        "mh08_04a_412x844_s2_0_failure"
+      ],
+      "regions": {},
+      "styles": {}
+    },
+    {
+      "name": "mh08_04a_844x390_s1_0",
+      "viewport": {
+        "width": 844.0,
+        "height": 390.0
+      },
+      "textScale": 1.0,
+      "checks": [
+        {
+          "name": "horizontal status chips",
+          "pass": true
+        },
+        {
+          "name": "chips expose horizontal extent",
+          "pass": true,
+          "detail": "1016.6373252868652"
+        },
+        {
+          "name": "chips respond to horizontal gesture",
+          "pass": true,
+          "detail": "0.0 → 300.0"
+        },
+        {
+          "name": "KPI fits viewport",
+          "pass": true,
+          "detail": "804.0x82.0"
+        },
+        {
+          "name": "KPI reflows at large text scale",
+          "pass": true,
+          "detail": "82.0"
+        },
+        {
+          "name": "confirm hit target >=48",
+          "pass": true,
+          "detail": "382.0x48.0"
+        },
+        {
+          "name": "reject hit target >=48",
+          "pass": true,
+          "detail": "382.0x48.0"
+        },
+        {
+          "name": "details hit target >=48",
+          "pass": true,
+          "detail": "772.0x48.0"
+        },
+        {
+          "name": "all ten rows loaded",
+          "pass": true,
+          "detail": "loaded 10"
+        },
+        {
+          "name": "warning text is rendered",
+          "pass": true
+        },
+        {
+          "name": "long Vietnamese buyer is rendered",
+          "pass": true
+        },
+        {
+          "name": "long Vietnamese address is rendered",
+          "pass": true
+        },
+        {
+          "name": "SafeArea bottom is respected",
+          "pass": true,
+          "detail": "list bottom 356.0"
+        },
+        {
+          "name": "search remains available with keyboard",
+          "pass": true
+        },
+        {
+          "name": "KPI hides behind keyboard",
+          "pass": false
+        },
+        {
+          "name": "list respects keyboard inset",
+          "pass": true,
+          "detail": "list bottom 90.0"
+        }
+      ],
+      "failures": [
+        "KPI hides behind keyboard"
+      ],
+      "screenshots": [
+        "mh08_04a_844x390_s1_0_top",
+        "mh08_04a_844x390_s1_0_pending_actions",
+        "mh08_04a_844x390_s1_0_bottom",
+        "mh08_04a_844x390_s1_0_keyboard",
+        "mh08_04a_844x390_s1_0_failure"
+      ],
+      "regions": {},
+      "styles": {}
+    },
+    {
+      "name": "mh08_04a_844x390_s1_5",
+      "viewport": {
+        "width": 844.0,
+        "height": 390.0
+      },
+      "textScale": 1.5,
+      "checks": [
+        {
+          "name": "horizontal status chips",
+          "pass": true
+        },
+        {
+          "name": "chips expose horizontal extent",
+          "pass": true,
+          "detail": "1505.0958290100098"
+        },
+        {
+          "name": "chips respond to horizontal gesture",
+          "pass": true,
+          "detail": "0.0 → 300.0"
+        },
+        {
+          "name": "KPI fits viewport",
+          "pass": true,
+          "detail": "804.0x112.0"
+        },
+        {
+          "name": "KPI reflows at large text scale",
+          "pass": true,
+          "detail": "112.0"
+        },
+        {
+          "name": "confirm hit target >=48",
+          "pass": true,
+          "detail": "382.0x51.0"
+        },
+        {
+          "name": "reject hit target >=48",
+          "pass": true,
+          "detail": "382.0x51.0"
+        },
+        {
+          "name": "details hit target >=48",
+          "pass": true,
+          "detail": "772.0x54.0"
+        },
+        {
+          "name": "all ten rows loaded",
+          "pass": true,
+          "detail": "loaded 10"
+        },
+        {
+          "name": "warning text is rendered",
+          "pass": true
+        },
+        {
+          "name": "long Vietnamese buyer is rendered",
+          "pass": true
+        },
+        {
+          "name": "long Vietnamese address is rendered",
+          "pass": true
+        },
+        {
+          "name": "SafeArea bottom is respected",
+          "pass": true,
+          "detail": "list bottom 356.0"
+        },
+        {
+          "name": "search remains available with keyboard",
+          "pass": true
+        },
+        {
+          "name": "KPI hides behind keyboard",
+          "pass": false
+        },
+        {
+          "name": "list respects keyboard inset",
+          "pass": true,
+          "detail": "list bottom 90.0"
+        }
+      ],
+      "failures": [
+        "KPI hides behind keyboard"
+      ],
+      "screenshots": [
+        "mh08_04a_844x390_s1_5_top",
+        "mh08_04a_844x390_s1_5_pending_actions",
+        "mh08_04a_844x390_s1_5_bottom",
+        "mh08_04a_844x390_s1_5_keyboard",
+        "mh08_04a_844x390_s1_5_failure"
+      ],
+      "regions": {},
+      "styles": {}
+    },
+    {
+      "name": "mh08_04a_844x390_s2_0",
+      "viewport": {
+        "width": 844.0,
+        "height": 390.0
+      },
+      "textScale": 2.0,
+      "checks": [
+        {
+          "name": "horizontal status chips",
+          "pass": true
+        },
+        {
+          "name": "chips expose horizontal extent",
+          "pass": true,
+          "detail": "2003.3278579711914"
+        },
+        {
+          "name": "chips respond to horizontal gesture",
+          "pass": true,
+          "detail": "0.0 → 300.0"
+        },
+        {
+          "name": "KPI fits viewport",
+          "pass": true,
+          "detail": "804.0x142.0"
+        },
+        {
+          "name": "KPI reflows at large text scale",
+          "pass": true,
+          "detail": "142.0"
+        },
+        {
+          "name": "confirm hit target >=48",
+          "pass": true,
+          "detail": "772.0x60.0"
+        },
+        {
+          "name": "reject hit target >=48",
+          "pass": true,
+          "detail": "772.0x60.0"
+        },
+        {
+          "name": "details hit target >=48",
+          "pass": true,
+          "detail": "772.0x64.0"
+        },
+        {
+          "name": "all ten rows loaded",
+          "pass": true,
+          "detail": "loaded 10"
+        },
+        {
+          "name": "warning text is rendered",
+          "pass": true
+        },
+        {
+          "name": "long Vietnamese buyer is rendered",
+          "pass": true
+        },
+        {
+          "name": "long Vietnamese address is rendered",
+          "pass": true
+        },
+        {
+          "name": "SafeArea bottom is respected",
+          "pass": true,
+          "detail": "list bottom 356.0"
+        },
+        {
+          "name": "search remains available with keyboard",
+          "pass": true
+        },
+        {
+          "name": "KPI hides behind keyboard",
+          "pass": false
+        },
+        {
+          "name": "list respects keyboard inset",
+          "pass": true,
+          "detail": "list bottom 90.0"
+        }
+      ],
+      "failures": [
+        "KPI hides behind keyboard"
+      ],
+      "screenshots": [
+        "mh08_04a_844x390_s2_0_top",
+        "mh08_04a_844x390_s2_0_pending_actions",
+        "mh08_04a_844x390_s2_0_bottom",
+        "mh08_04a_844x390_s2_0_keyboard",
+        "mh08_04a_844x390_s2_0_failure"
+      ],
+      "regions": {},
+      "styles": {}
+    }
+  ],
+  "failures": [
+    "mh08_04a_320x844_s1_0: KPI hides behind keyboard",
+    "mh08_04a_320x844_s1_5: KPI hides behind keyboard",
+    "mh08_04a_320x844_s2_0: KPI hides behind keyboard",
+    "mh08_04a_360x844_s1_0: KPI hides behind keyboard",
+    "mh08_04a_360x844_s1_5: KPI hides behind keyboard",
+    "mh08_04a_360x844_s2_0: KPI hides behind keyboard",
+    "mh08_04a_390x844_s1_0: KPI hides behind keyboard",
+    "mh08_04a_390x844_s1_5: KPI hides behind keyboard",
+    "mh08_04a_390x844_s2_0: KPI hides behind keyboard",
+    "mh08_04a_412x844_s1_0: KPI hides behind keyboard",
+    "mh08_04a_412x844_s1_5: KPI hides behind keyboard",
+    "mh08_04a_412x844_s2_0: KPI hides behind keyboard",
+    "mh08_04a_844x390_s1_0: KPI hides behind keyboard",
+    "mh08_04a_844x390_s1_5: KPI hides behind keyboard",
+    "mh08_04a_844x390_s2_0: KPI hides behind keyboard"
+  ]
+}

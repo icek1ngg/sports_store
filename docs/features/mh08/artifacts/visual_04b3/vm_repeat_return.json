@@ -1,0 +1,21 @@
+{
+  "status": "ok",
+  "phase": "repeat_return",
+  "environment": {
+    "screen": "MH08",
+    "scenario": "data",
+    "generation": 12
+  },
+  "reads": {
+    "manager": 59,
+    "head": 56,
+    "cursor": 3,
+    "details": 3,
+    "cursorHistory": "<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|eyJ2IjoxLCJnZW5lcmF0aW9uIjoxLCJzaWduYXR1cmUiOiIyMjEyMjZhYSIsIm9mZnNldCI6MywibGltaXQiOjIwLCJzZWFyY2giOm51bGwsInN0YXR1c2VzIjpbXX0|eyJ2IjoxLCJnZW5lcmF0aW9uIjoxLCJzaWduYXR1cmUiOiIyMjEyMjZhYSIsIm9mZnNldCI6NiwibGltaXQiOjIwLCJzZWFyY2giOm51bGwsInN0YXR1c2VzIjpbXX0|eyJ2IjoxLCJnZW5lcmF0aW9uIjoxLCJzaWduYXR1cmUiOiIyMjEyMjZhYSIsIm9mZnNldCI6OSwibGltaXQiOjIwLCJzZWFyY2giOm51bGwsInN0YXR1c2VzIjpbXX0|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>|<head>"
+  },
+  "latestQuery": {
+    "search": null,
+    "statusNames": []
+  },
+  "instanceLimit": 5
+}

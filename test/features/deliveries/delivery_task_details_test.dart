@@ -22,6 +22,44 @@ Map<String, dynamic> detailPayload({
 }
 
 void main() {
+  test('immutable redelivery plan accepts safe variant snapshot only for current redelivery', () {
+    final item = {
+      ...returnItemDto(quantityCollected: 2),
+      'variant_label': 'Size M',
+      'attributes': {'size': 'M'},
+    };
+    final payload = detailPayload(
+      task: currentTaskDto(
+        kind: 'redelivery',
+        returnRequest: returnRequestId,
+        amount: 0,
+        itemSource: 'return_plan',
+      ),
+      items: [item],
+    );
+    final detail = DeliveryTaskDetailsDto.fromJson(
+      payload,
+      requestedTaskId: taskId,
+    ).toDomain();
+    expect(detail.items.single.variantLabel, 'Size M');
+    expect(detail.items.single.quantityCollected, 2);
+    expect(detail.task.amountToCollectVnd, 0);
+    expect(
+      () => DeliveryTaskDetailsDto.fromJson(
+        detailPayload(
+          task: currentTaskDto(
+            kind: 'return_pickup',
+            returnRequest: returnRequestId,
+            amount: 0,
+            itemSource: 'return_plan',
+          ),
+          items: [item],
+        ),
+        requestedTaskId: taskId,
+      ).toDomain(),
+      throwsFormatException,
+    );
+  });
   test('maps an outbound snapshot without inventing notes or changing COD', () {
     final details = DeliveryTaskDetailsDto.fromJson(
       detailPayload(),

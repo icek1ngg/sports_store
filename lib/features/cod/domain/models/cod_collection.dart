@@ -23,6 +23,8 @@ enum CodStatus {
 class CodCollection {
   const CodCollection({
     required this.orderId,
+    this.orderCode,
+    this.orderCodeSource,
     this.shipperId,
     required this.status,
     required this.expectedAmountVnd,
@@ -38,6 +40,12 @@ class CodCollection {
   });
 
   final String orderId;
+
+  /// Display/reference code returned by the approved projection. The current
+  /// schema has no separate short order code, so the server may expose the
+  /// UUID text with source `order_uuid`.
+  final String? orderCode;
+  final String? orderCodeSource;
   final String? shipperId;
   final CodStatus status;
   final int expectedAmountVnd;
@@ -64,6 +72,8 @@ class CodCollection {
   bool operator ==(Object other) {
     return other is CodCollection &&
         orderId == other.orderId &&
+        orderCode == other.orderCode &&
+        orderCodeSource == other.orderCodeSource &&
         shipperId == other.shipperId &&
         status == other.status &&
         expectedAmountVnd == other.expectedAmountVnd &&
@@ -81,6 +91,8 @@ class CodCollection {
   @override
   int get hashCode => Object.hash(
     orderId,
+    orderCode,
+    orderCodeSource,
     shipperId,
     status,
     expectedAmountVnd,

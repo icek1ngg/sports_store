@@ -20,6 +20,7 @@ dependencies:
   flutter_map: 8.3.2
   latlong2: 0.9.1
   url_launcher: 6.3.3
+  path_provider: 2.1.6
 
 dev_dependencies:
   flutter_test:
@@ -32,3 +33,15 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/fonts/Inter-OFL.txt
+    - assets/fonts/BarlowCondensed-OFL.txt
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Variable.ttf
+    - family: BarlowCondensed
+      fonts:
+        - asset: assets/fonts/BarlowCondensed-Bold.ttf
+          weight: 700

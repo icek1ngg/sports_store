@@ -32,9 +32,23 @@ Hợp đồng checkout/tồn kho bàn giao với phần Bảo nằm tại
 [docs/van_duc_catalog_checkout_contract.md](docs/van_duc_catalog_checkout_contract.md).
 
 Project PRM393 dùng Flutter + Supabase, tổ chức theo feature-first MVVM,
-Riverpod và go_router. Đã có nền đọc delivery/COD từ main và catalog của Văn Đức.
+Riverpod và go_router. Nhánh tích hợp giữ catalog/giỏ/checkout của Văn Đức cùng
+các cập nhật giao hàng, COD và bản đồ từ main.
 Các màn và luồng còn lại xem trạng thái cụ thể trong `docs/screen_mapping.md`;
 không coi toàn bộ MH01–MH20 đã hoàn thành.
+
+## Giao diện Dung An nhập từ prm
+
+Đã nhập bốn màn MH01 đăng nhập, MH02 đăng ký, MH03 quản lý sản phẩm và MH19 danh sách hội thoại vào `lib/features/<feature>/presentation/pages/`, cùng ba ảnh STRIDE trong `assets/images/`. Các widget và theme của bản xem thử nằm trong `lib/shared/widgets/prm_preview_widgets.dart`.
+
+Chạy bản xem thử bằng entrypoint riêng:
+
+```powershell
+flutter pub get
+flutter run -d chrome -t tool/ui_preview/prm_main.dart
+```
+
+Phần nhập này giữ hành vi của source `prm`: MH01/MH02 chưa kết nối xác thực; MH03/MH19 dùng dữ liệu demo trong bộ nhớ. Điều hướng và theme trong entrypoint xem thử chỉ phục vụ demo. Việc nối các màn vào router, ViewModel, repository và backend dùng chung chưa nằm trong lần nhập source này. Điểm khởi động `lib/main.dart`, cấu hình Android và các module hiện có được giữ nguyên. Không nhập cache, build, cấu hình máy cá nhân hoặc các bản tài liệu Word/PDF từ thư mục nguồn.
 
 ## Chạy ứng dụng
 
@@ -73,7 +87,7 @@ Chi tiết khởi tạo client dùng chung và hướng dẫn cho thành viên: 
 
 Database nền có 18 bảng phục vụ phạm vi MH01–MH20. Schema và quyền Supabase
 được version trong `supabase/migrations/`; khi dựng mới áp dụng tất cả migration
-theo thứ tự, gồm ba migration nền và migration projection delivery bổ sung.
+theo thứ tự, gồm các migration nền, checkout và các cập nhật giao hàng/COD/trả hàng.
 Xem [docs/database.md](docs/database.md) để phân biệt schema đã triển khai,
 kết quả kiểm tra cloud lịch sử và các luồng RPC còn cần làm.
 [docs/business_states.md](docs/business_states.md),

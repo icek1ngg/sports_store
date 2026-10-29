@@ -7,6 +7,7 @@ import '../../data/repositories/operational_providers.dart';
 import '../../data/repositories/supabase_delivery_repository.dart';
 import '../../domain/models/delivery_task.dart';
 import '../../domain/models/delivery_task_details.dart';
+import '../../domain/models/operational_failure.dart';
 import '../../domain/repositories/delivery_repository.dart';
 
 final deliveryRepositoryProvider = Provider.autoDispose<DeliveryRepository>((
@@ -139,4 +140,32 @@ bool _sameOperationalSession(OperationalSession a, OperationalSession b) {
   // the same user and generation after client reinitialization while still
   // representing a different authorization epoch.
   return identical(a, b);
+}
+
+/// Write reconciliation uses the SAME backing future as MH11, rather than
+/// mutating a local snapshot or invalidating only the public projection.
+Future<DeliveryTaskDetails> refetchDeliveryTaskAfterCommand(
+  Ref ref,
+  String taskId,
+) async {
+  final sessionState = ref.read(operationalSessionProvider);
+  final failure = operationalSessionFailure(sessionState);
+  final session = sessionState.asData?.value;
+  if (failure != null) throw failure;
+  if (session == null || session.userId == null) {
+    throw const OperationalFailure(OperationalFailureCode.sessionExpired);
+  }
+  final backing = _detailsForSessionProvider((session, taskId));
+  ref.invalidate(backing);
+  ref.invalidate(deliveryTaskDetailsProvider(taskId));
+  final details = await ref.read(backing.future);
+  if (!ref.mounted ||
+      !identical(ref.read(operationalSessionProvider).asData?.value, session)) {
+    throw const OperationalFailure(OperationalFailureCode.sessionExpired);
+  }
+  return details;
+}
+
+void invalidateLegacyDeliveryTaskReads(Ref ref) {
+  ref.invalidate(_tasksForSessionProvider);
 }

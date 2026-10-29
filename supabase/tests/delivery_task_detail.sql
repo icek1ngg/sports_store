@@ -397,7 +397,9 @@ begin
   );
   perform pg_temp.assert_detail(
     'reader membership remains only the existing postgres owner grant',
-    (select count(*) from pg_auth_members m where m.roleid = l_reader) = 1
+    -- Hosted PG17 may record the same postgres membership once per grantor
+    -- (supabase_admin and postgres). Distinct members are the security boundary.
+    (select count(distinct m.member) from pg_auth_members m where m.roleid = l_reader) = 1
     and exists (
       select 1
       from pg_auth_members m
@@ -586,9 +588,20 @@ begin
 end;
 $$;
 
--- A cancellation changes a previously current task into a masked historical
--- snapshot; its 1001 order items remain inaccessible.
+-- P04.1 now forbids cancelling after physical acceptance, even a legacy row
+-- without new dispatch proof. Verify the guard, then reset this privileged
+-- READ fixture to its pre-accept state (not a runtime reversal) to exercise
+-- cancellation masking with its 1001 item snapshots.
 reset role;
+select pg_temp.assert_detail_error(
+  'accepted legacy task cannot be cancelled',
+  'update public.delivery_tasks set status=''cancelled'' where id=''81000000-0000-0000-0000-000000000001''::uuid',
+  'PT409',
+  'CUSTODY_UNRESOLVED'
+);
+update public.delivery_tasks
+set status = 'assigned', accepted_at = null, started_at = null
+where id = '81000000-0000-0000-0000-000000000001'::uuid;
 update public.delivery_tasks
 set status = 'cancelled', completed_at = clock_timestamp(), updated_at = clock_timestamp()
 where id = '81000000-0000-0000-0000-000000000001'::uuid;

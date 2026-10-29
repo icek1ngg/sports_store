@@ -9,12 +9,25 @@ import '../../domain/models/delivery_task.dart';
 import '../../domain/models/delivery_task_details.dart';
 import '../../domain/models/operational_failure.dart';
 import '../view_models/delivery_task_detail_view_model.dart';
+import '../widgets/outbound_task_actions.dart';
+import '../widgets/delivery_call_action.dart';
+import '../widgets/outbound_completion_action.dart';
+import '../view_models/outbound_completion_view_model.dart';
+import '../view_models/outbound_failure_view_model.dart';
+import '../view_models/delivery_reporting_view_model.dart';
+import '../widgets/outbound_failure_action.dart';
+import '../widgets/delivery_reporting_action.dart';
+import '../view_models/outbound_task_actions_view_model.dart';
+import '../view_models/return_pickup_view_model.dart';
+import '../widgets/return_pickup_action.dart';
+import '../view_models/redelivery_view_model.dart';
+import '../widgets/redelivery_action.dart';
 
-/// The read-only MH11 task detail view.
+/// MH11 detail view with server-backed outbound accept/start actions.
 ///
 /// This page deliberately renders the server projection only. It does not
 /// read an order, return request, catalog item, or Storage object directly,
-/// and it has no state-changing callbacks. The shared shipper shell owns the
+/// and delegates writes to the feature ViewModel. The shared shipper shell owns the
 /// Scaffold and AppBar around this page.
 class DeliveryTaskDetailPage extends ConsumerStatefulWidget {
   const DeliveryTaskDetailPage({required this.taskId, super.key});
@@ -28,15 +41,74 @@ class DeliveryTaskDetailPage extends ConsumerStatefulWidget {
 
 class _DeliveryTaskDetailPageState
     extends ConsumerState<DeliveryTaskDetailPage> {
+  bool _completionControllerActive = false;
+  bool _outboundControllerActive = false;
+  bool _returnPickupControllerActive = false;
+  bool _redeliveryControllerActive = false;
+  bool _reportingControllerActive = false;
+  DeliveryTaskSnapshot? _lastReportingSnapshot;
+  var _reportingContextRefreshScheduled = false;
   Future<void> _refresh() async {
     await ref
         .read(deliveryTaskDetailViewModelProvider(widget.taskId).notifier)
         .refresh();
+    if (!mounted || !_reportingControllerActive) return;
+    await ref
+        .read(deliveryReportingViewModelProvider(widget.taskId).notifier)
+        .refreshContext();
   }
 
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(deliveryTaskDetailViewModelProvider(widget.taskId));
+    final task = state.asData?.value.task;
+    if (task?.kind == DeliveryTaskKind.outbound &&
+        task?.scope == DeliverySnapshotScope.current) {
+      _outboundControllerActive = true;
+    }
+    // Keep pickup action state alive while the authoritative read changes
+    // scope after a command (including a restricted failed projection).
+    if (task?.kind == DeliveryTaskKind.returnPickup) {
+      _returnPickupControllerActive = true;
+    }
+    // Keep the redelivery command controller alive while an ACK/read
+    // reconciliation is switching the task into a restricted terminal view.
+    if (task?.kind == DeliveryTaskKind.redelivery) {
+      _redeliveryControllerActive = true;
+    }
+    // Reporting has its own restricted projection. Once this page has seen
+    // any outbound task, keep its controller alive across detail refreshes so
+    // an uncertain handover/incident command retains the same request key.
+    if (task?.kind == DeliveryTaskKind.outbound) {
+      _reportingControllerActive = true;
+      if (_lastReportingSnapshot != null && _lastReportingSnapshot != task) {
+        _scheduleReportingContextRefresh();
+      }
+      _lastReportingSnapshot = task;
+    }
+    if (_outboundControllerActive) {
+      ref.watch(outboundTaskActionsViewModelProvider(widget.taskId));
+    }
+    if (task?.kind == DeliveryTaskKind.outbound &&
+        task?.scope == DeliverySnapshotScope.current &&
+        task?.status == DeliveryTaskStatus.inTransit) {
+      _completionControllerActive = true;
+    }
+    // Keep the command controller visible while the read projection switches
+    // to loading/history, so its acknowledged COD/list reconciliation finishes.
+    if (_completionControllerActive) {
+      ref.watch(outboundCompletionViewModelProvider(widget.taskId));
+      ref.watch(outboundFailureViewModelProvider(widget.taskId));
+    }
+    if (_returnPickupControllerActive) {
+      ref.watch(returnPickupViewModelProvider(widget.taskId));
+    }
+    if (_redeliveryControllerActive) {
+      ref.watch(redeliveryViewModelProvider(widget.taskId));
+    }
+    if (_reportingControllerActive) {
+      ref.watch(deliveryReportingViewModelProvider(widget.taskId));
+    }
 
     return RefreshIndicator(
       key: const ValueKey('task-detail-refresh'),
@@ -48,6 +120,20 @@ class _DeliveryTaskDetailPageState
         slivers: [_content(state)],
       ),
     );
+  }
+
+  void _scheduleReportingContextRefresh() {
+    if (_reportingContextRefreshScheduled) return;
+    _reportingContextRefreshScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _reportingContextRefreshScheduled = false;
+      if (!mounted || !_reportingControllerActive) return;
+      unawaited(
+        ref
+            .read(deliveryReportingViewModelProvider(widget.taskId).notifier)
+            .refreshContext(),
+      );
+    });
   }
 
   Widget _content(AsyncValue<DeliveryTaskDetails> state) {
@@ -94,17 +180,37 @@ class _DeliveryTaskDetailPageState
     return SliverPadding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
       sliver: SliverList.list(
-        children: [_DetailBody(details: details, onMapReturned: _refresh)],
+        children: [
+          _DetailBody(
+            details: details,
+            onMapReturned: _refresh,
+            showCompletionRecovery: _completionControllerActive,
+            showReturnPickupRecovery: _returnPickupControllerActive,
+            showRedeliveryRecovery: _redeliveryControllerActive,
+            showReporting: _reportingControllerActive,
+          ),
+        ],
       ),
     );
   }
 }
 
 class _DetailBody extends StatelessWidget {
-  const _DetailBody({required this.details, required this.onMapReturned});
+  const _DetailBody({
+    required this.details,
+    required this.onMapReturned,
+    required this.showCompletionRecovery,
+    required this.showReturnPickupRecovery,
+    required this.showRedeliveryRecovery,
+    required this.showReporting,
+  });
 
   final DeliveryTaskDetails details;
   final Future<void> Function() onMapReturned;
+  final bool showCompletionRecovery;
+  final bool showReturnPickupRecovery;
+  final bool showRedeliveryRecovery;
+  final bool showReporting;
 
   @override
   Widget build(BuildContext context) {
@@ -134,16 +240,106 @@ class _DetailBody extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         _SectionCard(
-          title: 'COD',
+          title: task.kind == DeliveryTaskKind.returnPickup
+              ? 'Thu hồi tại khách'
+              : task.kind == DeliveryTaskKind.redelivery
+              ? 'Giao lại miễn phí'
+              : 'COD',
           icon: Icons.payments_outlined,
           child: _CodSection(task: task),
         ),
-        if (isCurrent) ...[
+        if (isCurrent && task.kind == DeliveryTaskKind.outbound) ...[
+          const SizedBox(height: 12),
+          _SectionCard(
+            title: 'Thao tác tiếp theo',
+            icon: Icons.task_alt_outlined,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                OutboundTaskActions(task: task),
+                if (task.status == DeliveryTaskStatus.inTransit)
+                  OutboundCompletionAction(taskId: task.taskId),
+                if (task.status == DeliveryTaskStatus.inTransit)
+                  OutboundFailureAction(taskId: task.taskId),
+                if (isCurrent &&
+                    task.status != DeliveryTaskStatus.assigned &&
+                    task.status != DeliveryTaskStatus.accepted)
+                  _ActionSection(task: task),
+              ],
+            ),
+          ),
+        ] else if (isCurrent && task.kind == DeliveryTaskKind.returnPickup) ...[
+          const SizedBox(height: 12),
+          _SectionCard(
+            title: 'Thao tác thu hồi',
+            icon: Icons.assignment_return_outlined,
+            child: ReturnPickupAction(taskId: task.taskId),
+          ),
+        ] else if (isCurrent && task.kind == DeliveryTaskKind.redelivery) ...[
+          const SizedBox(height: 12),
+          _SectionCard(
+            title: 'Thao tác giao lại',
+            icon: Icons.swap_horizontal_circle_outlined,
+            child: RedeliveryAction(taskId: task.taskId, task: task),
+          ),
+        ] else if (isCurrent) ...[
           const SizedBox(height: 12),
           _SectionCard(
             title: 'Thao tác tiếp theo',
             icon: Icons.task_alt_outlined,
             child: _ActionSection(task: task),
+          ),
+        ],
+        if (showCompletionRecovery &&
+            task.kind == DeliveryTaskKind.outbound &&
+            task.status != DeliveryTaskStatus.inTransit) ...[
+          const SizedBox(height: 12),
+          _SectionCard(
+            title: 'Kết quả xác nhận',
+            icon: Icons.task_alt_outlined,
+            child: Column(
+              children: [
+                OutboundCompletionAction(
+                  taskId: task.taskId,
+                  allowSubmit: false,
+                ),
+                OutboundFailureAction(taskId: task.taskId, allowSubmit: false),
+              ],
+            ),
+          ),
+        ],
+        if (showReturnPickupRecovery &&
+            task.kind == DeliveryTaskKind.returnPickup &&
+            task.scope != DeliverySnapshotScope.current) ...[
+          const SizedBox(height: 12),
+          _SectionCard(
+            title: 'Kết quả thu hồi',
+            icon: Icons.assignment_return_outlined,
+            child: ReturnPickupAction(taskId: task.taskId, allowSubmit: false),
+          ),
+        ],
+        if (showRedeliveryRecovery &&
+            task.kind == DeliveryTaskKind.redelivery &&
+            task.status != DeliveryTaskStatus.assigned &&
+            task.status != DeliveryTaskStatus.accepted &&
+            task.status != DeliveryTaskStatus.inTransit) ...[
+          const SizedBox(height: 12),
+          _SectionCard(
+            title: 'Kết quả giao lại',
+            icon: Icons.swap_horizontal_circle_outlined,
+            child: RedeliveryAction(
+              taskId: task.taskId,
+              task: task,
+              allowSubmit: false,
+            ),
+          ),
+        ],
+        if (showReporting && task.kind == DeliveryTaskKind.outbound) ...[
+          const SizedBox(height: 12),
+          _SectionCard(
+            title: 'Báo cáo bàn giao / sự cố',
+            icon: Icons.report_problem_outlined,
+            child: DeliveryReportingAction(taskId: task.taskId),
           ),
         ],
         const SizedBox(height: 12),
@@ -183,7 +379,7 @@ class _DetailHero extends StatelessWidget {
                 background: AppColors.surface,
               ),
               _Pill(
-                label: _statusLabel(task.status),
+                label: _statusLabel(task.status, task.kind),
                 foreground: AppColors.onPrimary,
                 background: statusColor,
               ),
@@ -297,15 +493,7 @@ class _RecipientSection extends StatelessWidget {
           spacing: 8,
           runSpacing: 8,
           children: [
-            Tooltip(
-              message: 'Chưa có khả năng gọi điện trên thiết bị này.',
-              child: OutlinedButton.icon(
-                key: const ValueKey('task-detail-call'),
-                onPressed: null,
-                icon: const Icon(Icons.phone_outlined),
-                label: const Text('Gọi điện'),
-              ),
-            ),
+            DeliveryCallAction(task: task),
             if (_canOpenMap(task))
               OutlinedButton.icon(
                 key: const ValueKey('task-detail-map'),
@@ -317,7 +505,7 @@ class _RecipientSection extends StatelessWidget {
         ),
         const SizedBox(height: 5),
         Text(
-          'Gọi điện chưa khả dụng. Bạn có thể sao chép số điện thoại để liên hệ.',
+          'Gọi điện chỉ mở trình quay số; bạn quyết định thực hiện cuộc gọi.',
           style: theme.textTheme.bodySmall?.copyWith(
             color: scheme.onSurfaceVariant,
           ),
@@ -513,7 +701,10 @@ class _CodSection extends StatelessWidget {
     final amountLabel = switch ((isOutbound, amount)) {
       (true, final value?) => _formatVnd(value),
       (true, null) => 'Chưa có tổng COD',
-      (false, _) => 'Không thu COD',
+      (false, _) =>
+        task.kind == DeliveryTaskKind.returnPickup
+            ? 'Không thu tiền'
+            : 'Không thu COD',
     };
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -527,7 +718,11 @@ class _CodSection extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          isOutbound ? 'Tổng COD cần thu' : 'Nhiệm vụ này không thu COD',
+          isOutbound
+              ? 'Tổng COD cần thu'
+              : task.kind == DeliveryTaskKind.returnPickup
+              ? 'Thu hồi hàng tại khách'
+              : 'Giao lại miễn phí · Không thu COD lần hai',
           style: theme.textTheme.bodySmall?.copyWith(
             color: scheme.onSurfaceVariant,
           ),
@@ -572,7 +767,7 @@ class _ActionSection extends StatelessWidget {
         ],
         const SizedBox(height: 4),
         Text(
-          'Thao tác sẽ được tích hợp sau; màn hình hiện chỉ đọc.',
+          'Các thao tác bị khóa sẽ được tích hợp ở phase tương ứng.',
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
@@ -611,7 +806,7 @@ class _ReadOnlyNotice extends StatelessWidget {
             child: Text(
               isMasked
                   ? 'Đây là bản ghi lịch sử hoặc bị giới hạn; dữ liệu riêng tư không được hiển thị.'
-                  : 'Màn hình hiện chỉ đọc. Các thao tác trạng thái chưa được bật.',
+                  : 'Các thao tác được xác minh theo nhiệm vụ trên server. Báo bàn giao chưa phải cửa hàng nhận, kiểm tra hoặc nhập lại tồn kho.',
               style: theme.textTheme.bodySmall,
             ),
           ),
@@ -787,6 +982,7 @@ class _DetailError extends StatelessWidget {
 }
 
 bool _shouldShowAttempt(DeliveryTaskSnapshot task) {
+  if (task.kind == DeliveryTaskKind.returnPickup) return false;
   if (task.kind != DeliveryTaskKind.outbound) return true;
   return switch (task.status) {
     DeliveryTaskStatus.assigned || DeliveryTaskStatus.accepted => true,
@@ -818,19 +1014,11 @@ List<String> _futureActionLabels(DeliveryTaskSnapshot task) {
     (DeliveryTaskKind.outbound, DeliveryTaskStatus.accepted) => [
       'Bắt đầu giao',
     ],
-    (DeliveryTaskKind.outbound, DeliveryTaskStatus.inTransit) => [
-      'Giao thành công',
-      'Báo giao thất bại',
-    ],
-    (DeliveryTaskKind.returnPickup, DeliveryTaskStatus.assigned) => [
-      'Xác nhận lấy hàng',
-    ],
-    (DeliveryTaskKind.returnPickup, DeliveryTaskStatus.accepted) => [
-      'Bắt đầu vận chuyển',
-    ],
-    (DeliveryTaskKind.returnPickup, DeliveryTaskStatus.inTransit) => [
-      'Báo bàn giao về kho',
-    ],
+    (DeliveryTaskKind.outbound, DeliveryTaskStatus.inTransit) => [],
+    // Pickup commands are rendered by ReturnPickupAction.  Do not leave
+    // disabled generic placeholders that suggest a separate accept/start or
+    // a store receipt API exists.
+    (DeliveryTaskKind.returnPickup, _) => const [],
     (DeliveryTaskKind.redelivery, DeliveryTaskStatus.assigned) => [
       'Nhận hàng giao lại',
     ],
@@ -848,10 +1036,21 @@ List<String> _futureActionLabels(DeliveryTaskSnapshot task) {
 String _kindLabel(DeliveryTaskKind kind) => switch (kind) {
   DeliveryTaskKind.outbound => 'Giao đơn hàng',
   DeliveryTaskKind.returnPickup => 'Lấy hàng hoàn',
-  DeliveryTaskKind.redelivery => 'Giao lại',
+  DeliveryTaskKind.redelivery => 'Giao lại miễn phí',
 };
 
-String _statusLabel(DeliveryTaskStatus status) => switch (status) {
+String _statusLabel(DeliveryTaskStatus status, DeliveryTaskKind kind) {
+  if (kind == DeliveryTaskKind.returnPickup) {
+    return switch (status) {
+      DeliveryTaskStatus.failed => 'Lấy hàng thất bại',
+      DeliveryTaskStatus.returnedToStore => 'Cửa hàng đã nhận',
+      _ => _genericStatusLabel(status),
+    };
+  }
+  return _genericStatusLabel(status);
+}
+
+String _genericStatusLabel(DeliveryTaskStatus status) => switch (status) {
   DeliveryTaskStatus.pendingAssignment => 'Đang chờ phân công',
   DeliveryTaskStatus.assigned => 'Đã phân công',
   DeliveryTaskStatus.accepted => 'Đã nhận hàng',
@@ -877,12 +1076,7 @@ bool _canOpenMap(DeliveryTaskSnapshot task) {
   return task.scope == DeliverySnapshotScope.current &&
       destination != null &&
       _isUuid(task.taskId) &&
-      destination.latitude.isFinite &&
-      destination.longitude.isFinite &&
-      destination.latitude >= -90 &&
-      destination.latitude <= 90 &&
-      destination.longitude >= -180 &&
-      destination.longitude <= 180;
+      destination.hasValidCoordinates;
 }
 
 bool _isUuid(String value) {

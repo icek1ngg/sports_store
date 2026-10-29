@@ -1,0 +1,16 @@
+{
+  "android": "15",
+  "size": "Physical size: 1080x2340",
+  "density": "Physical density: 440",
+  "font_scale": "1.0",
+  "accelerometer_rotation": "1",
+  "user_rotation": "0",
+  "accessibility_enabled": "0",
+  "enabled_accessibility_services": "null",
+  "avd": [
+    "Pixel_5",
+    "",
+    "OK",
+    ""
+  ]
+}

@@ -81,8 +81,26 @@ class DeliveryDestination {
   final String name;
   final String phone;
   final String address;
-  final double latitude;
-  final double longitude;
+  final double? latitude;
+  final double? longitude;
+
+  /// Whether this destination carries a complete, in-range map coordinate.
+  ///
+  /// The contact snapshot can be authorized even when one or both coordinates
+  /// are unavailable. Callers must check this before rendering a marker or
+  /// handing coordinates to navigation.
+  bool get hasValidCoordinates {
+    final currentLatitude = latitude;
+    final currentLongitude = longitude;
+    return currentLatitude != null &&
+        currentLongitude != null &&
+        currentLatitude.isFinite &&
+        currentLongitude.isFinite &&
+        currentLatitude >= -90 &&
+        currentLatitude <= 90 &&
+        currentLongitude >= -180 &&
+        currentLongitude <= 180;
+  }
 
   @override
   bool operator ==(Object other) {
