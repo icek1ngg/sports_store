@@ -1,5 +1,10 @@
 # Trạng thái nghiệp vụ
 
+MH03 dùng `products.is_active` và `product_variants.is_active` để ngừng bán,
+không xóa cứng hay thay snapshot đơn. MH19 chỉ lọc theo mốc đọc/người gửi tin
+cuối; không bổ sung enum trạng thái xử lý/hoàn tất hội thoại. Chi tiết tích hợp
+và hợp đồng ghi tại [Dung An Supabase](features/dung_an_supabase.md).
+
 Tài liệu này là hợp đồng trạng thái dùng chung cho MH01–MH20 và migration schema
 nền tảng. Các giá trị bên dưới đã được định nghĩa
 bằng enum hoặc ràng buộc trong schema để các ViewModel, repository và policy

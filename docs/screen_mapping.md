@@ -1,5 +1,9 @@
 # Ánh xạ màn hình Sports Store
 
+MH01/MH02/MH03/MH19 đã nối router và repository Supabase của ứng dụng chính;
+MH20 có trang đọc/gửi tin dùng chung theo ID. Routes, quyền và bước migration
+cloud còn lại tại [tích hợp Dung An](features/dung_an_supabase.md).
+
 Phạm vi chính gồm đúng 20 màn hình (MH01–MH20). Hộp thoại thêm/sửa sản phẩm,
 biến thể và bộ chọn vị trí trong màn đặt hàng là thành phần của màn hình tương
 ứng, không tạo thêm mã màn hình.

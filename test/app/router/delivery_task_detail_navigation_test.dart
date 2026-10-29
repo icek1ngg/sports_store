@@ -127,10 +127,7 @@ void main() {
         () =>
             taskReads > beforeMap &&
             (revokeBeforeMap
-                ? find
-                      .text('Ứng dụng đang được xây dựng.')
-                      .evaluate()
-                      .isNotEmpty
+                ? find.byKey(const ValueKey('app-entry')).evaluate().isNotEmpty
                 : find
                       .byKey(const ValueKey('mh18-outlet'))
                       .evaluate()

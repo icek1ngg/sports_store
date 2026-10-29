@@ -1,5 +1,20 @@
 # Database Sports Store
 
+## Tích hợp Dung An ngày 29/10/2026
+
+Migration `20261029041230_dung_an_management_integration.sql` bổ sung RPC quản lý
+sản phẩm/tồn kho, RPC hội thoại, receipt private và lưu số điện thoại đăng ký.
+Sau khi người dùng chạy migration, probe Data API trên project
+`bqoyfytmrtvjwrpshuhh` xác nhận cả năm RPC đã tồn tại và chặn anon (`42501`),
+không còn `PGRST202`. 37 kiểm tra database cô lập và 30 test chức năng đã qua.
+Chưa xác minh RLS/trigger trực tiếp bằng SQL quản trị hay thao tác ghi bằng
+tài khoản ứng dụng thật trên cloud vì phiên hiện tại chưa có quyền/phiên phù hợp. Xem
+[hợp đồng, phân quyền và cách xác minh](features/dung_an_supabase.md).
+
+Trigger mốc đọc chat mới bảo toàn key người khác, chỉ tăng key của người gọi tới
+timestamp snapshot không vượt giờ server. Đây là hành vi thay thế trigger
+baseline luôn đóng dấu giờ hiện tại.
+
 Mô tả baseline/P00.2 bên dưới là lịch sử thiết kế. P01.1 cuối file ghi thay
 đổi read projection và policy mới; không dùng predicate shipper của baseline
 như quyền hiện hành sau khi áp dụng migration P01.1.
