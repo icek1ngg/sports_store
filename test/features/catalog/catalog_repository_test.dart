@@ -146,6 +146,30 @@ void main() {
   }
 
   test(
+    'customer renders the HTTPS image saved by management without signing it',
+    () async {
+      final paths = <String>[];
+      final client = await fixtureClient((request) async {
+        paths.add(request.url.path);
+        return jsonResponse(request, [
+          {'role': 'customer'},
+        ]);
+      });
+      final access = OperationalReadAccess(client);
+      addTearDown(() async {
+        await access.dispose();
+        await client.dispose();
+      });
+      const image = 'https://images.example.test/catalog/running-shoes.jpg';
+      expect(
+        await SupabaseCatalogRepository(access: access).getImageUrl(image),
+        image,
+      );
+      expect(paths, ['/rest/v1/profiles']);
+    },
+  );
+
+  test(
     'late result from previous account is rejected before variant reads',
     () async {
       final started = Completer<void>();

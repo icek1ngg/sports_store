@@ -37,18 +37,13 @@ các cập nhật giao hàng, COD và bản đồ từ main.
 Các màn và luồng còn lại xem trạng thái cụ thể trong `docs/screen_mapping.md`;
 không coi toàn bộ MH01–MH20 đã hoàn thành.
 
-## Giao diện Dung An nhập từ prm
+## Các màn Dung An đã nối Supabase
 
-Đã nhập bốn màn MH01 đăng nhập, MH02 đăng ký, MH03 quản lý sản phẩm và MH19 danh sách hội thoại vào `lib/features/<feature>/presentation/pages/`, cùng ba ảnh STRIDE trong `assets/images/`. Các widget và theme của bản xem thử nằm trong `lib/shared/widgets/prm_preview_widgets.dart`.
+MH01 đăng nhập và MH02 đăng ký dùng Supabase Auth. MH03 quản lý sản phẩm đọc dữ liệu thật và lưu sản phẩm/biến thể/giá/tồn kho qua RPC giao dịch. MH19 đọc hội thoại, mở MH20 và gửi/đọc tin nhắn có lưu trữ. Các màn đã nối router chính và đọc quyền từ `profiles`.
 
-Chạy bản xem thử bằng entrypoint riêng:
+**Đã kiểm tra sau migration trên cloud:** Auth/Data API kết nối được tới project `bqoyfytmrtvjwrpshuhh`; cả năm RPC mới đã tồn tại và từ chối caller chưa đăng nhập đúng quyền (`42501`). Lượt kiểm tra lại có 30 test chức năng/điều hướng và 37 kiểm tra database cô lập thành công. Chưa kiểm thử thao tác ghi bằng tài khoản đăng nhập thật trên cloud. Chi tiết chức năng, giới hạn và kết quả ở [docs/features/dung_an_supabase.md](docs/features/dung_an_supabase.md).
 
-```powershell
-flutter pub get
-flutter run -d chrome -t tool/ui_preview/prm_main.dart
-```
-
-Phần nhập này giữ hành vi của source `prm`: MH01/MH02 chưa kết nối xác thực; MH03/MH19 dùng dữ liệu demo trong bộ nhớ. Điều hướng và theme trong entrypoint xem thử chỉ phục vụ demo. Việc nối các màn vào router, ViewModel, repository và backend dùng chung chưa nằm trong lần nhập source này. Điểm khởi động `lib/main.dart`, cấu hình Android và các module hiện có được giữ nguyên. Không nhập cache, build, cấu hình máy cá nhân hoặc các bản tài liệu Word/PDF từ thư mục nguồn.
+Entrypoint cũ `tool/ui_preview/prm_main.dart` nay chuyển vào ứng dụng chính, dùng cùng cấu hình Supabase và không còn dữ liệu demo.
 
 ## Chạy ứng dụng
 
@@ -93,5 +88,7 @@ kết quả kiểm tra cloud lịch sử và các luồng RPC còn cần làm.
 [docs/business_states.md](docs/business_states.md),
 [docs/api_contracts.md](docs/api_contracts.md) và
 [docs/screen_mapping.md](docs/screen_mapping.md) là hợp đồng dùng chung.
+
+Với cloud đang có dữ liệu, đối chiếu lịch sử và chỉ áp dụng migration còn thiếu.
 
 `supabase/tests/database_security.sql` kiểm tra quyền và constraint bằng fixture trong transaction, kết thúc bằng ROLLBACK. Chạy nguyên file qua kết nối quản trị có quyền phù hợp; không dùng `db reset --linked` trên project dùng chung.

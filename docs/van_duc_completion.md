@@ -225,9 +225,9 @@ Kiểm tra lại trên nền `v-duc` tại `69dfe6b` cùng phần thay đổi MH
 `git diff --check` đạt. Log ở `build/prepush_analyze.log` và
 `build/prepush_tests.log`, không đưa vào Git.
 
-Đã fetch và đối chiếu `origin/main` tại `b818f1b`; bản main này chưa được gộp
-vào snapshot kiểm thử trên. Model đơn hàng và SQL checkout tương thích.
+Tại thời điểm kiểm thử trên, `origin/main` ở `b818f1b` chưa được gộp
+vào snapshot kiểm thử. Model đơn hàng và SQL checkout tương thích.
 Khi tích hợp cần giữ DTO đơn hàng đầy đủ và màn COD đã triển khai của main,
 đồng thời hợp nhất dependencies/assets/fonts và tài liệu hai phía. Các màn
-Auth/quản lý sản phẩm preview và phần Orders chưa nối backend của nhóm không
-được xem là luồng production hoàn chỉnh chỉ vì đã có trên main.
+Tại thời điểm đó, Auth/quản lý sản phẩm mới là preview và phần Orders chưa nối
+backend. Các cập nhật sau mốc này được ghi trong tài liệu của từng nhóm.

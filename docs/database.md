@@ -1,5 +1,14 @@
 # Database Sports Store
 
+## Tích hợp catalog và checkout — 29/10/2026
+
+Migration `20261029094727_fix_catalog_checkout_lock_order.sql` cập nhật thứ tự
+khóa khi quản lý sửa sản phẩm: khóa biến thể theo UUID trước sản phẩm, phù hợp
+với checkout. Sau khi khóa sản phẩm, RPC kiểm tra lại tập biến thể; nếu tập
+thay đổi đồng thời, giao dịch từ chối để thử lại thay vì khóa ngược thứ tự.
+Chữ ký và quyền RPC không đổi. File migration chưa chứng minh cloud đã cập nhật;
+cần đối chiếu lịch sử và áp dụng theo quy trình của từng môi trường.
+
 Các cập nhật checkout và giao nhận ở đầu tài liệu mô tả những migration bổ
 sung đã được ghi nhận. Các mục baseline/P00 bên dưới giữ lịch sử thiết kế;
 trạng thái cloud và số lượng migration đi kèm từng mốc, không phải kết quả
@@ -59,6 +68,17 @@ Xem [hướng dẫn Supabase](supabase_catalog_guide.md) và
 [hợp đồng checkout/tồn kho](van_duc_catalog_checkout_contract.md).
 
 ## Giao nhận, COD và trả hàng — cập nhật đến 28/10/2026
+
+P10.3: [Migration order 22 files, fixture/demo/cleanup và setup](handover/delivery_p103.md).
+Catalog mới chỉ local guarded BEGIN/ROLLBACK, có manager/2shipper/2customer,
+3kind, COD collected/received và denied cases. Không migration/schema/RLS mới,
+không persistent demo accounts hoặc reset database dùng chung.
+
+P10.1 bổ sung SQL/security/concurrency QA, không migration/RPC/grant mới.
+Local PG17: 22 migrations, 17 SQL suites, 9 concurrency modules PASS; 51 bảng
+về baseline và trigger enablement không đổi. Không coi Auth/Storage SQL stubs
+là cloud acceptance; cancellation chỉ kiểm trusted fixture/trigger boundary.
+[Lệnh, traceability và giới hạn](qa/p101_sql_security_transactions.md).
 
 **Cập nhật production 28/10/2026:** migration
 `20261028062908_p083_redelivery_production.sql` đã deploy, hiện 22 migrations.

@@ -1,4 +1,6 @@
 -- Sports Store final-schema security and invariant checks.
+-- P10.1 additions live alongside this baseline in p101_security_contracts.sql
+-- and p101_delivery_cod_concurrency.mjs; run run_p101_sql_qa.ps1 for all suites.
 --
 -- The fixture uses only the tables and columns from the final simplified
 -- schema migration. It runs as a privileged database

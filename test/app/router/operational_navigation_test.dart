@@ -121,14 +121,104 @@ Future<void> _pumpUntil(
 }
 
 bool _hasKey(String key) => find.byKey(ValueKey(key)).evaluate().isNotEmpty;
-
 bool _hasText(String text) => find.text(text).evaluate().isNotEmpty;
 
 void _expectRoot() {
-  expect(_hasText('Ứng dụng đang được xây dựng.'), isTrue);
+  expect(_hasKey('app-entry'), isTrue);
 }
 
 void main() {
+  for (final suffix in ['', '/map']) {
+    testWidgets(
+      'TEST-ONLY MH17 handoff rejects revoked task destination $suffix',
+      (tester) async {
+        var authorized = true;
+        var guardReads = 0;
+        final guardRequests = <http.Request>[];
+        final target = '/shipper/tasks/${delivery_fixtures.taskId}$suffix';
+        final client = await _roleClient(
+          tester,
+          userId: shipperA,
+          roles: {shipperA: 'shipper'},
+          dataHandler: (request) async {
+            if (request.url.path.endsWith('/read_my_delivery_tasks')) {
+              guardReads++;
+              guardRequests.add(request);
+              return jsonResponse(
+                request,
+                authorized ? [delivery_fixtures.currentTaskDto()] : [],
+              );
+            }
+            if (request.url.path.endsWith('/get_my_delivery_task')) {
+              return jsonResponse(request, {
+                'task': delivery_fixtures.currentTaskDto(),
+                'items': [],
+                'notes': null,
+                'notes_source': 'unavailable_schema',
+                'as_of': '2026-10-28T03:00:00Z',
+              });
+            }
+            return jsonResponse(request, const <Object>[]);
+          },
+        );
+        addTearDown(() => _disposeApp(tester, client));
+        final router = await _pumpApp(
+          tester,
+          client,
+          notificationBuilder: (context) => Scaffold(
+            body: Column(
+              children: [
+                const Text(
+                  'TEST-ONLY MH17 handoff; not the notifications screen',
+                ),
+                FilledButton(
+                  key: const ValueKey('fixture-notification-task-link'),
+                  onPressed: () => GoRouter.of(context).go(target),
+                  child: const Text('Open fixture destination'),
+                ),
+              ],
+            ),
+          ),
+        );
+        router.go('/shipper/tasks/${delivery_fixtures.taskId}');
+        await _pumpUntil(
+          tester,
+          () => _hasText('Nguyễn Văn A'),
+          description:
+              'authorized cached recipient before notification handoff',
+        );
+        router.go('/notifications');
+        await _pumpUntil(
+          tester,
+          () => _hasKey('fixture-notification-task-link'),
+          description: 'explicit fixture handoff',
+        );
+        final before = guardReads;
+        authorized = false;
+        await tester.tap(
+          find.byKey(const ValueKey('fixture-notification-task-link')),
+        );
+        await _pumpUntil(
+          tester,
+          () => router.state.uri.path == '/' && _hasKey('app-entry'),
+          description: 'revoked notification destination rejected',
+        );
+        expect(guardReads, greaterThan(before));
+        expect(
+          guardRequests.every(
+            (request) =>
+                (jsonDecode(request.body) as Map)['p_task_id'] ==
+                delivery_fixtures.taskId,
+          ),
+          isTrue,
+        );
+        expect(router.state.uri.query, isEmpty);
+        expect(_hasKey('mh11-outlet'), isFalse);
+        expect(_hasKey('mh18-outlet'), isFalse);
+        expect(find.text('Nguyễn Văn A'), findsNothing);
+      },
+    );
+  }
   testWidgets('pop rechecks the revealed task and rejects revoked access', (
     tester,
   ) async {
@@ -184,7 +274,7 @@ void main() {
       () =>
           reads > beforeRevoke &&
           router.state.uri.path == '/' &&
-          _hasText('Ứng dụng đang được xây dựng.'),
+          _hasKey('app-entry'),
       description: 'revoked task after pop',
     );
     expect(_hasKey('mh11-outlet'), isFalse);
@@ -208,9 +298,7 @@ void main() {
     container.read(operationalReadAccessProvider).refreshSession();
     await _pumpUntil(
       tester,
-      () =>
-          router.state.uri.path == '/' &&
-          _hasText('Ứng dụng đang được xây dựng.'),
+      () => router.state.uri.path == '/' && _hasKey('app-entry'),
       description: 'role revoked after refresh',
     );
     expect(_hasKey('mh10-outlet'), isFalse);
@@ -235,9 +323,7 @@ void main() {
     await _recoverForWidget(tester, client, shipperB);
     await _pumpUntil(
       tester,
-      () =>
-          router.state.uri.path == '/' &&
-          _hasText('Ứng dụng đang được xây dựng.'),
+      () => router.state.uri.path == '/' && _hasKey('app-entry'),
       description: 'root after direct switch',
     );
     expect(_hasKey('shipper-navigation'), isFalse);
@@ -356,7 +442,7 @@ void main() {
     router.go('/shipper/tasks/${delivery_fixtures.taskId}/map');
     await _pumpUntil(
       tester,
-      () => _hasText('Ứng dụng đang được xây dựng.'),
+      () => _hasKey('app-entry'),
       description: 'root after denied historical map',
     );
     expect(_hasKey('mh18-outlet'), isFalse);
@@ -422,9 +508,7 @@ void main() {
     router.go('/');
     await _pumpUntil(
       tester,
-      () =>
-          router.state.uri.path == '/' &&
-          _hasText('Ứng dụng đang được xây dựng.'),
+      () => router.state.uri.path == '/' && _hasKey('app-entry'),
       description: 'root before unfiltered COD route',
     );
     final filteredRequestCount = codRequests.length;
@@ -447,9 +531,7 @@ void main() {
     router.go('/');
     await _pumpUntil(
       tester,
-      () =>
-          router.state.uri.path == '/' &&
-          _hasText('Ứng dụng đang được xây dựng.'),
+      () => router.state.uri.path == '/' && _hasKey('app-entry'),
       description: 'root before unauthorized COD route',
     );
     returnRows = false;
@@ -460,7 +542,7 @@ void main() {
       () =>
           router.state.uri.path == '/' &&
           codRequests.length > unauthorizedRequestCount &&
-          _hasText('Ứng dụng đang được xây dựng.'),
+          _hasKey('app-entry'),
       description: 'root after unauthorized COD order',
     );
     expect(_hasKey('mh12-outlet'), isFalse);
@@ -528,7 +610,7 @@ void main() {
     router.go('/?from=https://example.invalid/private');
     await _pumpUntil(
       tester,
-      () => _hasText('Ứng dụng đang được xây dựng.'),
+      () => _hasKey('app-entry'),
       description: 'root with external from query',
     );
     expect(router.state.uri.path, '/');
@@ -559,13 +641,13 @@ void main() {
     router.go('/shipper/tasks');
     await _pumpUntil(
       tester,
-      () => _hasText('Ứng dụng đang được xây dựng.'),
+      () => _hasKey('app-entry'),
       description: 'guest task redirect',
     );
     router.go('/cod');
     await _pumpUntil(
       tester,
-      () => _hasText('Ứng dụng đang được xây dựng.'),
+      () => _hasKey('app-entry'),
       description: 'guest COD redirect',
     );
 
@@ -580,13 +662,13 @@ void main() {
     router.go('/shipper/tasks');
     await _pumpUntil(
       tester,
-      () => _hasText('Ứng dụng đang được xây dựng.'),
+      () => _hasKey('app-entry'),
       description: 'customer task redirect',
     );
     router.go('/cod');
     await _pumpUntil(
       tester,
-      () => _hasText('Ứng dụng đang được xây dựng.'),
+      () => _hasKey('app-entry'),
       description: 'customer COD redirect',
     );
 
@@ -608,7 +690,7 @@ void main() {
     router.go('/shipper/tasks');
     await _pumpUntil(
       tester,
-      () => _hasText('Ứng dụng đang được xây dựng.'),
+      () => _hasKey('app-entry'),
       description: 'manager task redirect',
     );
     expect(_hasKey('mh10-outlet'), isFalse);
@@ -628,7 +710,7 @@ void main() {
     router.go('/cod');
     await _pumpUntil(
       tester,
-      () => _hasText('Ứng dụng đang được xây dựng.'),
+      () => _hasKey('app-entry'),
       description: 'forged metadata COD redirect',
     );
     expect(_hasKey('mh12-outlet'), isFalse);
@@ -656,7 +738,7 @@ void main() {
     );
     expect(router.state.uri.path, '/shipper/tasks');
     expect(_hasKey('mh10-outlet'), isFalse);
-    expect(_hasText('Ứng dụng đang được xây dựng.'), isFalse);
+    expect(_hasKey('app-entry'), isFalse);
   });
 
   testWidgets('opens the reserved notification slot by default', (
@@ -763,7 +845,7 @@ void main() {
     await _recoverForWidget(tester, client, _customerId);
     await _pumpUntil(
       tester,
-      () => _hasText('Ứng dụng đang được xây dựng.'),
+      () => _hasKey('app-entry'),
       description: 'root after logout and account switch',
     );
     expect(_hasKey('mh11-outlet'), isFalse);
@@ -772,7 +854,7 @@ void main() {
       jsonResponse(oldTaskRequest!, [delivery_fixtures.currentTaskDto()]),
     );
     await tester.pump(const Duration(milliseconds: 50));
-    expect(_hasText('Ứng dụng đang được xây dựng.'), isTrue);
+    expect(_hasKey('app-entry'), isTrue);
     expect(_hasKey('mh11-outlet'), isFalse);
     expect(router.state.uri.path, '/');
   });

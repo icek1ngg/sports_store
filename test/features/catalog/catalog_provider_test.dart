@@ -6,6 +6,7 @@ import 'package:sports_store/features/catalog/domain/models/catalog_page.dart';
 import 'package:sports_store/features/catalog/domain/models/catalog_query.dart';
 import 'package:sports_store/features/catalog/domain/models/category.dart';
 import 'package:sports_store/features/catalog/domain/models/product.dart';
+import 'package:sports_store/features/catalog/domain/models/managed_product.dart';
 import 'package:sports_store/features/catalog/domain/repositories/catalog_repository.dart';
 import 'package:sports_store/features/catalog/presentation/view_models/catalog_providers.dart';
 import 'package:sports_store/features/deliveries/data/repositories/operational_providers.dart';
@@ -25,6 +26,16 @@ class _Catalog implements CatalogRepository {
   Future<Product?> getProduct(String id) async => null;
   @override
   Future<String?> getImageUrl(String path) async => null;
+
+  @override
+  Future<CatalogSnapshot> loadManagement() =>
+      throw UnimplementedError('This fake covers customer reads only.');
+
+  @override
+  Future<String> saveProduct(
+    ManagedProduct product, {
+    required String requestId,
+  }) => throw UnimplementedError('This fake covers customer reads only.');
 }
 
 void main() {
