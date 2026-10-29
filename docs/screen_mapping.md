@@ -1,5 +1,38 @@
 # Ánh xạ màn hình Sports Store
 
+## Cập nhật phần Văn Đức ngày 27/10/2026
+
+MH04 `/customer/products` → MH05 `/customer/products/:productId` → MH06
+`/customer/cart` → MH16 `/customer/checkout`. Cả bốn route chỉ dành cho customer,
+dùng router và session guard chung. MH06 chỉ mở checkout khi giỏ hợp lệ, không
+có thao tác ghi chưa xác định. MH16 chứa bộ chọn vị trí dạng dialog, thông tin
+người nhận/địa chỉ, phí 30.000đ, đặt COD và biên nhận máy chủ.
+
+Chưa tự thêm route MH07 để tránh đè phần Orders của Bảo; biên nhận nằm trong
+MH16 và dùng canonical Order/OrderItem. Chi tiết kiểm thử/bàn giao hiện hành:
+[MH04–MH16](van_duc_completion.md). Những mục ngày 24/10 bên dưới giữ lịch sử.
+
+Cập nhật P1 ngày 28/10/2026: làm mới phiên cùng customer giữ nguyên trang đang
+mở, form MH16 và tọa độ đang chọn. Trong lúc kiểm tra lại quyền, Navigator và
+dialog vị trí được ẩn và khóa nhập liệu. Chỉ bốn route customer hợp lệ dùng
+chung kết quả kiểm tra role trong cùng phiên; task/COD vẫn kiểm tra đúng ID.
+Đăng xuất, đổi tài khoản hoặc bị thu hồi quyền loại bỏ màn và dữ liệu cũ.
+
+## Catalog và giỏ hàng của Văn Đức ngày 24/10/2026
+
+- MH04: `/customer/products` — danh sách, tìm theo tên, lọc danh mục, phân trang,
+  tải/lỗi/rỗng và ảnh private từ Supabase; guard customer trước khi render.
+- MH05: `/customer/products/:productId` — UUID thật, đọc chi tiết và chọn biến
+  thể/số lượng theo giá/tồn server; thêm vào giỏ qua CartViewModel.
+- MH06: `/customer/cart` — customer xem giỏ riêng, sửa số lượng/xóa, tạm tính,
+  tải lại và thử lại thao tác đang chờ. Giữ dòng không còn bán để khách xóa.
+  Guard customer trước khi render; cart không dùng shell shipper.
+- Công cụ `tool/catalog_live/main.dart` dùng cùng router/client và đăng nhập
+  Supabase thật để thử trước khi MH01 của An được tích hợp; không tăng số màn hình.
+- MH16 chưa triển khai; nút đặt hàng ở MH06 vô hiệu hóa và ghi rõ chưa sẵn sàng. Xem
+  [hợp đồng tích hợp](van_duc_catalog_checkout_contract.md) và
+  [hướng dẫn Supabase](supabase_catalog_guide.md).
+
 Phạm vi chính gồm đúng 20 màn hình (MH01–MH20). Hộp thoại thêm/sửa sản phẩm,
 biến thể và bộ chọn vị trí trong màn đặt hàng là thành phần của màn hình tương
 ứng, không tạo thêm mã màn hình.

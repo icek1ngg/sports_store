@@ -1,5 +1,98 @@
 # Hợp đồng truy cập database
 
+## MH16 — Đặt hàng COD (27/10/2026)
+
+Phiên bản triển khai phía Văn Đức dùng chữ ký CIN-02 đã được đề xuất, không
+thay các API giao hàng/COD. Không mặc định nhánh Orders của Bảo đã tích hợp
+wrapper này. Nền Order/OrderItem và hai base DTO được lấy từ Orders để dùng
+chung; không tạo model đơn hàng trong checkout.
+
+```text
+place_order(p_request_id uuid, p_items jsonb, p_recipient_name text,
+  p_recipient_phone text, p_address_detail text,
+  p_latitude numeric, p_longitude numeric) -> jsonb
+p_items = [{variant_id: UUID, quantity: positive integer}, ...]
+
+get_placement_result(p_request_id uuid) -> jsonb
+```
+
+Envelope thành công `{ok:true,data:{order,items,event_id,replayed},error:null}`;
+`order` là 21 field của Orders, mỗi item là 11 field snapshot của OrderItem.
+Lookup thêm `state:committed|not_found`; not_found bắt buộc order/event_id null,
+items rỗng, replayed false. Lookup trả trạng thái đơn hiện hành; snapshot món
+hàng và mã sự kiện giữ nguyên. Client đối chiếu customer, request và chính xác
+tập variant/số lượng trước khi coi biên nhận là thành công.
+
+Envelope lỗi `{ok:false,data:null,error:{code}}`, gồm `invalid_argument`,
+`insufficient_stock`, `outside_service_area`, `idempotency_conflict`,
+`forbidden_or_unavailable`, `external_dependency_unavailable`. Lỗi transport
+không được coi là rollback; giữ yêu cầu chờ và thử cùng mã. Xung đột payload
+cũng không chứng minh request ID chưa có đơn.
+
+Khách hàng hiện tại do server xác thực qua profiles. Không nhận customer ID,
+giá, phí, tổng tiền, trạng thái, event ID hoặc danh sách manager từ client.
+Khóa yêu cầu theo customer/request, khóa tồn theo UUID; toàn bộ đơn, snapshot,
+reserve ledger, event và notification cùng transaction. Các metadata/fingerprint
+và tập manager nhận thông báo được lưu riêng trong `private.checkout_placements`.
+Không cấp client quyền ghi hoặc đọc bảng này. Generic event không sử dụng
+`business_events.request_id` dành cho incident.
+
+Vùng giao lấy từ `store_settings.approved_service_area_geojson`, kiểm tra Polygon/
+MultiPolygon trên server và từ chối khi cấu hình hỏng/thiếu. Phí 30.000 VND,
+COD, snapshot giá server, không trừ `on_hand` khi đặt. Không xóa giỏ tự động.
+Xem [bàn giao và cách chạy](van_duc_completion.md) để phân biệt fixture và cloud.
+
+## MH06 — CartRepository và thao tác giỏ (24/10/2026)
+
+`features/cart` sở hữu `CartItem`, `CartFailure`, `CartRepository` và
+`CartViewModel`. CartItem tham chiếu Product/ProductVariant của catalog; không
+tạo bản sao model sản phẩm hoặc Order. Dùng client và session epoch hiện có
+qua OperationalReadAccess; mọi thao tác kiểm tra role customer từ profiles và
+RLS ở server. Không thêm RPC, migration hoặc dependency trong mốc MH06.
+
+- `getItems()` đọc toàn bộ giỏ của current user qua cursor variant UUID; quan
+  hệ catalog LEFT giữ dòng bị RLS ẩn biến thể/sản phẩm. Dòng đó không có giá
+  khả dụng và không đủ điều kiện checkout; không giả lập tên/giá đã mất.
+- `setQuantity(variantId,quantity)` đặt số lượng tuyệt đối dương, kiểm tra
+  catalog/tồn đọc hiện tại. UPDATE chỉ cột quantity; nếu chưa có dòng thì INSERT
+  customer_id/variant_id/quantity. Trùng khóa do thiết bị khác chèn thì lặp lại
+  cùng target. Không dùng upsert đòi UPDATE key ngoài column grants.
+- `removeItem(variantId)` DELETE đúng owner/key; dòng đã mất là kết quả hợp lệ
+  của thao tác xóa lặp. Không xóa dòng của khách khác.
+- `CartViewModel.addItem` đọc lượng hiện tại rồi cố định target = lượng cũ +
+  lượng chọn. Bấm lặp đang ghi bị chặn. Lỗi chưa rõ kết quả giữ target trong
+  phiên; retry ghi lại target cũ, không cộng thêm lần nữa. Refresh không bỏ
+  thao tác chưa xác định, kể cả token làm mới cho cùng customer. Đổi tài khoản/
+  đăng xuất xóa snapshot và intent hiển thị cũ; bỏ response đến muộn.
+- Chỉ công bố thành công sau ghi được xác nhận và đọc lại giỏ. Lỗi thiếu tồn/
+  hàng ngừng bán cho phép khách chỉnh giỏ. Tạm tính chỉ cộng dòng còn đọc được
+  giá và ghi rõ cảnh báo nếu có dòng thiếu; giá/tồn cần kiểm tra lại khi đặt.
+
+Cập nhật P2 ngày 29/10/2026: lock theo customer tồn tại tới khi request thật
+kết thúc, độc lập với lần build/epoch. Quay A → B → A khi lệnh A chưa kết thúc
+chỉ khôi phục command đang chạy của A; B không nhận dữ liệu hoặc intent của A.
+Sau khi lệnh cũ kết thúc ở epoch khác, không báo thành công bằng response cũ;
+giữ target để người dùng xác minh/thử lại tường minh. Lỗi phiên/quyền sau ghi
+không chứng minh rollback nên không tự bỏ target. Nếu đọc giỏ sau token refresh
+lỗi mạng/backend, snapshot đã biết của cùng user được đánh dấu chưa xác minh;
+checkout và thao tác ghi mới vẫn bị khóa. Lỗi quyền/dữ liệu không dùng fallback.
+
+Giỏ không giữ tồn. Các ghi tuyệt đối là last-writer-wins khi nhiều thiết bị sửa
+cùng dòng; chưa có hợp đồng merge cộng dồn giữa thiết bị hoặc recovery request
+giỏ qua app restart. MH16 và transaction đặt đơn vẫn là phần tích hợp tiếp theo;
+không báo đặt đơn thành công từ giỏ. Các test transport dùng fixture, không
+thay thế bằng chứng CRUD/Storage/Auth trên cloud.
+
+## Catalog MH04/MH05 và bàn giao checkout của Văn Đức
+
+Ngày 24/10/2026: [hợp đồng catalog/checkout/inventory](van_duc_catalog_checkout_contract.md)
+ghi rõ repository đọc catalog đã triển khai, route customer, private images và
+quy tắc phiên. Các chữ ký `place_order`, lookup và primitive tồn kho trong tài
+liệu này mới là thiết kế phía Văn Đức bám CIN-02/CIN-04 của nhánh Bảo; chưa có
+RPC tương ứng và chưa xác nhận đồng thuận hai phía. Không thay thế các hợp đồng
+delivery/COD đã ghi bên dưới. [Hướng dẫn Supabase](supabase_catalog_guide.md)
+giúp chạy catalog bằng tài khoản thật.
+
 Lưu ý phiên bản: baseline và P00.2 dưới đây ghi hiện trạng trước P01.1.
 Lớp đọc task mới và các quyền bị thu hẹp được mô tả tại mục P01.1 cuối file;
 không dùng nhánh shipper của baseline làm quyền truy cập hiện hành sau migration đó.

@@ -1,5 +1,58 @@
 # Database Sports Store
 
+## Bổ sung checkout ngày 27/10/2026
+
+`20261027005254_checkout_placement.sql` bổ sung RPC đặt đơn/lookup và
+`private.checkout_placements` lưu fingerprint ý định chuẩn hóa, order/event
+canonical, source key có phạm vi customer và tập manager nhận thông báo đã cố
+định. Bảng bật RLS và không cấp quyền cho client. Không đổi field/state của
+orders, order_items, delivery_tasks hoặc COD.
+
+Reservation ghi `inventory_movements(kind=reserve,reserved_delta=quantity)`;
+`on_hand` không đổi. Các helper nội bộ không được gọi trực tiếp từ client.
+Những API hủy/xuất hàng vẫn phải kiểm tra trạng thái và quyền trong transaction
+của feature sở hữu. Checkout không triển khai thay các thao tác đó.
+
+`20261027005305_hanoi_service_area.sql` điền polygon Hà Nội từ Government of
+Viet Nam/HDX qua geoBoundaries gbHumanitarian 2020 vào store_settings nếu chưa
+có vùng giao. Giữ nguyên vùng đã cấu hình trước. File nguồn, giấy phép và hash
+ghi trong [bàn giao](van_duc_completion.md). Validator Polygon/MultiPolygon
+không phụ thuộc PostGIS và fail closed khi dữ liệu không hợp lệ.
+
+`20261027010030_checkout_exact_intent.sql` giữ chữ ký RPC và so sánh cả JSON
+ý định đã chuẩn hóa khi replay, bảo đảm cùng hash nhưng khác payload vẫn bị
+từ chối. Ba version trên đã được xác minh trong migration history cloud;
+không chạy lại DDL bằng script seed.
+
+## MH06 — Sử dụng schema giỏ hiện tại (24/10/2026)
+
+Cart adapter dùng khóa `(customer_id, variant_id)` trên `cart_items` sau migration
+simplification, chỉ ghi quantity và xóa dòng theo quyền customer hiện có. Không
+thêm bảng carts, không sửa giá/on_hand/reserved/damaged, không tạo migration
+mới. LEFT relation giữ dòng giỏ khi catalog đã bị RLS ẩn; UI cho khách xóa.
+Giá/tồn đọc hiện tại chỉ để hỗ trợ giỏ, không thay thế transaction đặt hàng.
+
+
+## Catalog MH04/MH05 — 24/10/2026
+
+Adapter catalog đọc schema hiện có, không cần migration mới. Danh sách đọc
+`products` cùng `categories`; biến thể active được đọc theo lô và UUID cursor
+đến hết để không bị cắt bởi giới hạn dòng của API. Giá/tồn lấy từ
+`product_variants.price_vnd` và `available_quantity`, không cập nhật tồn từ UI.
+Ảnh lấy signed URL từ private bucket `product-images`.
+
+`supabase/seed_catalog_demo.sql` là seed tùy chọn: 3 sản phẩm, 5 biến thể,
+4 ledger khởi tạo tồn. Chạy lại không đặt lại tồn/giá/ảnh; trùng ID khác
+danh tính bị từ chối. Seed đã được kiểm tra trên PostgreSQL 17.10 cục bộ cùng
+bốn migration và bộ SQL RLS hiện có; chưa chạy lên project cloud trong mốc này.
+Runner tái hiện: `supabase/tests/run_catalog_fixture.mjs` (cần runtime `pg`,
+PG17 riêng tại `supabase/.temp/catalog_pg_data`, localhost:55441; luôn tạo DB
+mới với tên bắt đầu `catalog_`, không xóa DB cũ). Auth/Storage trong fixture là
+SQL stub, không thay thế kiểm thử đăng nhập/Storage trên Supabase thật.
+
+Xem [hướng dẫn Supabase](supabase_catalog_guide.md) và
+[hợp đồng checkout/tồn kho](van_duc_catalog_checkout_contract.md).
+
 Mô tả baseline/P00.2 bên dưới là lịch sử thiết kế. P01.1 cuối file ghi thay
 đổi read projection và policy mới; không dùng predicate shipper của baseline
 như quyền hiện hành sau khi áp dụng migration P01.1.

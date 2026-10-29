@@ -1,5 +1,17 @@
 # Trạng thái nghiệp vụ
 
+## MH16 — Điểm vào luồng đơn hàng (27/10/2026)
+
+Checkout tạo đơn `pending_confirmation`, `delivery_attempt_count = 0`, giá và
+phí COD snapshot do server xác định. Cùng transaction ghi reserve ledger, giữ
+`on_hand` và tăng `reserved`. Thêm giỏ không giữ tồn. Retry placement trả cùng
+đơn và trạng thái hiện hành, không đưa đơn đã xử lý trở lại trạng thái chờ.
+
+Trạng thái khôi phục cục bộ “đang xác minh” không phải trạng thái đơn trong DB.
+`not_found` không cho phép kết luận rollback hoặc đổi request ID đang chờ.
+Checkout không xác nhận đơn, không gán shipper, không ghi thu tiền; các chuyển
+trạng thái tiếp theo vẫn thuộc Orders/Delivery/COD theo hợp đồng bên dưới.
+
 Tài liệu này là hợp đồng trạng thái dùng chung cho MH01–MH20 và migration schema
 nền tảng. Các giá trị bên dưới đã được định nghĩa
 bằng enum hoặc ràng buộc trong schema để các ViewModel, repository và policy

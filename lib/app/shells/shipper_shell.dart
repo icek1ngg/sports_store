@@ -23,7 +23,7 @@ class ShipperShell extends StatelessWidget {
           notifications
               ? 'Thông báo'
               : cod
-              ? 'Đối soát COD'
+              ? 'Đối soát tiền thu hộ'
               : 'Nhiệm vụ',
         ),
         leading: location.path != '/shipper/tasks' && !cod
@@ -57,7 +57,7 @@ class ShipperShell extends StatelessWidget {
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.payments_outlined),
-                  label: 'COD',
+                  label: 'Tiền thu hộ',
                 ),
               ],
             )

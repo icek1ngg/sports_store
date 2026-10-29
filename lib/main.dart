@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app/sports_store_app.dart';
+import 'app/localization/app_localization.dart';
 import 'core/config/supabase_config.dart';
 
 Future<void> main() async {
@@ -29,6 +30,10 @@ class StartupFailureApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const MaterialApp(
+      title: 'Sports Store',
+      locale: AppLocalization.locale,
+      supportedLocales: AppLocalization.supportedLocales,
+      localizationsDelegates: AppLocalization.delegates,
       debugShowCheckedModeBanner: false,
       home: Scaffold(
         body: Center(

@@ -519,7 +519,10 @@ VALUES (
 );
 
 INSERT INTO public.store_settings (id, name, address, latitude, longitude)
-VALUES (true, 'Sports Store', 'Ba Dinh, Ha Noi', 21.0333, 105.8333);
+VALUES (true, 'Sports Store', 'Ba Dinh, Ha Noi', 21.0333, 105.8333)
+ON CONFLICT (id) DO UPDATE SET
+  name = EXCLUDED.name, address = EXCLUDED.address,
+  latitude = EXCLUDED.latitude, longitude = EXCLUDED.longitude;
 
 -- Storage metadata rows exercise object policies without writing blob bytes.
 INSERT INTO storage.objects (bucket_id, name)

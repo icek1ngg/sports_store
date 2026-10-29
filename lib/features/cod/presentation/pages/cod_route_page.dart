@@ -10,12 +10,12 @@ class CodRoutePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       key: ValueKey('mh12-outlet'),
-      label: 'Đối soát COD',
+      label: 'Đối soát tiền thu hộ',
       child: Center(
         child: Padding(
           padding: EdgeInsets.all(24),
           child: Text(
-            'Giao diện đối soát COD chưa được tích hợp.',
+            'Giao diện đối soát tiền thu hộ chưa được tích hợp.',
             textAlign: TextAlign.center,
           ),
         ),
