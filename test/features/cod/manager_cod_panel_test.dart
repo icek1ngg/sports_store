@@ -111,6 +111,7 @@ Widget _app(
   _BackendFixture backend, {
   int Function()? generate,
   TextScaler? scaler,
+  bool routed = false,
 }) => ProviderScope(
   overrides: [
     operationalSessionProvider.overrideWith(
@@ -133,7 +134,24 @@ Widget _app(
           .copyWith(textScaler: scaler ?? TextScaler.noScaling),
       child: child!,
     ),
-    home: const Scaffold(body: CodRoutePage()),
+    home: routed
+        ? Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                key: const ValueKey('open-cod-route'),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const Scaffold(
+                      key: ValueKey('cod-detail-route'),
+                      body: CodRoutePage(),
+                    ),
+                  ),
+                ),
+                child: const Text('Open COD'),
+              ),
+            ),
+          )
+        : const Scaffold(body: CodRoutePage()),
   ),
 );
 
@@ -234,13 +252,19 @@ void main() {
       final backend = _BackendFixture();
       final gate = Completer<void>();
       backend.onWrite = () => gate.future;
-      await tester.pumpWidget(_app(backend));
+      await tester.pumpWidget(_app(backend, routed: true));
+      await tester.tap(find.byKey(const ValueKey('open-cod-route')));
       await tester.pumpAndSettle();
       await _open(tester);
       await _agree(tester);
       await tester.tap(find.byKey(const ValueKey('manager-cod-confirm')));
+      await tester.tap(
+        find.byKey(const ValueKey('manager-cod-confirm')),
+        warnIfMissed: false,
+      );
       await tester.pump();
       expect(backend.commands, hasLength(1));
+      expect(find.byKey(const ValueKey('cod-detail-route')), findsOneWidget);
       final open = find.byKey(const ValueKey('manager-cod-open-$_order'));
       expect(tester.widget<FilledButton>(open).onPressed, isNull);
       gate.complete();

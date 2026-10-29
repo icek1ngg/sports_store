@@ -128,6 +128,7 @@ class _ManagerCodPanelState extends ConsumerState<ManagerCodPanel>
     final amount = collection.collectedAmountVnd;
     setState(() => _dialogOpen = true);
     var checked = false;
+    var decided = false;
     try {
       final route = DialogRoute<bool>(
         context: context,
@@ -193,13 +194,21 @@ class _ManagerCodPanelState extends ConsumerState<ManagerCodPanel>
                 actions: [
                   TextButton(
                     key: const ValueKey('manager-cod-cancel'),
-                    onPressed: () => Navigator.pop(context, false),
+                    onPressed: () {
+                      if (decided) return;
+                      decided = true;
+                      Navigator.pop(context, false);
+                    },
                     child: const Text('Chưa nhận đủ'),
                   ),
                   FilledButton(
                     key: const ValueKey('manager-cod-confirm'),
                     onPressed: checked
-                        ? () => Navigator.pop(context, true)
+                        ? () {
+                            if (decided) return;
+                            decided = true;
+                            Navigator.pop(context, true);
+                          }
                         : null,
                     child: const Text('Xác nhận'),
                   ),

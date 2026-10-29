@@ -8,3 +8,11 @@ abstract interface class DeliveryRepository {
   Future<DeliveryTaskSnapshot> getTask(String taskId);
   Future<DeliveryTaskDetails> getTaskDetails(String taskId);
 }
+
+/// The separately scoped read contract used by MH18's map projection.
+///
+/// This remains outside [DeliveryRepository] so existing delivery fakes and
+/// non-map consumers keep the strict detail-read contract unchanged.
+abstract interface class DeliveryMapReader {
+  Future<DeliveryTaskDetails> getMapTaskDetails(String taskId);
+}

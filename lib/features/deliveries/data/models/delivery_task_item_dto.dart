@@ -13,10 +13,15 @@ class DeliveryTaskItemDto {
     this.quantityCollected,
     this.unitPriceVnd,
     this.lineTotalVnd,
+    this.allowReturnMetadata = false,
   });
 
-  factory DeliveryTaskItemDto.fromJson(Map<String, dynamic> json) {
+  factory DeliveryTaskItemDto.fromJson(
+    Map<String, dynamic> json, {
+    bool allowReturnMetadata = false,
+  }) {
     return DeliveryTaskItemDto(
+      allowReturnMetadata: allowReturnMetadata,
       itemId: DeliveryDtoReaders.readRequiredUuid(json, 'item_id'),
       itemSource: DeliveryItemSource.fromValue(
         DeliveryDtoReaders.readRequiredString(
@@ -56,6 +61,7 @@ class DeliveryTaskItemDto {
   final int? quantityCollected;
   final int? unitPriceVnd;
   final int? lineTotalVnd;
+  final bool allowReturnMetadata;
 
   DeliveryTaskItem toDomain() {
     _validate();
@@ -116,8 +122,8 @@ class DeliveryTaskItemDto {
         if (quantityCollected == null ||
             unitPriceVnd != null ||
             lineTotalVnd != null ||
-            variantLabel != null ||
-            attributes != null) {
+            (!allowReturnMetadata &&
+                (variantLabel != null || attributes != null))) {
           throw DeliveryDtoReaders.invalid(
             'item_source',
             'return plan fields (collection required, prices/metadata absent)',
