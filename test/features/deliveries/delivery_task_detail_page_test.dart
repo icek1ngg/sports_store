@@ -38,6 +38,25 @@ class _FixtureDetailViewModel extends DeliveryTaskDetailViewModel {
 }
 
 void main() {
+  testWidgets('renders product URL and handles network image failure', (
+    tester,
+  ) async {
+    const url = 'https://example.com/ball.webp';
+    final vm = _FixtureDetailViewModel(
+      _taskId,
+      AsyncData(_outboundDetails(_taskId, url)),
+    );
+    await tester.pumpWidget(_app(_taskId, vm));
+    final image = tester.widget<Image>(find.byType(Image));
+    expect((image.image as NetworkImage).url, url);
+    expect(image.semanticLabel, 'Bóng đá');
+    expect(image.loadingBuilder, isNotNull);
+    expect(image.errorBuilder, isNotNull);
+    await tester.pumpAndSettle();
+    expect(find.text('Bóng đá'), findsOneWidget);
+    expect(find.text('Ảnh chưa được cung cấp'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
   for (final kind in [DeliveryTaskKind.outbound, DeliveryTaskKind.redelivery]) {
     testWidgets('mock scenario: ${kind.value} in transit is read-only', (
       tester,
@@ -84,13 +103,14 @@ void main() {
     await tester.pumpWidget(_app(_taskId, vm));
 
     expect(find.text('Giao đơn hàng'), findsOneWidget);
+    expect(find.text('Báo cáo bàn giao / sự cố'), findsNothing);
     expect(find.text('Đã phân công'), findsOneWidget);
     expect(find.text(_taskId), findsOneWidget);
     expect(find.text('Nguyễn Văn A'), findsOneWidget);
     expect(find.text('0900000000'), findsOneWidget);
     expect(find.text('550.000 đ'), findsOneWidget);
     expect(find.text('Lần dự kiến: 1 / 2'), findsOneWidget);
-    expect(find.text('Ảnh chưa được cung cấp'), findsOneWidget);
+    expect(find.text('Ảnh chưa được cung cấp'), findsNothing);
     expect(
       find.byKey(
         const ValueKey(
@@ -313,7 +333,10 @@ DeliveryTaskDetails _inTransitDetails(DeliveryTaskKind kind) {
   );
 }
 
-DeliveryTaskDetails _outboundDetails([String taskId = _taskId]) {
+DeliveryTaskDetails _outboundDetails([
+  String taskId = _taskId,
+  String? imageUrl,
+]) {
   return DeliveryTaskDetails(
     task: DeliveryTaskSnapshot(
       taskId: taskId,
@@ -332,6 +355,7 @@ DeliveryTaskDetails _outboundDetails([String taskId = _taskId]) {
         itemId: '44444444-4444-4444-8444-444444444444',
         itemSource: DeliveryItemSource.orderSnapshot,
         productName: 'Bóng đá',
+        imageUrl: imageUrl,
         variantLabel: 'Size 5',
         attributes: const {'color': 'white'},
         quantity: 2,

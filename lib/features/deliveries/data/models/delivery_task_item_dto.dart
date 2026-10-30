@@ -13,6 +13,7 @@ class DeliveryTaskItemDto {
     this.quantityCollected,
     this.unitPriceVnd,
     this.lineTotalVnd,
+    this.imageUrl,
     this.allowReturnMetadata = false,
   });
 
@@ -31,6 +32,7 @@ class DeliveryTaskItemDto {
         ),
       ),
       productName: DeliveryDtoReaders.readRequiredString(json, 'product_name'),
+      imageUrl: _httpsImageUrl(json['image_url']),
       variantLabel: DeliveryDtoReaders.readNullableString(
         json,
         'variant_label',
@@ -61,6 +63,7 @@ class DeliveryTaskItemDto {
   final int? quantityCollected;
   final int? unitPriceVnd;
   final int? lineTotalVnd;
+  final String? imageUrl;
   final bool allowReturnMetadata;
 
   DeliveryTaskItem toDomain() {
@@ -75,7 +78,19 @@ class DeliveryTaskItemDto {
       quantityCollected: quantityCollected,
       unitPriceVnd: unitPriceVnd,
       lineTotalVnd: lineTotalVnd,
+      imageUrl: imageUrl,
     );
+  }
+
+  static String? _httpsImageUrl(Object? value) {
+    if (value is! String) return null;
+    final uri = Uri.tryParse(value);
+    return uri != null &&
+            uri.scheme == 'https' &&
+            uri.host.isNotEmpty &&
+            uri.userInfo.isEmpty
+        ? value
+        : null;
   }
 
   void _validate() {

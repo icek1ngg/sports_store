@@ -4,14 +4,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app/sports_store_app.dart';
 import 'app/localization/app_localization.dart';
-import 'core/config/supabase_config.dart';
+import 'core/config/load_supabase_config.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
-    final config = SupabaseConfig.fromEnvironment();
-    config.validate();
+    final config = await loadSupabaseConfig();
     await Supabase.initialize(
       url: config.url,
       publishableKey: config.publishableKey,

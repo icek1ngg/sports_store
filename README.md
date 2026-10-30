@@ -63,7 +63,13 @@ flutter run -d <device-id> --dart-define-from-file=config/supabase.json
 
 `config/supabase.json` đã cấu hình project `bqoyfytmrtvjwrpshuhh`. Đây là URL và **publishable key** dành cho client, được lưu trong Git để cả nhóm dùng cùng cấu hình. Không thêm secret key, service-role key hoặc mật khẩu database vào file này. Quyền truy cập dữ liệu phải được kiểm soát bằng RLS ở backend.
 
-Phải truyền `--dart-define-from-file` khi chạy hoặc build. Nếu thiếu cấu hình, ứng dụng hiển thị lỗi khởi động. Để dùng project riêng, tạo `config/supabase.local.json` với cùng hai trường; file `*.local.json` đã được Git bỏ qua.
+Khi chạy `lib/main.dart` không có `--dart-define`, ứng dụng tự đọc `config/supabase.json` được đóng gói trong assets. Có thể dùng `flutter run` hoặc nút Run thông thường. Để dùng project riêng, tạo `config/supabase.local.json` với cùng hai trường và truyền `--dart-define-from-file=config/supabase.local.json`; file `*.local.json` đã được Git bỏ qua. Nếu truyền cấu hình riêng thiếu hoặc sai, ứng dụng báo lỗi và không tự chuyển sang project mặc định.
+
+Trong VS Code, mở thư mục gốc repository, chọn thiết bị, chọn cấu hình **Sports Store** ở Run and Debug rồi nhấn **F5**. File `.vscode/launch.json` đã truyền cấu hình Supabase cho lần chạy này.
+
+Trong Android Studio, vào **Run → Edit Configurations**, chọn cấu hình Flutter chạy `lib/main.dart`, thêm `--dart-define-from-file=config/supabase.json` vào **Additional run args**, rồi chạy lại.
+
+Nếu log báo `Application startup failed: ArgumentError` ngay sau khi APK build thành công, kiểm tra cấu hình mặc định hoặc tham số ghi đè trên. Sau khi thay đổi assets/cấu hình, dừng phiên chạy cũ và chạy lại hoàn toàn; hot reload không cập nhật các giá trị `String.fromEnvironment`.
 
 ## Kiểm tra
 

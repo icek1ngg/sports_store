@@ -362,8 +362,9 @@ từ return_items cho pickup; redelivery cần danh sách hàng thực tế tr�
 đã được Sơn xác nhận S1/S2, không dùng nguyên đơn để đoán. `variant_id` và
 `order_item_id` nullable cho hàng giao sai. Chỉ outbound cần unit_price_vnd/
 line_total_vnd; không trả sellable/damaged hoặc dữ liệu kiểm tra cho shipper.
-Ảnh không có snapshot path trong order_items; không join catalog bằng quyền
-rộng hơn để tải ảnh. Cho null/placeholder cho đến khi có projection/quyền S1.
+Ảnh outbound lấy từ `order_items.product_image_url` qua projection có kiểm tra
+quyền (bổ sung 30/10/2026); không join catalog bằng quyền rộng hơn. Private path
+và ảnh hàng trả chưa có snapshot xác minh tiếp tục trả null.
 Không DTO nào chứa customer UUID, bank details, video, inspection/refund evidence,
 refund amount hoặc nguyên row `return_requests`/`orders` cho shipper.
 
@@ -1910,3 +1911,12 @@ MH11 gọi fail_delivery_task đã deploy qua OutboundFailureRepository/Operatio
 Người dùng chốt outbound trước: report_store_handover kiểm tra current assignee/holder, order awaiting_store_return và task failed hoặc task2 cancelled do hoàn sớm; xác nhận full item/quantity theo dispatch/custody server. report_delivery_incident dùng enum damaged/lost/other, reason không chỉ whitespace, sau custody ở accepted/in_transit/failed hoặc task2 cancelled chờ hoàn. Cả hai chỉ ghi report/event và notification chủ cửa hàng; không đổi state/result/COD/count/inventory/receipt/inspection/compensation.
 
 Ledger actor/request dùng chung hai operation: same key/payload replay sau reauthorization; khác payload/target/operation conflict. Handover chỉ một report/order, key khác conflict; incident cho phép nhiều report và vẫn được báo sau handover nếu holder/state hợp lệ. Event UUID do server sinh, không dùng client key unique toàn cục. Pickup/redelivery bị từ chối explicit, D8/D9 còn cần Sơn; không khai các nhánh này là production. [Contract, trạng thái deploy và acceptance P07.4](demos/p074_production_delivery_reporting.md) thay boundary cũ theo phạm vi outbound được chốt.
+# Ảnh hàng giao MH11 — 30/10/2026
+
+`get_my_delivery_task` bổ sung `items[].image_url` nullable cho `order_snapshot`.
+Đây là URL HTTPS chụp tại lúc tạo order item, không phải quyền đọc catalog cho
+shipper. Quyền caller/task vẫn theo projection hiện có; nhiệm vụ không còn
+được phép đọc item không trả ảnh. App bỏ qua URL không hợp lệ và dùng biểu tượng
+gọn khi ảnh thiếu/tải lỗi. Bản này hỗ trợ ảnh HTTPS; object path private và hàng
+lấy trả/giao lại chưa có ảnh xác minh nên trả null, không lấy ảnh hàng đặt để
+giả làm ảnh hàng khách thực nhận.

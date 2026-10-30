@@ -47,6 +47,10 @@ class DungAnRoutePage extends ConsumerWidget {
     final profile = profileState.requireValue!;
     if (profile.id != session.requireValue.userId) return const _AccessStatus();
     if (profile.role == AppRole.shipper) {
+      final path = GoRouterState.of(context).uri.path;
+      if (path == '/' || path == '/login') {
+        return _ShipperEntry(key: ValueKey(profile.id), userId: profile.id);
+      }
       return _AccessStatus(
         message: 'Tài khoản giao hàng',
         retryLabel: 'Mở nhiệm vụ giao hàng',
@@ -78,6 +82,38 @@ class DungAnRoutePage extends ConsumerWidget {
               : const ProductManagementScreen()),
     );
   }
+}
+
+class _ShipperEntry extends ConsumerStatefulWidget {
+  const _ShipperEntry({super.key, required this.userId});
+  final String userId;
+
+  @override
+  ConsumerState<_ShipperEntry> createState() => _ShipperEntryState();
+}
+
+class _ShipperEntryState extends ConsumerState<_ShipperEntry> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final session = ref.read(authSessionProvider);
+      final profile = ref.read(currentProfileProvider);
+      final path = GoRouterState.of(context).uri.path;
+      if (!session.isLoading &&
+          !profile.isLoading &&
+          session.asData?.value.userId == widget.userId &&
+          profile.asData?.value?.id == widget.userId &&
+          profile.asData?.value?.role == AppRole.shipper &&
+          (path == '/' || path == '/login')) {
+        context.go('/shipper/tasks');
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => const _AccessStatus();
 }
 
 class _AccessStatus extends ConsumerWidget {

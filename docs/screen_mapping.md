@@ -1,5 +1,26 @@
 # Ánh xạ màn hình Sports Store
 
+Back MH11 → MH10: giữ Navigator trong cùng phiên và ẩn/khóa tương tác khi kiểm
+tra quyền, cập nhật giao diện ngay khi guard hoàn tất. Không cache quyền
+giữa các lần truy cập. Đổi phiên,
+lỗi quyền hoặc URL sai vẫn tháo dữ liệu cũ. Danh sách tải lại một lần, giữ bộ lọc.
+
+Cập nhật 30/10/2026: gỡ mục **Báo cáo bàn giao / sự cố** khỏi MH11 và ngừng
+khởi tạo/làm mới reporting controller từ màn này. Các thao tác nhận nhiệm vụ,
+bắt đầu giao, giao thành công/thất bại và lấy hàng trả vẫn giữ nguyên.
+API và dữ liệu báo cáo cũ được giữ để bảo toàn lịch sử, không còn điểm mở từ app.
+
+Thanh điều hướng manager gồm **Sản phẩm**, **Hội thoại**, **COD**. Mục COD mở
+MH12 `/cod` qua guard hiện có; màn COD giữ thanh điều hướng manager để quay lại
+hai mục còn lại. Customer không thấy mục COD và shipper giữ thanh điều hướng riêng.
+
+## Khởi đầu phiên shipper — 30/10/2026
+
+Sau khi xác minh hồ sơ shipper tại `/` hoặc `/login`, ứng dụng tự chuyển đến
+MH10 `/shipper/tasks`, kể cả khi khôi phục phiên đăng nhập. Các liên kết nhiệm vụ,
+bản đồ và COD đang mở vẫn dùng guard hiện có. Thanh ứng dụng trong shell giao
+nhận có nút **Đăng xuất**, khóa khi đang xử lý và báo lỗi nếu thao tác thất bại.
+
 ## Cập nhật phần Văn Đức ngày 27/10/2026
 
 MH04 `/customer/products` → MH05 `/customer/products/:productId` → MH06

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/auth/presentation/view_models/auth_providers.dart';
 import '../../features/auth/presentation/view_models/auth_view_model.dart';
+import 'manager_navigation_bar.dart';
 
 /// Navigation for the connected Dung An screens. The profile comes from RLS.
 class StoreManagementShell extends ConsumerWidget {
@@ -62,21 +63,7 @@ class StoreManagementShell extends ConsumerWidget {
         ),
       ),
       bottomNavigationBar: manager
-          ? NavigationBar(
-              selectedIndex: inbox ? 1 : 0,
-              onDestinationSelected: (index) =>
-                  context.go(index == 0 ? '/manager/products' : '/chat'),
-              destinations: const [
-                NavigationDestination(
-                  icon: Icon(Icons.inventory_2_outlined),
-                  label: 'Sản phẩm',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.chat_bubble_outline),
-                  label: 'Hội thoại',
-                ),
-              ],
-            )
+          ? ManagerNavigationBar(selectedIndex: inbox ? 1 : 0)
           : null,
     );
   }

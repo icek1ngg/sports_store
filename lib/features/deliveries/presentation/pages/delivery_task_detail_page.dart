@@ -14,9 +14,7 @@ import '../widgets/delivery_call_action.dart';
 import '../widgets/outbound_completion_action.dart';
 import '../view_models/outbound_completion_view_model.dart';
 import '../view_models/outbound_failure_view_model.dart';
-import '../view_models/delivery_reporting_view_model.dart';
 import '../widgets/outbound_failure_action.dart';
-import '../widgets/delivery_reporting_action.dart';
 import '../view_models/outbound_task_actions_view_model.dart';
 import '../view_models/return_pickup_view_model.dart';
 import '../widgets/return_pickup_action.dart';
@@ -45,17 +43,10 @@ class _DeliveryTaskDetailPageState
   bool _outboundControllerActive = false;
   bool _returnPickupControllerActive = false;
   bool _redeliveryControllerActive = false;
-  bool _reportingControllerActive = false;
-  DeliveryTaskSnapshot? _lastReportingSnapshot;
-  var _reportingContextRefreshScheduled = false;
   Future<void> _refresh() async {
     await ref
         .read(deliveryTaskDetailViewModelProvider(widget.taskId).notifier)
         .refresh();
-    if (!mounted || !_reportingControllerActive) return;
-    await ref
-        .read(deliveryReportingViewModelProvider(widget.taskId).notifier)
-        .refreshContext();
   }
 
   @override
@@ -75,16 +66,6 @@ class _DeliveryTaskDetailPageState
     // reconciliation is switching the task into a restricted terminal view.
     if (task?.kind == DeliveryTaskKind.redelivery) {
       _redeliveryControllerActive = true;
-    }
-    // Reporting has its own restricted projection. Once this page has seen
-    // any outbound task, keep its controller alive across detail refreshes so
-    // an uncertain handover/incident command retains the same request key.
-    if (task?.kind == DeliveryTaskKind.outbound) {
-      _reportingControllerActive = true;
-      if (_lastReportingSnapshot != null && _lastReportingSnapshot != task) {
-        _scheduleReportingContextRefresh();
-      }
-      _lastReportingSnapshot = task;
     }
     if (_outboundControllerActive) {
       ref.watch(outboundTaskActionsViewModelProvider(widget.taskId));
@@ -106,9 +87,6 @@ class _DeliveryTaskDetailPageState
     if (_redeliveryControllerActive) {
       ref.watch(redeliveryViewModelProvider(widget.taskId));
     }
-    if (_reportingControllerActive) {
-      ref.watch(deliveryReportingViewModelProvider(widget.taskId));
-    }
 
     return RefreshIndicator(
       key: const ValueKey('task-detail-refresh'),
@@ -120,20 +98,6 @@ class _DeliveryTaskDetailPageState
         slivers: [_content(state)],
       ),
     );
-  }
-
-  void _scheduleReportingContextRefresh() {
-    if (_reportingContextRefreshScheduled) return;
-    _reportingContextRefreshScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _reportingContextRefreshScheduled = false;
-      if (!mounted || !_reportingControllerActive) return;
-      unawaited(
-        ref
-            .read(deliveryReportingViewModelProvider(widget.taskId).notifier)
-            .refreshContext(),
-      );
-    });
   }
 
   Widget _content(AsyncValue<DeliveryTaskDetails> state) {
@@ -187,7 +151,6 @@ class _DeliveryTaskDetailPageState
             showCompletionRecovery: _completionControllerActive,
             showReturnPickupRecovery: _returnPickupControllerActive,
             showRedeliveryRecovery: _redeliveryControllerActive,
-            showReporting: _reportingControllerActive,
           ),
         ],
       ),
@@ -202,7 +165,6 @@ class _DetailBody extends StatelessWidget {
     required this.showCompletionRecovery,
     required this.showReturnPickupRecovery,
     required this.showRedeliveryRecovery,
-    required this.showReporting,
   });
 
   final DeliveryTaskDetails details;
@@ -210,7 +172,6 @@ class _DetailBody extends StatelessWidget {
   final bool showCompletionRecovery;
   final bool showReturnPickupRecovery;
   final bool showRedeliveryRecovery;
-  final bool showReporting;
 
   @override
   Widget build(BuildContext context) {
@@ -334,14 +295,7 @@ class _DetailBody extends StatelessWidget {
             ),
           ),
         ],
-        if (showReporting && task.kind == DeliveryTaskKind.outbound) ...[
-          const SizedBox(height: 12),
-          _SectionCard(
-            title: 'Báo cáo bàn giao / sự cố',
-            icon: Icons.report_problem_outlined,
-            child: DeliveryReportingAction(taskId: task.taskId),
-          ),
-        ],
+
         const SizedBox(height: 12),
         _ReadOnlyNotice(scope: task.scope),
       ],
@@ -603,7 +557,7 @@ class _ItemRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          key: ValueKey('image-placeholder-${item.itemId}'),
+          key: ValueKey('item-image-${item.itemId}'),
           width: 64,
           height: 64,
           decoration: BoxDecoration(
@@ -611,23 +565,37 @@ class _ItemRow extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: AppColors.hairlineSoft),
           ),
-          child: Icon(
-            Icons.image_not_supported,
-            color: scheme.onSurfaceVariant,
-          ),
+          clipBehavior: Clip.antiAlias,
+          child: item.imageUrl == null
+              ? Icon(
+                  Icons.inventory_2_outlined,
+                  color: scheme.onSurfaceVariant,
+                  key: ValueKey('image-placeholder-${item.itemId}'),
+                )
+              : Image.network(
+                  item.imageUrl!,
+                  fit: BoxFit.cover,
+                  semanticLabel: item.productName,
+                  loadingBuilder: (context, child, progress) => progress == null
+                      ? child
+                      : const Center(
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                  errorBuilder: (_, _, _) => Icon(
+                    Icons.inventory_2_outlined,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Ảnh chưa được cung cấp',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 3),
               Text(
                 item.productName,
                 maxLines: 2,

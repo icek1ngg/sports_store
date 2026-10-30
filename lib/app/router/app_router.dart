@@ -51,7 +51,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     navigatorKey: navigatorKey,
     observers: [_RecheckOnPop(recheckAfterPop)],
     refreshListenable: guard,
-    redirect: (context, state) => guard.redirect(state),
+    redirect: (context, state) async {
+      final destination = await guard.redirect(state);
+      if (ref.mounted &&
+          destination == '/' &&
+          guard.decisionFor(state.uri)?.failure != null) {
+        // A live authorization rejection may mean the cached profile role was
+        // revoked. Refresh before the entry page chooses a role destination.
+        ref.invalidate(currentProfileProvider);
+      }
+      return destination;
+    },
     errorBuilder: (context, state) =>
         const _NavigationStatusPage(message: 'Không tìm thấy trang.'),
     routes: [
@@ -103,10 +113,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       ShellRoute(
         observers: [_RecheckOnPop(recheckAfterPop)],
-        builder: (context, state, child) => _OperationalRouteBoundary(
-          guard: guard,
-          location: state.uri,
-          child: child,
+        builder: (context, state, child) => ListenableBuilder(
+          listenable: guard.decisionChanges,
+          builder: (context, _) => _OperationalRouteBoundary(
+            guard: guard,
+            location: state.uri,
+            child: child,
+          ),
         ),
         routes: [
           GoRoute(
@@ -234,6 +247,8 @@ class _OperationalRouteBoundary extends ConsumerStatefulWidget {
 class _OperationalRouteBoundaryState
     extends ConsumerState<_OperationalRouteBoundary> {
   String? _authorizedCustomerId;
+  Object? _authorizedOperationalSession;
+  String? _operationalRole;
 
   @override
   Widget build(BuildContext context) {
@@ -283,12 +298,38 @@ class _OperationalRouteBoundaryState
         ],
       );
     }
-    if (!allowed) return status;
-    return ShipperShell(
-      key: ValueKey(session),
-      role: decision.role!,
-      location: widget.location,
-      child: widget.child,
+    if (!identical(session, _authorizedOperationalSession) ||
+        session?.failure != null ||
+        decision?.failure != null ||
+        decision?.invalidId == true) {
+      _authorizedOperationalSession = null;
+      _operationalRole = null;
+    }
+    if (allowed) {
+      _authorizedOperationalSession = session;
+      _operationalRole = decision.role;
+    }
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (_authorizedOperationalSession != null)
+          Offstage(
+            offstage: !allowed,
+            child: TickerMode(
+              enabled: allowed,
+              child: ExcludeFocus(
+                excluding: !allowed,
+                child: ShipperShell(
+                  key: ValueKey(_authorizedOperationalSession),
+                  role: _operationalRole!,
+                  location: widget.location,
+                  child: widget.child,
+                ),
+              ),
+            ),
+          ),
+        if (!allowed) status,
+      ],
     );
   }
 
@@ -308,15 +349,22 @@ class _OperationalRouteBoundaryState
     }
     return const _NavigationStatusPage(
       key: ValueKey('navigation-checking-access'),
-      message: 'Đang kiểm tra quyền truy cập…',
+      message: 'Đang tải màn hình…',
+      loading: true,
     );
   }
 }
 
 class _NavigationStatusPage extends StatelessWidget {
-  const _NavigationStatusPage({super.key, required this.message, this.onRetry});
+  const _NavigationStatusPage({
+    super.key,
+    required this.message,
+    this.onRetry,
+    this.loading = false,
+  });
   final String message;
   final VoidCallback? onRetry;
+  final bool loading;
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Sports Store')),
@@ -324,13 +372,18 @@ class _NavigationStatusPage extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(message),
+          if (loading) ...[
+            const CircularProgressIndicator(),
+            const SizedBox(height: 24),
+          ],
+          Semantics(liveRegion: true, child: Text(message)),
           if (onRetry != null)
             TextButton(onPressed: onRetry, child: const Text('Thử lại')),
-          TextButton(
-            onPressed: () => context.go('/'),
-            child: const Text('Về trang đầu'),
-          ),
+          if (!loading)
+            TextButton(
+              onPressed: () => context.go('/'),
+              child: const Text('Về trang đầu'),
+            ),
         ],
       ),
     ),
