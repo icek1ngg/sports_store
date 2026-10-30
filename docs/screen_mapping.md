@@ -1,5 +1,20 @@
 # Ánh xạ màn hình Sports Store
 
+Cập nhật 30/10/2026: entry `/` và `/login` sau xác thực dẫn tới
+`/customer/products`, `/manager/orders` hoặc `/shipper/tasks` theo profile
+server. `/register` cũng chuyển về trang theo role nếu đã có phiên hợp lệ.
+Sau đồng bộ main, MH04 dùng module catalog thật của Văn Đức; MH05/MH06/MH16
+và các guard customer được giữ như mô tả phía dưới. MH08 dùng UI hiện có khi
+`orderRepositoryProvider` được bind adapter thật; mặc định route manager báo
+dịch vụ đơn hàng chưa tích hợp, không dùng dữ liệu demo.
+Manager vẫn mở MH03 `/manager/products`, MH19 `/chat`, MH12 `/cod`; khách có
+đường vào MH19 riêng. Chi tiết và kiểm thử ở
+[cập nhật Dung An](features/dung_an_supabase.md).
+
+MH01/MH02/MH03/MH19 đã nối router và repository Supabase của ứng dụng chính;
+MH20 có trang đọc/gửi tin dùng chung theo ID. Routes, quyền và bước migration
+cloud còn lại tại [tích hợp Dung An](features/dung_an_supabase.md).
+
 ## Cập nhật phần Văn Đức ngày 27/10/2026
 
 MH04 `/customer/products` → MH05 `/customer/products/:productId` → MH06

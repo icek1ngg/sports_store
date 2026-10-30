@@ -52,6 +52,9 @@ void main() {
       });
       final access = _RecoveringAccessFixture(client);
       final container = ProviderContainer(
+        // This fixture exercises the explicit retry action, without Riverpod
+        // resubscribing and replaying its scripted stream error automatically.
+        retry: (_, _) => null,
         overrides: [operationalReadAccessProvider.overrideWithValue(access)],
       );
       final subscription = container.listen(codScreenRoleProvider, (_, _) {});

@@ -26,7 +26,14 @@ class ShipperShell extends StatelessWidget {
               ? 'Đối soát tiền thu hộ'
               : 'Nhiệm vụ',
         ),
-        leading: location.path != '/shipper/tasks' && !cod
+        leading: role == 'manager' && cod
+            ? IconButton(
+                key: const ValueKey('manager-home'),
+                tooltip: 'Về quản lý đơn hàng',
+                icon: const Icon(Icons.home_outlined),
+                onPressed: () => context.go('/manager/orders'),
+              )
+            : location.path != '/shipper/tasks' && !cod
             ? BackButton(
                 onPressed: () => context.canPop()
                     ? context.pop()

@@ -1,5 +1,10 @@
 # Trạng thái nghiệp vụ
 
+MH03 dùng `products.is_active` và `product_variants.is_active` để ngừng bán,
+không xóa cứng hay thay snapshot đơn. MH19 chỉ lọc theo mốc đọc/người gửi tin
+cuối; không bổ sung enum trạng thái xử lý/hoàn tất hội thoại. Chi tiết tích hợp
+và hợp đồng ghi tại [Dung An Supabase](features/dung_an_supabase.md).
+
 Các cập nhật đầu tài liệu bổ sung cho baseline và các mốc phase lịch sử bên
 dưới. Việc có enum/constraint không tự chứng minh endpoint đã triển khai;
 phạm vi đã triển khai được xác định theo từng cập nhật và chứng cứ liên kết.

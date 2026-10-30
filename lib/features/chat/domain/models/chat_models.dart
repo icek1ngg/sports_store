@@ -42,8 +42,9 @@ class ChatMessagePage {
 }
 
 class ChatFailure implements Exception {
-  const ChatFailure(this.message);
+  const ChatFailure(this.message, {this.accessDenied = false});
   final String message;
+  final bool accessDenied;
   @override
   String toString() => message;
 }

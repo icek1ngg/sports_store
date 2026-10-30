@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../shared/widgets/prm_preview_widgets.dart';
 import '../../domain/models/managed_product.dart';
+import '../../domain/models/product_image.dart';
 import '../view_models/product_management_view_model.dart';
 
 class ProductManagementScreen extends ConsumerStatefulWidget {
@@ -48,6 +49,9 @@ class _ProductManagementScreenState
         save: (value, request) => ref
             .read(productManagementViewModelProvider.notifier)
             .save(value, requestId: request),
+        uploadImage: () => ref
+            .read(productManagementViewModelProvider.notifier)
+            .pickAndUploadImage(),
       ),
     );
   }
@@ -344,10 +348,12 @@ class _ProductEditor extends StatefulWidget {
     this.product,
     required this.categories,
     required this.save,
+    required this.uploadImage,
   });
   final ManagedProduct? product;
   final List<CatalogCategory> categories;
   final Future<void> Function(ManagedProduct, String) save;
+  final Future<UploadedProductImage?> Function() uploadImage;
   @override
   State<_ProductEditor> createState() => _ProductEditorState();
 }
@@ -359,6 +365,8 @@ class _ProductEditorState extends State<_ProductEditor> {
   late String _category;
   late bool _active;
   bool _saving = false;
+  bool _uploading = false;
+  UploadedProductImage? _uploadedImage;
   String? _error;
   String? _requestId;
   ManagedProduct? _pendingCommand;
@@ -369,10 +377,17 @@ class _ProductEditorState extends State<_ProductEditor> {
     _name = TextEditingController(text: p?.name);
     _description = TextEditingController(text: p?.description);
     _image = TextEditingController(text: p?.imagePath);
+    _image.addListener(_imageChanged);
     _category = p?.categoryId ?? widget.categories.first.id;
     _active = p?.active ?? true;
     _variants =
         p?.variants.map(_VariantFields.new).toList() ?? [_VariantFields(null)];
+  }
+
+  void _imageChanged() {
+    if (_uploadedImage != null && _image.text != _uploadedImage!.path) {
+      setState(() => _uploadedImage = null);
+    }
   }
 
   @override
@@ -387,7 +402,7 @@ class _ProductEditorState extends State<_ProductEditor> {
   }
 
   Future<void> _save() async {
-    if (_saving || !_form.currentState!.validate()) return;
+    if (_saving || _uploading || !_form.currentState!.validate()) return;
     final product = widget.product;
     final command =
         _pendingCommand ??
@@ -425,9 +440,36 @@ class _ProductEditorState extends State<_ProductEditor> {
     }
   }
 
+  Future<void> _uploadImage() async {
+    if (_saving || _uploading || _pendingCommand != null) return;
+    setState(() {
+      _uploading = true;
+      _error = null;
+    });
+    try {
+      final uploaded = await widget.uploadImage();
+      if (mounted && uploaded != null) {
+        setState(() {
+          _uploadedImage = uploaded;
+          _image.text = uploaded.path;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _error = error is CatalogFailure
+              ? error.message
+              : 'Không thể tải ảnh lên. Vui lòng thử lại.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => PopScope(
-    canPop: !_saving,
+    canPop: !_saving && !_uploading,
     child: Padding(
       padding: EdgeInsets.fromLTRB(
         20,
@@ -456,7 +498,9 @@ class _ProductEditorState extends State<_ProductEditor> {
                     ),
                   ),
                   IconButton(
-                    onPressed: _saving ? null : () => Navigator.pop(context),
+                    onPressed: _saving || _uploading
+                        ? null
+                        : () => Navigator.pop(context),
                     icon: const Icon(Icons.close),
                   ),
                 ],
@@ -477,7 +521,7 @@ class _ProductEditorState extends State<_ProductEditor> {
                   ),
                 ),
               AbsorbPointer(
-                absorbing: _saving || _pendingCommand != null,
+                absorbing: _saving || _uploading || _pendingCommand != null,
                 child: Column(
                   children: [
                     _field(_name, 'Tên sản phẩm *'),
@@ -508,6 +552,35 @@ class _ProductEditorState extends State<_ProductEditor> {
                       'URL ảnh HTTPS hoặc đường dẫn trong product-images',
                       required: false,
                     ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: _uploadImage,
+                      icon: const Icon(Icons.upload_file),
+                      label: Text(
+                        _uploading
+                            ? 'Đang chọn / tải ảnh…'
+                            : 'Chọn ảnh từ thiết bị',
+                      ),
+                    ),
+                    const Text(
+                      'PNG, JPEG hoặc WebP, tối đa 5 MB. Lưu sản phẩm để áp dụng ảnh.',
+                    ),
+                    if (_uploadedImage != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: SizedBox(
+                          height: 120,
+                          child: Image.network(
+                            _uploadedImage!.previewUrl,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, _, _) => const Center(
+                              child: Text(
+                                'Đã tải ảnh. Không thể hiển thị ảnh xem trước.',
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       title: const Text('Đang bán'),
@@ -541,7 +614,7 @@ class _ProductEditorState extends State<_ProductEditor> {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: _saving ? null : _save,
+                  onPressed: _saving || _uploading ? null : _save,
                   child: Text(
                     _saving
                         ? 'Đang lưu...'

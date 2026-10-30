@@ -13,6 +13,7 @@ class SupabaseChatRepository implements ChatRepository {
     if (session == null || session.isExpired) {
       throw const ChatFailure(
         'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.',
+        accessDenied: true,
       );
     }
     try {
@@ -21,14 +22,20 @@ class SupabaseChatRepository implements ChatRepository {
           .setHeader('Authorization', 'Bearer ${session.accessToken}')
           .retry(enabled: false, requestTimeout: const Duration(seconds: 15));
       if (!identical(client.auth.currentSession, session)) {
-        throw const ChatFailure('Tài khoản đã thay đổi. Vui lòng tải lại.');
+        throw const ChatFailure(
+          'Tài khoản đã thay đổi. Vui lòng tải lại.',
+          accessDenied: true,
+        );
       }
       return result;
     } on ChatFailure {
       rethrow;
     } on PostgrestException catch (e) {
       if (e.code == '42501' || e.code == 'P0002') {
-        throw const ChatFailure('Bạn không có quyền truy cập hội thoại này.');
+        throw const ChatFailure(
+          'Bạn không có quyền truy cập hội thoại này.',
+          accessDenied: true,
+        );
       }
       if (e.code == 'PGRST202' || e.code == '42883') {
         throw const ChatFailure(
