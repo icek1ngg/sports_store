@@ -12,11 +12,6 @@ import '../../features/orders/presentation/pages/manager_orders_page.dart';
 import '../../features/orders/presentation/view_models/order_providers.dart';
 import '../shells/store_management_shell.dart';
 
-/// The catalog owner supplies MH04 here when its production module is ready.
-final customerCatalogRouteBuilderProvider = Provider<WidgetBuilder?>(
-  (ref) => null,
-);
-
 /// This boundary discards old data immediately when an auth epoch changes.
 class DungAnRoutePage extends ConsumerWidget {
   const DungAnRoutePage({super.key, this.inbox = false, this.detailBuilder});
@@ -92,10 +87,6 @@ class DungAnRoutePage extends ConsumerWidget {
           }
         },
       );
-    } else if (path == '/customer/products') {
-      content =
-          ref.watch(customerCatalogRouteBuilderProvider)?.call(context) ??
-          const _ModuleUnavailable('Danh sách sản phẩm chưa được tích hợp.');
     } else if (path == '/manager/orders') {
       content = ref.watch(orderRepositoryProvider) == null
           ? const _ModuleUnavailable(

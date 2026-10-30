@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:sports_store/features/catalog/data/repositories/supabase_catalog_repository.dart';
 import 'package:sports_store/features/catalog/domain/models/managed_product.dart';
+import 'package:sports_store/features/deliveries/data/repositories/operational_read_access.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const userId = '10000000-0000-4000-8000-000000000001';
@@ -16,6 +17,7 @@ const requestId = '50000000-0000-4000-8000-000000000001';
 void main() {
   late SupabaseClient client;
   late SupabaseCatalogRepository repository;
+  late OperationalReadAccess access;
   late List<http.Request> requests;
   late Future<http.Response> Function(http.Request) handler;
   http.Response json(Object? value, [int status = 200]) => http.Response(
@@ -31,7 +33,12 @@ void main() {
       }
       if (request.url.path.endsWith('/categories')) {
         return json([
-          {'id': categoryId, 'name': 'Giày', 'is_active': true},
+          {
+            'id': categoryId,
+            'code': 'shoes',
+            'name': 'Giày',
+            'is_active': true,
+          },
         ]);
       }
       if (request.url.path.endsWith('/product_variants')) {
@@ -45,6 +52,7 @@ void main() {
             'price_vnd': 350000,
             'on_hand': 10,
             'reserved': 3,
+            'available_quantity': 7,
             'is_active': true,
           },
         ]);
@@ -58,16 +66,23 @@ void main() {
           'image_path': null,
           'is_active': true,
           'updated_at': '2026-10-29T01:00:00Z',
-          'categories': {'name': 'Giày'},
+          'categories': {
+            'id': categoryId,
+            'code': 'shoes',
+            'name': 'Giày',
+            'is_active': true,
+          },
           'product_variants': [
             {
               'id': variantId,
+              'product_id': productId,
               'sku': 'SHOE-M',
               'label': 'Size M',
               'attributes': {'size': 'M'},
               'price_vnd': 350000,
               'on_hand': 10,
               'reserved': 3,
+              'available_quantity': 7,
               'is_active': true,
             },
           ],
@@ -107,9 +122,13 @@ void main() {
         },
       }),
     );
-    repository = SupabaseCatalogRepository(client);
+    access = OperationalReadAccess(client);
+    repository = SupabaseCatalogRepository(access: access);
   });
-  tearDown(() => client.dispose());
+  tearDown(() async {
+    await access.dispose();
+    await client.dispose();
+  });
 
   test('loads canonical variants, integer VND and available stock', () async {
     final snapshot = await repository.loadManagement();
@@ -129,6 +148,37 @@ void main() {
       throwsA(isA<CatalogFailure>()),
     );
     expect(requests.length, 1);
+  });
+
+  test('one adapter serves management and customer projections with distinct permissions', () async {
+    final management = await repository.loadManagement();
+    final baseHandler = handler;
+    handler = (request) async {
+      if (request.url.path.endsWith('/profiles')) {
+        return json({'role': 'customer'});
+      }
+      if (request.url.path.endsWith('/product_variants') &&
+          request.url.queryParameters['id']?.startsWith('gt.') == true) {
+        return json([]);
+      }
+      return baseHandler(request);
+    };
+    final product = await repository.getProduct(productId);
+    expect(product!.id, management.products.single.id);
+    expect(product.name, management.products.single.name);
+    expect(
+      product.variants.single.priceVnd,
+      management.products.single.minimumPrice,
+    );
+    expect(product.availableQuantity, management.products.single.available);
+
+    requests.clear();
+    await expectLater(
+      repository.loadManagement(),
+      throwsA(isA<CatalogFailure>()),
+    );
+    expect(requests, hasLength(1));
+    expect(requests.single.url.path, '/rest/v1/profiles');
   });
 
   test(

@@ -5,6 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sports_store/core/supabase/supabase_providers.dart';
 import 'package:sports_store/features/catalog/domain/models/managed_product.dart';
+import 'package:sports_store/features/catalog/domain/models/catalog_page.dart';
+import 'package:sports_store/features/catalog/domain/models/catalog_query.dart';
+import 'package:sports_store/features/catalog/domain/models/category.dart';
+import 'package:sports_store/features/catalog/domain/models/product.dart';
 import 'package:sports_store/features/catalog/domain/models/product_image.dart';
 import 'package:sports_store/features/catalog/domain/repositories/catalog_repository.dart';
 import 'package:sports_store/features/catalog/domain/repositories/product_image_repository.dart';
@@ -14,6 +18,15 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../support/operational_supabase_fixture.dart';
 
 class _Catalog implements CatalogRepository {
+  @override
+  Future<List<Category>> getCategories() => throw UnimplementedError();
+  @override
+  Future<CatalogPage> getProducts(CatalogQuery query) =>
+      throw UnimplementedError();
+  @override
+  Future<Product?> getProduct(String id) => throw UnimplementedError();
+  @override
+  Future<String?> getImageUrl(String path) => throw UnimplementedError();
   @override
   Future<CatalogSnapshot> loadManagement() async =>
       const CatalogSnapshot(categories: [], products: []);

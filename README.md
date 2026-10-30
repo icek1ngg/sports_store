@@ -1,11 +1,47 @@
 # Sports Store
 
-Project PRM393 dùng Flutter + Supabase, tổ chức theo feature-first MVVM, Riverpod và go_router. Tình trạng từng phần được ghi trong `docs/`; các màn MH01, MH02, MH03 và MH19 đã được tích hợp như mô tả bên dưới.
+Ứng dụng dùng tiếng Việt cho giao diện, thông báo, nút điều hướng và các menu
+mặc định của Flutter, kể cả khi thiết bị đang dùng ngôn ngữ khác. Cấu hình chung
+nằm trong `lib/app/localization/app_localization.dart`; mã nguồn và API giữ tên
+tiếng Anh theo quy ước nhóm.
+
+## Phần Văn Đức: MH04, MH05, MH06 và MH16
+
+Danh sách chức năng, backend đặt COD, cách chạy trên Android và kết quả kiểm
+tra: [bàn giao MH04–MH16](docs/van_duc_completion.md).
+
+Quy trình nghiệm thu trên Android với hai tài khoản riêng, cách nhập mật khẩu
+tại máy và kết quả cloud hiện hành:
+[nghiệm thu MH04–MH06](docs/van_duc_mh04_mh06_acceptance.md).
+
+```powershell
+flutter pub get
+flutter run -d chrome -t tool/catalog_live/main.dart --dart-define-from-file=config/supabase.json
+```
+
+Đăng nhập bằng tài khoản `customer` của project. Xem
+[hướng dẫn Supabase từng bước](docs/supabase_catalog_guide.md) để tạo user,
+xem bảng, thêm dữ liệu mẫu có nhãn DEMO và upload ảnh private. Công cụ không
+bỏ qua RLS và không lưu phiên xuống đĩa. MH04 đã nối repository Supabase;
+MH05 đọc chi tiết/chọn biến thể và thêm giỏ. Mở biểu tượng giỏ từ MH04/MH05
+để vào `/customer/cart`: sửa số lượng, xóa và tải lại để kiểm tra lưu theo
+tài khoản. Giỏ chưa giữ tồn. Giỏ hợp lệ mở `/customer/checkout` để nhập người
+nhận, chọn vị trí trong Hà Nội và đặt COD; máy chủ giữ tồn khi tạo đơn.
+Giá/tồn đã đổi hoặc hàng ngừng bán có cảnh báo; lỗi ghi không báo thành công.
+Hợp đồng checkout/tồn kho bàn giao với phần Bảo nằm tại
+[docs/van_duc_catalog_checkout_contract.md](docs/van_duc_catalog_checkout_contract.md).
+
+Project PRM393 dùng Flutter + Supabase, tổ chức theo feature-first MVVM,
+Riverpod và go_router. Nhánh tích hợp giữ catalog/giỏ/checkout của Văn Đức cùng
+các cập nhật giao hàng, COD và bản đồ từ main.
+Các màn và luồng còn lại xem trạng thái cụ thể trong `docs/screen_mapping.md`;
+không coi toàn bộ MH01–MH20 đã hoàn thành.
 
 Cập nhật 30/10: đã sửa điều hướng trang chính theo vai trò, giữ lịch sử khi chat
-tự tải lại, đồng bộ số chưa đọc và chọn/upload ảnh sản phẩm. MH04 chưa có module;
-MH08 chưa bind repository thật nên hai trang chính customer/manager hiển thị
-chưa tích hợp, vẫn có navigation tới phần Dung An. Xem
+tự tải lại, đồng bộ số chưa đọc và chọn/upload ảnh sản phẩm. Sau đồng bộ main,
+trang customer dùng catalog/giỏ/checkout của Văn Đức; MH08 chưa bind repository
+thật nên trang chính manager báo dịch vụ chưa tích hợp và vẫn có navigation
+tới phần Dung An. Xem
 [phạm vi, phụ thuộc và kiểm thử](docs/features/dung_an_supabase.md).
 
 ## Các màn Dung An đã nối Supabase
@@ -51,6 +87,15 @@ Chi tiết khởi tạo client dùng chung và hướng dẫn cho thành viên: 
 
 ## Database dùng chung
 
-Database cloud có 18 bảng nền tảng phục vụ phạm vi MH01–MH20. Schema và quyền Supabase được version trong `supabase/migrations/`; khi dựng database mới phải áp dụng các migration theo thứ tự tên file. Với cloud đang có dữ liệu, đối chiếu lịch sử và chỉ áp dụng migration còn thiếu. Xem [docs/database.md](docs/database.md) để biết bảng, RLS, Storage, kết quả áp dụng cloud và các luồng RPC còn cần triển khai. [docs/business_states.md](docs/business_states.md), [docs/api_contracts.md](docs/api_contracts.md) và [docs/screen_mapping.md](docs/screen_mapping.md) là hợp đồng dùng chung cho các thành viên.
+Database nền có 18 bảng phục vụ phạm vi MH01–MH20. Schema và quyền Supabase
+được version trong `supabase/migrations/`; khi dựng mới áp dụng tất cả migration
+theo thứ tự, gồm các migration nền, checkout và các cập nhật giao hàng/COD/trả hàng.
+Xem [docs/database.md](docs/database.md) để phân biệt schema đã triển khai,
+kết quả kiểm tra cloud lịch sử và các luồng RPC còn cần làm.
+[docs/business_states.md](docs/business_states.md),
+[docs/api_contracts.md](docs/api_contracts.md) và
+[docs/screen_mapping.md](docs/screen_mapping.md) là hợp đồng dùng chung.
+
+Với cloud đang có dữ liệu, đối chiếu lịch sử và chỉ áp dụng migration còn thiếu.
 
 `supabase/tests/database_security.sql` kiểm tra quyền và constraint bằng fixture trong transaction, kết thúc bằng ROLLBACK. Chạy nguyên file qua kết nối quản trị có quyền phù hợp; không dùng `db reset --linked` trên project dùng chung.

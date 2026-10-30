@@ -12,9 +12,11 @@ sản phẩm không phải một transaction, có thể còn object chưa tham c
 
 Auth cung cấp `trustedFeatureSessionProvider`; entrypoint bind nó vào
 `featureSessionScopeProvider` tại root container, role từ profiles và generation
-mới khi session/profile đổi. MH04 cung cấp `customerCatalogRouteBuilderProvider`;
-MH08 dùng `orderRepositoryProvider` hiện có. Cả hai dependency mặc định còn
-thiếu, không tự cấp dữ liệu demo. Không có RPC hoặc schema mới trong bổ sung này.
+mới khi session/profile đổi. MH04/MH05/MH06/MH16 dùng các module
+catalog/cart/checkout của Văn Đức sau khi đồng bộ main; các route customer
+tiếp tục dùng guard và repository hiện có. MH08 dùng `orderRepositoryProvider`
+hiện có nhưng chưa bind adapter thật, không tự cấp dữ liệu demo. Không có RPC
+hoặc schema mới trong bổ sung upload/Auth/chat này.
 
 ## Hợp đồng Dung An 29/10/2026
 
@@ -24,6 +26,108 @@ Chat dùng `list_chat_conversations`, `ensure_customer_conversation`,
 `get_chat_messages`, `send_chat_message`; các RPC chat dùng RLS người gọi.
 Chi tiết tham số, kết quả, mốc đọc theo snapshot và kết quả kiểm tra sau migration
 cloud tại [hợp đồng Dung An](features/dung_an_supabase.md).
+
+Các mục đầu ghi hiện trạng checkout và các cập nhật giao hàng/COD/bản đồ.
+Những mục có nhãn baseline hoặc mốc phase phía dưới được giữ để truy vết;
+không dùng kết luận chưa triển khai tại mốc cũ thay cho cập nhật mới hơn.
+
+## MH16 — Đặt hàng COD (27/10/2026)
+
+Phiên bản triển khai phía Văn Đức dùng chữ ký CIN-02 đã được đề xuất, không
+thay các API giao hàng/COD. Không mặc định nhánh Orders của Bảo đã tích hợp
+wrapper này. Checkout dùng canonical Order/OrderItem và các base DTO trong
+feature Orders; khi tích hợp giữ bản DTO đầy đủ của Orders, không tạo model
+đơn hàng riêng trong checkout.
+
+```text
+place_order(p_request_id uuid, p_items jsonb, p_recipient_name text,
+  p_recipient_phone text, p_address_detail text,
+  p_latitude numeric, p_longitude numeric) -> jsonb
+p_items = [{variant_id: UUID, quantity: positive integer}, ...]
+
+get_placement_result(p_request_id uuid) -> jsonb
+```
+
+Envelope thành công `{ok:true,data:{order,items,event_id,replayed},error:null}`;
+`order` là 21 field của Orders, mỗi item là 11 field snapshot của OrderItem.
+Lookup thêm `state:committed|not_found`; not_found bắt buộc order/event_id null,
+items rỗng, replayed false. Lookup trả trạng thái đơn hiện hành; snapshot món
+hàng và mã sự kiện giữ nguyên. Client đối chiếu customer, request và chính xác
+tập variant/số lượng trước khi coi biên nhận là thành công.
+
+Envelope lỗi `{ok:false,data:null,error:{code}}`, gồm `invalid_argument`,
+`insufficient_stock`, `outside_service_area`, `idempotency_conflict`,
+`forbidden_or_unavailable`, `external_dependency_unavailable`. Lỗi transport
+không được coi là rollback; giữ yêu cầu chờ và thử cùng mã. Xung đột payload
+cũng không chứng minh request ID chưa có đơn.
+
+Khách hàng hiện tại do server xác thực qua profiles. Không nhận customer ID,
+giá, phí, tổng tiền, trạng thái, event ID hoặc danh sách manager từ client.
+Khóa yêu cầu theo customer/request, khóa tồn theo UUID; toàn bộ đơn, snapshot,
+reserve ledger, event và notification cùng transaction. Các metadata/fingerprint
+và tập manager nhận thông báo được lưu riêng trong `private.checkout_placements`.
+Không cấp client quyền ghi hoặc đọc bảng này. Generic event không sử dụng
+`business_events.request_id` dành cho incident.
+
+Vùng giao lấy từ `store_settings.approved_service_area_geojson`, kiểm tra Polygon/
+MultiPolygon trên server và từ chối khi cấu hình hỏng/thiếu. Phí 30.000 VND,
+COD, snapshot giá server, không trừ `on_hand` khi đặt. Không xóa giỏ tự động.
+Xem [bàn giao và cách chạy](van_duc_completion.md) để phân biệt fixture và cloud.
+
+## MH06 — CartRepository và thao tác giỏ (24/10/2026)
+
+`features/cart` sở hữu `CartItem`, `CartFailure`, `CartRepository` và
+`CartViewModel`. CartItem tham chiếu Product/ProductVariant của catalog; không
+tạo bản sao model sản phẩm hoặc Order. Dùng client và session epoch hiện có
+qua OperationalReadAccess; mọi thao tác kiểm tra role customer từ profiles và
+RLS ở server. Không thêm RPC, migration hoặc dependency trong mốc MH06.
+
+- `getItems()` đọc toàn bộ giỏ của current user qua cursor variant UUID; quan
+  hệ catalog LEFT giữ dòng bị RLS ẩn biến thể/sản phẩm. Dòng đó không có giá
+  khả dụng và không đủ điều kiện checkout; không giả lập tên/giá đã mất.
+- `setQuantity(variantId,quantity)` đặt số lượng tuyệt đối dương, kiểm tra
+  catalog/tồn đọc hiện tại. UPDATE chỉ cột quantity; nếu chưa có dòng thì INSERT
+  customer_id/variant_id/quantity. Trùng khóa do thiết bị khác chèn thì lặp lại
+  cùng target. Không dùng upsert đòi UPDATE key ngoài column grants.
+- `removeItem(variantId)` DELETE đúng owner/key; dòng đã mất là kết quả hợp lệ
+  của thao tác xóa lặp. Không xóa dòng của khách khác.
+- `CartViewModel.addItem` đọc lượng hiện tại rồi cố định target = lượng cũ +
+  lượng chọn. Bấm lặp đang ghi bị chặn. Lỗi chưa rõ kết quả giữ target trong
+  phiên; retry ghi lại target cũ, không cộng thêm lần nữa. Refresh không bỏ
+  thao tác chưa xác định, kể cả token làm mới cho cùng customer. Đổi tài khoản/
+  đăng xuất xóa snapshot và intent hiển thị cũ; bỏ response đến muộn.
+- Chỉ công bố thành công sau ghi được xác nhận và đọc lại giỏ. Lỗi thiếu tồn/
+  hàng ngừng bán cho phép khách chỉnh giỏ. Tạm tính chỉ cộng dòng còn đọc được
+  giá và ghi rõ cảnh báo nếu có dòng thiếu; giá/tồn cần kiểm tra lại khi đặt.
+
+Cập nhật P2 ngày 29/10/2026: lock theo customer tồn tại tới khi request thật
+kết thúc, độc lập với lần build/epoch. Quay A → B → A khi lệnh A chưa kết thúc
+chỉ khôi phục command đang chạy của A; B không nhận dữ liệu hoặc intent của A.
+Sau khi lệnh cũ kết thúc ở epoch khác, không báo thành công bằng response cũ;
+giữ target để người dùng xác minh/thử lại tường minh. Lỗi phiên/quyền sau ghi
+không chứng minh rollback nên không tự bỏ target. Nếu đọc giỏ sau token refresh
+lỗi mạng/backend, snapshot đã biết của cùng user được đánh dấu chưa xác minh;
+checkout và thao tác ghi mới vẫn bị khóa. Lỗi quyền/dữ liệu không dùng fallback.
+
+Giỏ không giữ tồn. Các ghi tuyệt đối là last-writer-wins khi nhiều thiết bị sửa
+cùng dòng; chưa có hợp đồng merge cộng dồn giữa thiết bị hoặc recovery request
+giỏ qua app restart. Ở mốc 24/10, MH16 còn là phần tích hợp tiếp theo; hiện
+đã triển khai theo mục MH16 ở đầu tài liệu. Không báo đặt đơn thành công từ giỏ.
+Các test transport dùng fixture, không thay thế bằng chứng CRUD/Storage/Auth
+trên cloud.
+
+## Catalog MH04/MH05 và bàn giao checkout của Văn Đức
+
+Lịch sử ngày 24/10/2026: [hợp đồng catalog/checkout/inventory](van_duc_catalog_checkout_contract.md)
+ghi rõ repository đọc catalog đã triển khai, route customer, private images và
+quy tắc phiên. Các chữ ký `place_order`, lookup và primitive tồn kho trong tài
+liệu này khi đó mới là thiết kế phía Văn Đức bám CIN-02/CIN-04 của nhánh Bảo;
+RPC đặt hàng đã được triển khai ở mốc 27/10 ghi đầu tài liệu. Không suy ra xác
+nhận đồng thuận hai phía hoặc thay thế các hợp đồng delivery/COD đã ghi bên
+dưới. [Hướng dẫn Supabase](supabase_catalog_guide.md)
+giúp chạy catalog bằng tài khoản thật.
+
+## Giao hàng, COD và bản đồ — cập nhật đến 28/10/2026
 
 P10.3: [Inventory RPC hiện hữu và hướng dẫn bàn giao](handover/delivery_p103.md)
 liệt kê 28 delivery/COD/return primitives, phân biệt Dart interface, proposed
@@ -38,8 +142,8 @@ Lifecycle che PII/resume recheck; foreground recheck 15s không phải realtime.
 
 P09.2: người dùng chốt OSM raster tiles + Google Maps URL cho demo Web/Android
 ngày 28/10/2026. Core có MapLocation, MapDisplayAdapter và MapNavigationAdapter
-coordinate-only cho MH16 tái sử dụng; chưa triển khai picker/địa chỉ MH16 và
-server vẫn kiểm Hà Nội. Native cache file bounded, Web browser cache; không API
+coordinate-only cho MH16 tái sử dụng; phase P09.2 không triển khai picker/địa chỉ
+MH16 và server vẫn kiểm Hà Nội. Native cache file bounded, Web browser cache; không API
 key hoặc Supabase API mới. [Quyết định/provider/license/cấu hình/tests](demos/p092_reusable_maps_adapter.md).
 
 P09.1 MH18 tái sử dụng `get_my_delivery_task(p_task_id uuid)` production và

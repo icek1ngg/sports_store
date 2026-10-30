@@ -16,6 +16,7 @@ class OperationalRouteLocation {
     this.orderId,
     this.map = false,
     this.invalidId = false,
+    this.customerOnly = false,
   });
 
   final bool protected;
@@ -23,6 +24,9 @@ class OperationalRouteLocation {
   final String? orderId;
   final bool map;
   final bool invalidId;
+  // Only routes that require the customer role without an entity-specific
+  // route check may share this authorization scope.
+  final bool customerOnly;
   static final _uuid = RegExp(
     r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
   );
@@ -37,6 +41,25 @@ class OperationalRouteLocation {
 
   static OperationalRouteLocation _parse(Uri uri) {
     final parts = uri.pathSegments;
+    if (uri.path == '/customer/cart' || uri.path == '/customer/checkout') {
+      return const OperationalRouteLocation(
+        protected: true,
+        customerOnly: true,
+      );
+    }
+    if (uri.path == '/customer/products') {
+      return const OperationalRouteLocation(
+        protected: true,
+        customerOnly: true,
+      );
+    }
+    if (parts.length >= 3 && parts[0] == 'customer' && parts[1] == 'products') {
+      return OperationalRouteLocation(
+        protected: true,
+        customerOnly: true,
+        invalidId: parts.length != 3 || !_uuid.hasMatch(parts[2]),
+      );
+    }
     if (uri.path == '/cod') {
       final ids = uri.queryParametersAll['orderId'];
       final order = ids?.first;
@@ -114,11 +137,35 @@ class OperationalRouteGuard extends ChangeNotifier {
 
   OperationalRouteDecision? decisionFor(Uri uri) {
     final decision = _decision;
-    if (decision?.location != uri.toString() ||
-        !identical(decision?.session, access.currentSession)) {
+    if (decision == null ||
+        !identical(decision.session, access.currentSession)) {
       return null;
     }
-    return decision;
+    if (decision.location == uri.toString()) return decision;
+
+    // go_router 18 restores an imperative stack by redirecting its base URI,
+    // while the shell receives the visible leaf URI. These four customer
+    // routes have the same role-only guard; repositories still authorize each
+    // read/write. Never reuse task/COD decisions or invalid route IDs here.
+    final source = OperationalRouteLocation.parse(Uri.parse(decision.location));
+    final target = OperationalRouteLocation.parse(uri);
+    final customerOutcome =
+        decision.failure != null ||
+        (decision.allowed && decision.role == 'customer');
+    if (!customerOutcome ||
+        decision.invalidId ||
+        !source.customerOnly ||
+        source.invalidId ||
+        !target.customerOnly ||
+        target.invalidId) {
+      return null;
+    }
+    return OperationalRouteDecision(
+      location: uri.toString(),
+      session: decision.session,
+      role: decision.role,
+      failure: decision.failure,
+    );
   }
 
   Future<String?> redirect(GoRouterState state) async {
@@ -159,7 +206,9 @@ class OperationalRouteGuard extends ChangeNotifier {
         }
         role = 'shipper';
       } else {
-        final allowed = state.uri.path == '/shipper/tasks'
+        final allowed = target.customerOnly
+            ? const {'customer'}
+            : state.uri.path == '/shipper/tasks'
             ? const {'shipper'}
             : state.uri.path == '/cod'
             ? const {'shipper', 'manager'}

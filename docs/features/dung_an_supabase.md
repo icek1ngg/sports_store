@@ -6,11 +6,11 @@
   `/customer/products`, manager tới `/manager/orders`, shipper tới
   `/shipper/tasks`; không cần bấm thêm nút mở nhiệm vụ. Deep link hợp lệ được
   giữ nguyên. Trang theo role từ chối tài khoản khác quyền.
-- MH04 chưa có implementation trong repository. Route customer nhận
-  `customerCatalogRouteBuilderProvider`; mặc định hiển thị chưa tích hợp,
-  không dùng inbox làm trang mua hàng. MH08 đã có UI; route dùng
+- Sau đồng bộ main, MH04/MH05/MH06/MH16 sử dụng các module
+  catalog/cart/checkout của Văn Đức và guard customer hiện có; không dùng
+  inbox làm trang mua hàng. MH08 đã có UI; route dùng
   `ManagerOrdersPage` khi owner cung cấp `orderRepositoryProvider`, còn mặc
-  định thông báo thiếu dịch vụ đơn hàng. Hai dependency này chưa hoàn tất.
+  định thông báo thiếu dịch vụ đơn hàng. Adapter MH08 này chưa hoàn tất.
 - `lib/main.dart` nối `featureSessionScopeProvider` ở root ProviderScope với
   `trustedFeatureSessionProvider` từ session/profile server; mỗi lần thay đổi
   tạo generation mới để provider dùng chung không đọc cache của phiên trước.
@@ -38,7 +38,7 @@ không có quyền project `bqoyfytmrtvjwrpshuhh`, CLI không có access token v
 không có tài khoản test được cấu hình trong environment. Không tạo tài khoản
 hoặc thay đổi dữ liệu cloud để vượt qua giới hạn này.
 
-Kết quả kiểm tra 30/10: `flutter analyze --no-pub` không có issue;
+Kết quả kiểm tra 30/10 trước lần đồng bộ main: `flutter analyze --no-pub` không có issue;
 72 test Auth/Catalog/Chat/toàn bộ router PASS, gồm giữ lịch sử chat khi poll,
 backfill khoảng trống sau ACK gửi tin, upload/đổi phiên, bridge Auth ở root
 và manager quay về từ COD. Runner PostgreSQL cô lập PASS 34 kiểm tra. Đây

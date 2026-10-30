@@ -5,6 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/cod/presentation/pages/cod_route_page.dart';
+import '../../features/cart/presentation/pages/cart_page.dart';
+import '../../features/checkout/presentation/pages/checkout_page.dart';
+import '../../features/catalog/presentation/pages/product_list_page.dart';
+import '../../features/catalog/presentation/pages/product_details_page.dart';
 import '../../features/auth/presentation/pages/register_screen.dart';
 import '../../features/auth/presentation/view_models/auth_providers.dart';
 import '../../features/chat/presentation/pages/conversation_detail_screen.dart';
@@ -21,6 +25,10 @@ import 'dung_an_route_pages.dart';
 final notificationRouteBuilderProvider = Provider<WidgetBuilder?>(
   (ref) => null,
 );
+
+/// Temporary Auth integration slot. The live catalog tool supplies a login
+/// panel here; production remains owned by the central router/Auth feature.
+final landingPageBuilderProvider = Provider<WidgetBuilder?>((ref) => null);
 
 final operationalRouteGuardProvider = Provider<OperationalRouteGuard>((ref) {
   final guard = OperationalRouteGuard(
@@ -49,6 +57,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (!const {'/', '/login', '/register'}.contains(state.uri.path)) {
         return null;
       }
+      if (state.uri.path == '/' &&
+          ref.read(landingPageBuilderProvider) != null) {
+        return null;
+      }
       final session = ref.read(authSessionProvider);
       final profile = ref.read(currentProfileProvider);
       final identity = session.asData?.value;
@@ -68,6 +80,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/',
         builder: (context, state) =>
+            ref.read(landingPageBuilderProvider)?.call(context) ??
             const DungAnRoutePage(key: ValueKey('app-entry')),
       ),
       GoRoute(
@@ -84,10 +97,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/manager/products',
-        builder: (context, state) => const DungAnRoutePage(),
-      ),
-      GoRoute(
-        path: '/customer/products',
         builder: (context, state) => const DungAnRoutePage(),
       ),
       GoRoute(
@@ -126,6 +135,30 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           child: child,
         ),
         routes: [
+          GoRoute(
+            path: '/customer/checkout',
+            caseSensitive: true,
+            builder: (context, state) => const CheckoutPage(),
+          ),
+          GoRoute(
+            path: '/customer/cart',
+            caseSensitive: true,
+            builder: (context, state) => const CartPage(),
+          ),
+          GoRoute(
+            path: '/customer/products',
+            caseSensitive: true,
+            builder: (context, state) => const ProductListPage(),
+            routes: [
+              GoRoute(
+                path: ':productId',
+                caseSensitive: true,
+                builder: (context, state) => ProductDetailsPage(
+                  productId: state.pathParameters['productId']!,
+                ),
+              ),
+            ],
+          ),
           GoRoute(
             path: '/shipper/tasks',
             caseSensitive: true,
@@ -209,10 +242,15 @@ class _RecheckOnPop extends NavigatorObserver {
   final VoidCallback recheck;
 
   @override
-  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) => recheck();
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    // Closing a dialog does not reveal a different protected URL. Refreshing
+    // the guard here tears down the form before the picker result is applied.
+    // Session changes still trigger the guard's independent auth listener.
+    if (route is! PopupRoute<dynamic>) recheck();
+  }
 }
 
-class _OperationalRouteBoundary extends ConsumerWidget {
+class _OperationalRouteBoundary extends ConsumerStatefulWidget {
   const _OperationalRouteBoundary({
     required this.guard,
     required this.location,
@@ -223,9 +261,93 @@ class _OperationalRouteBoundary extends ConsumerWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final session = ref.watch(operationalSessionProvider).asData?.value;
-    final decision = guard.decisionFor(location);
+  ConsumerState<_OperationalRouteBoundary> createState() =>
+      _OperationalRouteBoundaryState();
+}
+
+class _OperationalRouteBoundaryState
+    extends ConsumerState<_OperationalRouteBoundary> {
+  String? _authorizedCustomerId;
+
+  @override
+  Widget build(BuildContext context) {
+    final sessionState = ref.watch(operationalSessionProvider);
+    final session = sessionState.isLoading || sessionState.hasError
+        ? null
+        : sessionState.asData?.value;
+    final decision = widget.guard.decisionFor(widget.location);
+    final customerOnly = OperationalRouteLocation.parse(widget.location)
+        .customerOnly;
+    final allowed =
+        session != null &&
+        decision?.allowed == true &&
+        identical(session, decision!.session);
+
+    if (!customerOnly ||
+        session?.userId != _authorizedCustomerId ||
+        session?.failure != null ||
+        decision?.invalidId == true) {
+      _authorizedCustomerId = null;
+    }
+    if (customerOnly && allowed) _authorizedCustomerId = session.userId;
+
+    final status = _status(decision);
+    if (customerOnly) {
+      // Keep an already authorized customer's Navigator mounted while the
+      // same account is rechecked. Offstage hides PII and ExcludeFocus blocks
+      // keyboard input; changing account removes the subtree entirely.
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          if (_authorizedCustomerId != null)
+            Offstage(
+              offstage: !allowed,
+              child: TickerMode(
+                enabled: allowed,
+                child: ExcludeFocus(
+                  excluding: !allowed,
+                  child: KeyedSubtree(
+                    key: ValueKey(_authorizedCustomerId),
+                    child: Scaffold(
+                      body: widget.child,
+                      bottomNavigationBar:
+                          widget.location.path == '/customer/products'
+                          ? NavigationBar(
+                              selectedIndex: 0,
+                              onDestinationSelected: (index) => context.go(
+                                index == 0 ? '/customer/products' : '/chat',
+                              ),
+                              destinations: const [
+                                NavigationDestination(
+                                  icon: Icon(Icons.storefront_outlined),
+                                  label: 'Sản phẩm',
+                                ),
+                                NavigationDestination(
+                                  icon: Icon(Icons.chat_bubble_outline),
+                                  label: 'Hội thoại',
+                                ),
+                              ],
+                            )
+                          : null,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          if (!allowed) status,
+        ],
+      );
+    }
+    if (!allowed) return status;
+    return ShipperShell(
+      key: ValueKey(session),
+      role: decision.role!,
+      location: widget.location,
+      child: widget.child,
+    );
+  }
+
+  Widget _status(OperationalRouteDecision? decision) {
     if (decision?.invalidId == true) {
       return const _NavigationStatusPage(
         key: ValueKey('navigation-invalid-id'),
@@ -239,20 +361,9 @@ class _OperationalRouteBoundary extends ConsumerWidget {
         onRetry: () => ref.read(operationalReadAccessProvider).refreshSession(),
       );
     }
-    if (session == null ||
-        decision == null ||
-        !decision.allowed ||
-        !identical(session, decision.session)) {
-      return const _NavigationStatusPage(
-        key: ValueKey('navigation-checking-access'),
-        message: 'Đang kiểm tra quyền truy cập…',
-      );
-    }
-    return ShipperShell(
-      key: ValueKey(session),
-      role: decision.role!,
-      location: location,
-      child: child,
+    return const _NavigationStatusPage(
+      key: ValueKey('navigation-checking-access'),
+      message: 'Đang kiểm tra quyền truy cập…',
     );
   }
 }

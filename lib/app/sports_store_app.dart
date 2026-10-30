@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
+import 'localization/app_localization.dart';
 
 class SportsStoreApp extends ConsumerWidget {
   const SportsStoreApp({super.key});
@@ -11,6 +12,9 @@ class SportsStoreApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp.router(
       title: 'Sports Store',
+      locale: AppLocalization.locale,
+      supportedLocales: AppLocalization.supportedLocales,
+      localizationsDelegates: AppLocalization.delegates,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       routerConfig: ref.watch(appRouterProvider),

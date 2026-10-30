@@ -16,7 +16,7 @@ class CodRoutePage extends ConsumerWidget {
     final role = ref.watch(codScreenRoleProvider);
     return Semantics(
       key: ValueKey('mh12-outlet'),
-      label: 'Đối soát COD',
+      label: 'Đối soát tiền thu hộ',
       child: role.when(
         skipLoadingOnRefresh: false,
         loading: () => const Center(child: CircularProgressIndicator()),

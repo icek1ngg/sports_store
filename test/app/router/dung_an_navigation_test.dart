@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sports_store/app/router/app_router.dart';
-import 'package:sports_store/app/router/dung_an_route_pages.dart';
 import 'package:sports_store/app/sports_store_app.dart';
 import 'package:sports_store/core/supabase/supabase_providers.dart';
 import 'package:sports_store/core/state/foundation_providers.dart';
@@ -230,7 +229,10 @@ void main() {
             ]);
           }
           if (request.url.path.endsWith('/products')) productReads++;
-          if (request.url.path.endsWith('/list_chat_conversations')) {
+          if (request.url.path.endsWith('/list_chat_conversations') ||
+              request.url.path.endsWith('/categories') ||
+              request.url.path.endsWith('/products') ||
+              request.url.path.endsWith('/product_variants')) {
             return jsonResponse(request, []);
           }
           return jsonResponse(request, {});
@@ -245,7 +247,7 @@ void main() {
       await until(
         tester,
         () => find
-            .text('Danh sách sản phẩm chưa được tích hợp.')
+            .byKey(const ValueKey('catalog-products-empty-scroll'))
             .evaluate()
             .isNotEmpty,
       );
@@ -258,6 +260,7 @@ void main() {
         tester,
         () => find.text('Liên hệ cửa hàng').evaluate().isNotEmpty,
       );
+      final readsBeforeDenied = productReads;
       router.go('/manager/products');
       await until(
         tester,
@@ -266,7 +269,7 @@ void main() {
             .evaluate()
             .isNotEmpty,
       );
-      expect(productReads, 0);
+      expect(productReads, readsBeforeDenied);
       router.go('/chat/not-a-uuid');
       await until(
         tester,
@@ -277,7 +280,7 @@ void main() {
     },
   );
 
-  testWidgets('customer home uses the supplied MH04 production builder', (
+  testWidgets('customer home opens the integrated MH04 catalog', (
     tester,
   ) async {
     final client = (await tester.runAsync(
@@ -292,23 +295,26 @@ void main() {
             },
           ]);
         }
+        if (request.url.path.endsWith('/categories') ||
+            request.url.path.endsWith('/products') ||
+            request.url.path.endsWith('/product_variants')) {
+          return jsonResponse(request, []);
+        }
         throw StateError('Unexpected request ${request.url.path}');
       }, userId: customer),
     ))!;
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          supabaseClientProvider.overrideWithValue(client),
-          customerCatalogRouteBuilderProvider.overrideWithValue(
-            (_) => const Center(child: Text('MH04 integration fixture')),
-          ),
-        ],
+        overrides: [supabaseClientProvider.overrideWithValue(client)],
         child: const SportsStoreApp(),
       ),
     );
     await until(
       tester,
-      () => find.text('MH04 integration fixture').evaluate().isNotEmpty,
+      () => find
+          .byKey(const ValueKey('catalog-products-empty-scroll'))
+          .evaluate()
+          .isNotEmpty,
     );
     expect(find.byType(ConversationListScreen), findsNothing);
     await tester.pumpWidget(const SizedBox());

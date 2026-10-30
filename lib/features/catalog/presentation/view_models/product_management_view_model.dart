@@ -3,17 +3,14 @@ import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/supabase/supabase_providers.dart';
-import '../../data/repositories/supabase_catalog_repository.dart';
 import '../../data/repositories/file_selector_product_image_picker.dart';
 import '../../data/repositories/supabase_product_image_repository.dart';
 import '../../domain/models/managed_product.dart';
 import '../../domain/models/product_image.dart';
-import '../../domain/repositories/catalog_repository.dart';
 import '../../domain/repositories/product_image_repository.dart';
+import 'catalog_providers.dart';
 
-final catalogRepositoryProvider = Provider<CatalogRepository>(
-  (ref) => SupabaseCatalogRepository(ref.watch(supabaseClientProvider)),
-);
+export 'catalog_providers.dart' show catalogRepositoryProvider;
 
 final productImagePickerProvider = Provider<ProductImagePicker>(
   (ref) => FileSelectorProductImagePicker(),

@@ -121,7 +121,6 @@ Future<void> _pumpUntil(
 }
 
 bool _hasKey(String key) => find.byKey(ValueKey(key)).evaluate().isNotEmpty;
-
 bool _hasText(String text) => find.text(text).evaluate().isNotEmpty;
 
 void _expectRoot() {
