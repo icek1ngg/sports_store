@@ -2,6 +2,12 @@
 
 Project PRM393 dùng Flutter + Supabase, tổ chức theo feature-first MVVM, Riverpod và go_router. Tình trạng từng phần được ghi trong `docs/`; các màn MH01, MH02, MH03 và MH19 đã được tích hợp như mô tả bên dưới.
 
+Cập nhật 30/10: đã sửa điều hướng trang chính theo vai trò, giữ lịch sử khi chat
+tự tải lại, đồng bộ số chưa đọc và chọn/upload ảnh sản phẩm. MH04 chưa có module;
+MH08 chưa bind repository thật nên hai trang chính customer/manager hiển thị
+chưa tích hợp, vẫn có navigation tới phần Dung An. Xem
+[phạm vi, phụ thuộc và kiểm thử](docs/features/dung_an_supabase.md).
+
 ## Các màn Dung An đã nối Supabase
 
 MH01 đăng nhập và MH02 đăng ký dùng Supabase Auth. MH03 quản lý sản phẩm đọc dữ liệu thật và lưu sản phẩm/biến thể/giá/tồn kho qua RPC giao dịch. MH19 đọc hội thoại, mở MH20 và gửi/đọc tin nhắn có lưu trữ. Các màn đã nối router chính và đọc quyền từ `profiles`.

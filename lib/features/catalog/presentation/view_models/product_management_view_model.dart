@@ -4,11 +4,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/supabase/supabase_providers.dart';
 import '../../data/repositories/supabase_catalog_repository.dart';
+import '../../data/repositories/file_selector_product_image_picker.dart';
+import '../../data/repositories/supabase_product_image_repository.dart';
 import '../../domain/models/managed_product.dart';
+import '../../domain/models/product_image.dart';
 import '../../domain/repositories/catalog_repository.dart';
+import '../../domain/repositories/product_image_repository.dart';
 
 final catalogRepositoryProvider = Provider<CatalogRepository>(
   (ref) => SupabaseCatalogRepository(ref.watch(supabaseClientProvider)),
+);
+
+final productImagePickerProvider = Provider<ProductImagePicker>(
+  (ref) => FileSelectorProductImagePicker(),
+);
+
+final productImageRepositoryProvider = Provider<ProductImageRepository>(
+  (ref) => SupabaseProductImageRepository(ref.watch(supabaseClientProvider)),
 );
 
 final _catalogIdentityProvider = StreamProvider<String?>((ref) async* {
@@ -49,6 +61,33 @@ class ProductManagementViewModel extends AsyncNotifier<CatalogSnapshot> {
         .read(catalogRepositoryProvider)
         .saveProduct(product, requestId: requestId);
     if (ref.mounted && generation == _generation) await reload();
+  }
+
+  Future<UploadedProductImage?> pickAndUploadImage() async {
+    final generation = _generation;
+    final client = ref.read(supabaseClientProvider);
+    final token = client.auth.currentSession?.accessToken;
+    if (token == null) throw const CatalogFailure('Vui lòng đăng nhập lại.');
+    void checkCurrent() {
+      if (!ref.mounted ||
+          generation != _generation ||
+          client.auth.currentSession?.accessToken != token) {
+        throw const CatalogFailure(
+          'Tài khoản đã thay đổi. Vui lòng mở lại biểu mẫu.',
+        );
+      }
+    }
+
+    final image = await ref.read(productImagePickerProvider).pickImage();
+    checkCurrent();
+    if (image == null) return null;
+    final repository = ref.read(productImageRepositoryProvider);
+    final uploaded = await repository.uploadImage(
+      image,
+      requestId: newCatalogRequestId(),
+    );
+    checkCurrent();
+    return uploaded;
   }
 }
 

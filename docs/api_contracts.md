@@ -1,5 +1,21 @@
 # Hợp đồng truy cập database
 
+## Bổ sung tích hợp Dung An 30/10/2026
+
+`ProductImagePicker.pickImage()` trả ảnh đã kiểm tra PNG/JPEG/WebP tối đa
+5 MiB hoặc null khi hủy. `ProductImageRepository.uploadImage(image, requestId)`
+kiểm tra profile manager, upload binary với token của phiên bắt đầu vào
+`product-images/<user UUID>/<request UUID>.<extension>`, không overwrite/retry
+tự động, rồi trả object path và signed URL preview. Lưu sản phẩm tiếp tục dùng
+`save_managed_product` hiện có; không lưu signed URL vào DB. Storage và lưu
+sản phẩm không phải một transaction, có thể còn object chưa tham chiếu khi hủy.
+
+Auth cung cấp `trustedFeatureSessionProvider`; entrypoint bind nó vào
+`featureSessionScopeProvider` tại root container, role từ profiles và generation
+mới khi session/profile đổi. MH04 cung cấp `customerCatalogRouteBuilderProvider`;
+MH08 dùng `orderRepositoryProvider` hiện có. Cả hai dependency mặc định còn
+thiếu, không tự cấp dữ liệu demo. Không có RPC hoặc schema mới trong bổ sung này.
+
 ## Hợp đồng Dung An 29/10/2026
 
 Auth dùng Supabase email/password và đọc role từ `profiles`. Repository catalog

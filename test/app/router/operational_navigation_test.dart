@@ -122,6 +122,8 @@ Future<void> _pumpUntil(
 
 bool _hasKey(String key) => find.byKey(ValueKey(key)).evaluate().isNotEmpty;
 
+bool _hasText(String text) => find.text(text).evaluate().isNotEmpty;
+
 void _expectRoot() {
   expect(_hasKey('app-entry'), isTrue);
 }
@@ -199,9 +201,7 @@ void main() {
         );
         await _pumpUntil(
           tester,
-          () =>
-              router.state.uri.path == '/' &&
-              _hasText('Ứng dụng đang được xây dựng.'),
+          () => router.state.uri.path == '/' && _hasKey('app-entry'),
           description: 'revoked notification destination rejected',
         );
         expect(guardReads, greaterThan(before));
