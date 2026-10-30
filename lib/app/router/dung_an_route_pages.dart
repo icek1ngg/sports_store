@@ -7,6 +7,9 @@ import '../../features/auth/presentation/view_models/auth_providers.dart';
 import '../../features/auth/presentation/view_models/auth_view_model.dart';
 import '../../features/catalog/presentation/pages/product_management_screen.dart';
 import '../../features/chat/presentation/pages/conversation_list_screen.dart';
+import '../../features/chat/presentation/view_models/chat_providers.dart';
+import '../../features/orders/presentation/pages/manager_orders_page.dart';
+import '../../features/orders/presentation/view_models/order_providers.dart';
 import '../shells/store_management_shell.dart';
 
 /// This boundary discards old data immediately when an auth epoch changes.
@@ -46,6 +49,7 @@ class DungAnRoutePage extends ConsumerWidget {
     }
     final profile = profileState.requireValue!;
     if (profile.id != session.requireValue.userId) return const _AccessStatus();
+    final path = GoRouterState.of(context).uri.path;
     if (profile.role == AppRole.shipper) {
       final path = GoRouterState.of(context).uri.path;
       if (path == '/' || path == '/login') {
@@ -58,28 +62,49 @@ class DungAnRoutePage extends ConsumerWidget {
         logout: () => ref.read(authViewModelProvider.notifier).logout(),
       );
     }
-    if (!inbox &&
-        profile.role != AppRole.manager &&
-        GoRouterState.of(context).uri.path == '/manager/products') {
+    if (path.startsWith('/manager/') && profile.role != AppRole.manager ||
+        path.startsWith('/customer/') && profile.role != AppRole.customer) {
       return _AccessStatus(
-        message: 'Chỉ quản lý được truy cập màn sản phẩm.',
-        retryLabel: 'Mở hội thoại hỗ trợ',
-        retry: () => context.go('/chat'),
+        message: path == '/manager/products'
+            ? 'Chỉ quản lý được truy cập màn sản phẩm.'
+            : 'Tài khoản không có quyền truy cập màn này.',
+        retryLabel: 'Về trang chính',
+        retry: () => context.go(homeRouteForRole(profile.role)),
       );
     }
-    final showInbox = inbox || profile.role == AppRole.customer;
+    final showInbox = inbox;
+    Widget content;
+    if (detailBuilder != null) {
+      content = detailBuilder!(context);
+    } else if (showInbox) {
+      content = ConversationListScreen(
+        isCustomer: profile.role == AppRole.customer,
+        onOpenConversation: (id) async {
+          final openedSession = session.requireValue;
+          await context.push('/chat/$id');
+          if (context.mounted &&
+              identical(
+                ref.read(authSessionProvider).asData?.value,
+                openedSession,
+              )) {
+            ref.invalidate(chatInboxProvider);
+          }
+        },
+      );
+    } else if (path == '/manager/orders') {
+      content = ref.watch(orderRepositoryProvider) == null
+          ? const _ModuleUnavailable(
+              'Dịch vụ quản lý đơn hàng chưa được tích hợp.',
+            )
+          : const ManagerOrdersPage();
+    } else {
+      content = const ProductManagementScreen();
+    }
     return StoreManagementShell(
       key: ObjectKey(session.requireValue),
       profile: profile,
       inbox: showInbox,
-      child:
-          detailBuilder?.call(context) ??
-          (showInbox
-              ? ConversationListScreen(
-                  isCustomer: profile.role == AppRole.customer,
-                  onOpenConversation: (id) => context.push('/chat/$id'),
-                )
-              : const ProductManagementScreen()),
+      child: content,
     );
   }
 }
@@ -114,6 +139,19 @@ class _ShipperEntryState extends ConsumerState<_ShipperEntry> {
 
   @override
   Widget build(BuildContext context) => const _AccessStatus();
+}
+
+class _ModuleUnavailable extends StatelessWidget {
+  const _ModuleUnavailable(this.message);
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Text(message, textAlign: TextAlign.center),
+    ),
+  );
 }
 
 class _AccessStatus extends ConsumerWidget {

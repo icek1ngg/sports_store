@@ -11,9 +11,14 @@ class ManagerNavigationBar extends StatelessWidget {
   Widget build(BuildContext context) => NavigationBar(
     key: const ValueKey('manager-navigation'),
     selectedIndex: selectedIndex,
-    onDestinationSelected: (index) =>
-        context.go(const ['/manager/products', '/chat', '/cod'][index]),
+    onDestinationSelected: (index) => context.go(
+      const ['/manager/orders', '/manager/products', '/chat', '/cod'][index],
+    ),
     destinations: const [
+      NavigationDestination(
+        icon: Icon(Icons.receipt_long_outlined),
+        label: 'Đơn hàng',
+      ),
       NavigationDestination(
         icon: Icon(Icons.inventory_2_outlined),
         label: 'Sản phẩm',

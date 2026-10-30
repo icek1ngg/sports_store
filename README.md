@@ -37,6 +37,13 @@ các cập nhật giao hàng, COD và bản đồ từ main.
 Các màn và luồng còn lại xem trạng thái cụ thể trong `docs/screen_mapping.md`;
 không coi toàn bộ MH01–MH20 đã hoàn thành.
 
+Cập nhật 30/10: đã sửa điều hướng trang chính theo vai trò, giữ lịch sử khi chat
+tự tải lại, đồng bộ số chưa đọc và chọn/upload ảnh sản phẩm. Sau đồng bộ main,
+trang customer dùng catalog/giỏ/checkout của Văn Đức; MH08 chưa bind repository
+thật nên trang chính manager báo dịch vụ chưa tích hợp và vẫn có navigation
+tới phần Dung An. Xem
+[phạm vi, phụ thuộc và kiểm thử](docs/features/dung_an_supabase.md).
+
 ## Các màn Dung An đã nối Supabase
 
 MH01 đăng nhập và MH02 đăng ký dùng Supabase Auth. MH03 quản lý sản phẩm đọc dữ liệu thật và lưu sản phẩm/biến thể/giá/tồn kho qua RPC giao dịch. MH19 đọc hội thoại, mở MH20 và gửi/đọc tin nhắn có lưu trữ. Các màn đã nối router chính và đọc quyền từ `profiles`.

@@ -1,5 +1,21 @@
 # Ánh xạ màn hình Sports Store
 
+Cập nhật 30/10/2026: entry `/` và `/login` sau xác thực dẫn tới
+`/customer/products`, `/manager/orders` hoặc `/shipper/tasks` theo profile
+server. `/register` cũng chuyển về trang theo role nếu đã có phiên hợp lệ.
+Sau đồng bộ main, MH04 dùng module catalog thật của Văn Đức; MH05/MH06/MH16
+và các guard customer được giữ như mô tả phía dưới. MH08 dùng UI hiện có khi
+`orderRepositoryProvider` được bind adapter thật; mặc định route manager báo
+dịch vụ đơn hàng chưa tích hợp, không dùng dữ liệu demo.
+Manager có thanh điều hướng gồm **Đơn hàng**, **Sản phẩm**, **Hội thoại**, **COD**;
+mục COD mở MH12 `/cod` qua guard hiện có và giữ thanh điều hướng manager để quay lại
+các mục còn lại. Khách có đường vào MH19 riêng và shipper giữ thanh điều hướng riêng.
+Chi tiết và kiểm thử ở [cập nhật Dung An](features/dung_an_supabase.md).
+
+MH01/MH02/MH03/MH19 đã nối router và repository Supabase của ứng dụng chính;
+MH20 có trang đọc/gửi tin dùng chung theo ID. Routes, quyền và bước migration
+cloud còn lại tại [tích hợp Dung An](features/dung_an_supabase.md).
+
 Back MH11 → MH10: giữ Navigator trong cùng phiên và ẩn/khóa tương tác khi kiểm
 tra quyền, cập nhật giao diện ngay khi guard hoàn tất. Không cache quyền
 giữa các lần truy cập. Đổi phiên,
@@ -9,10 +25,6 @@ Cập nhật 30/10/2026: gỡ mục **Báo cáo bàn giao / sự cố** khỏi M
 khởi tạo/làm mới reporting controller từ màn này. Các thao tác nhận nhiệm vụ,
 bắt đầu giao, giao thành công/thất bại và lấy hàng trả vẫn giữ nguyên.
 API và dữ liệu báo cáo cũ được giữ để bảo toàn lịch sử, không còn điểm mở từ app.
-
-Thanh điều hướng manager gồm **Sản phẩm**, **Hội thoại**, **COD**. Mục COD mở
-MH12 `/cod` qua guard hiện có; màn COD giữ thanh điều hướng manager để quay lại
-hai mục còn lại. Customer không thấy mục COD và shipper giữ thanh điều hướng riêng.
 
 ## Khởi đầu phiên shipper — 30/10/2026
 

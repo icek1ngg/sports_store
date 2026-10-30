@@ -147,7 +147,11 @@ void main() {
             (_, _) {},
           );
           await waitFor(
-            () => container.read(shipperCodViewModelProvider(null)).heldTotalVnd == 0,
+            () =>
+                container
+                    .read(shipperCodViewModelProvider(null))
+                    .heldTotalVnd ==
+                0,
           );
           await waitFor(
             () => find
@@ -156,7 +160,10 @@ void main() {
                 .isNotEmpty,
           );
           final open = find.byKey(const ValueKey('completion-open'));
-          await tester.drag(find.byKey(const ValueKey('task-detail-scroll')),const Offset(0,-1400));
+          await tester.drag(
+            find.byKey(const ValueKey('task-detail-scroll')),
+            const Offset(0, -1400),
+          );
           await tester.pumpAndSettle();
           await tester.ensureVisible(open);
           await tester.pumpAndSettle();
@@ -190,14 +197,19 @@ void main() {
                         .counts
                         ?.completed ==
                     1 &&
-                container.read(shipperCodViewModelProvider(null)).heldTotalVnd ==
+                container
+                        .read(shipperCodViewModelProvider(null))
+                        .heldTotalVnd ==
                     550000,
           );
           expect(
             container.read(shipperCodViewModelProvider(null)).items,
             hasLength(1),
           );
-          expect(container.read(shipperCodViewModelProvider(null)).error, isNull);
+          expect(
+            container.read(shipperCodViewModelProvider(null)).error,
+            isNull,
+          );
           codSubscription.close();
           debugPrint(
             'LIVE UI: delivered, MH10 completed and held COD550000 verified',
@@ -216,4 +228,3 @@ void main() {
     }
   }, skip: env['LIVE_OUTBOUND_UI'] != '1');
 }
-

@@ -53,14 +53,35 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     refreshListenable: guard,
     redirect: (context, state) async {
       final destination = await guard.redirect(state);
-      if (ref.mounted &&
-          destination == '/' &&
-          guard.decisionFor(state.uri)?.failure != null) {
-        // A live authorization rejection may mean the cached profile role was
-        // revoked. Refresh before the entry page chooses a role destination.
-        ref.invalidate(currentProfileProvider);
+      if (destination != null) {
+        if (ref.mounted &&
+            destination == '/' &&
+            guard.decisionFor(state.uri)?.failure != null) {
+          // A live authorization rejection may mean the cached profile role was
+          // revoked. Refresh before the entry page chooses a role destination.
+          ref.invalidate(currentProfileProvider);
+        }
+        return destination;
       }
-      return destination;
+      if (!const {'/', '/login', '/register'}.contains(state.uri.path)) {
+        return null;
+      }
+      if (state.uri.path == '/' &&
+          ref.read(landingPageBuilderProvider) != null) {
+        return null;
+      }
+      final session = ref.read(authSessionProvider);
+      final profile = ref.read(currentProfileProvider);
+      final identity = session.asData?.value;
+      final account = profile.asData?.value;
+      if (!session.isLoading &&
+          !profile.isLoading &&
+          identity?.signedIn == true &&
+          account != null &&
+          account.id == identity!.userId) {
+        return homeRouteForRole(account.role);
+      }
+      return null;
     },
     errorBuilder: (context, state) =>
         const _NavigationStatusPage(message: 'Không tìm thấy trang.'),
@@ -85,6 +106,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/manager/products',
+        builder: (context, state) => const DungAnRoutePage(),
+      ),
+      GoRoute(
+        path: '/manager/orders',
         builder: (context, state) => const DungAnRoutePage(),
       ),
       GoRoute(
@@ -192,6 +217,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
+  // Role resolution completes independently of the Auth SDK event. Refresh the
+  // redirect when the trusted profile becomes available, without recreating the
+  // router and losing its navigator stack.
+  ref.listen(currentProfileProvider, (_, _) {
+    scheduleMicrotask(() {
+      if (ref.mounted) router.refresh();
+    });
+  });
   var observedSession = false;
   String? observedUserId;
   ref.listen(authSessionProvider, (previous, next) {
@@ -289,7 +322,28 @@ class _OperationalRouteBoundaryState
                   excluding: !allowed,
                   child: KeyedSubtree(
                     key: ValueKey(_authorizedCustomerId),
-                    child: widget.child,
+                    child: Scaffold(
+                      body: widget.child,
+                      bottomNavigationBar:
+                          widget.location.path == '/customer/products'
+                          ? NavigationBar(
+                              selectedIndex: 0,
+                              onDestinationSelected: (index) => context.go(
+                                index == 0 ? '/customer/products' : '/chat',
+                              ),
+                              destinations: const [
+                                NavigationDestination(
+                                  icon: Icon(Icons.storefront_outlined),
+                                  label: 'Sản phẩm',
+                                ),
+                                NavigationDestination(
+                                  icon: Icon(Icons.chat_bubble_outline),
+                                  label: 'Hội thoại',
+                                ),
+                              ],
+                            )
+                          : null,
+                    ),
                   ),
                 ),
               ),

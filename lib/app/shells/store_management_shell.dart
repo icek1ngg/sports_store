@@ -23,6 +23,13 @@ class StoreManagementShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final form = ref.watch(authViewModelProvider);
     final manager = profile.role == AppRole.manager;
+    final path = GoRouterState.of(context).uri.path;
+    final locations = manager
+        ? ['/manager/orders', '/manager/products', '/chat', '/cod']
+        : ['/customer/products', '/chat'];
+    final selected = locations.indexWhere(
+      (location) => path == location || path.startsWith('$location/'),
+    );
     return Scaffold(
       appBar: AppBar(
         title: Text(profile.fullName ?? 'Sports Store'),
@@ -63,8 +70,21 @@ class StoreManagementShell extends ConsumerWidget {
         ),
       ),
       bottomNavigationBar: manager
-          ? ManagerNavigationBar(selectedIndex: inbox ? 1 : 0)
-          : null,
+          ? ManagerNavigationBar(selectedIndex: selected < 0 ? 0 : selected)
+          : NavigationBar(
+              selectedIndex: selected < 0 ? 0 : selected,
+              onDestinationSelected: (index) => context.go(locations[index]),
+              destinations: const [
+                NavigationDestination(
+                  icon: Icon(Icons.storefront_outlined),
+                  label: 'Sản phẩm',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.chat_bubble_outline),
+                  label: 'Hội thoại',
+                ),
+              ],
+            ),
     );
   }
 }
