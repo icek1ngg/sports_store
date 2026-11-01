@@ -1,0 +1,59 @@
+enum ReturnRequestFailureCode {
+  sessionExpired,
+  permissionDenied,
+  orderNotFound,
+  orderNotDelivered,
+  returnWindowExpired,
+  activeReturnExists,
+  videoRequired,
+  videoAlreadyUsed,
+  invalidInput,
+  idempotencyConflict,
+  network,
+  backendUnavailable,
+  unexpected,
+}
+
+class ReturnRequestFailure implements Exception {
+  const ReturnRequestFailure(this.code);
+
+  final ReturnRequestFailureCode code;
+
+  /// Network/unknown outcomes may have reached the server: the caller must
+  /// retry with the same request id instead of starting a new request.
+  bool get isAmbiguous =>
+      code == ReturnRequestFailureCode.network ||
+      code == ReturnRequestFailureCode.unexpected;
+
+  String get message => switch (code) {
+    ReturnRequestFailureCode.sessionExpired =>
+      'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.',
+    ReturnRequestFailureCode.permissionDenied =>
+      'Bạn không có quyền tạo yêu cầu trả hàng cho đơn này.',
+    ReturnRequestFailureCode.orderNotFound =>
+      'Không tìm thấy đơn hàng của bạn.',
+    ReturnRequestFailureCode.orderNotDelivered =>
+      'Đơn chưa giao thành công nên chưa thể trả hàng.',
+    ReturnRequestFailureCode.returnWindowExpired =>
+      'Đơn đã quá 7 ngày kể từ khi nhận hàng.',
+    ReturnRequestFailureCode.activeReturnExists =>
+      'Đơn này đã có yêu cầu trả hàng đang được xử lý.',
+    ReturnRequestFailureCode.videoRequired =>
+      'Không xác nhận được video mở kiện. Vui lòng chọn lại video.',
+    ReturnRequestFailureCode.videoAlreadyUsed =>
+      'Video này đã được dùng cho một yêu cầu khác.',
+    ReturnRequestFailureCode.invalidInput =>
+      'Thông tin chưa hợp lệ. Vui lòng kiểm tra lại.',
+    ReturnRequestFailureCode.idempotencyConflict =>
+      'Yêu cầu trước đó đã được ghi nhận với nội dung khác.',
+    ReturnRequestFailureCode.network =>
+      'Không thể kết nối. Vui lòng kiểm tra mạng và gửi lại.',
+    ReturnRequestFailureCode.backendUnavailable =>
+      'Dịch vụ trả hàng chưa sẵn sàng. Vui lòng thử lại sau.',
+    ReturnRequestFailureCode.unexpected =>
+      'Chưa rõ yêu cầu đã được ghi nhận hay chưa. Vui lòng gửi lại.',
+  };
+
+  @override
+  String toString() => 'ReturnRequestFailure($code)';
+}

@@ -896,3 +896,33 @@ tại thời điểm đặt đơn cũ). Thay đổi catalog sau đó không cậ
 Chỉ cấp thêm quyền đọc cột cho role projection `sports_store_delivery_reader`,
 không cấp shipper quyền đọc catalog. RPC chi tiết nhiệm vụ trả URL theo item
 đã được kiểm tra quyền trong cùng snapshot truy vấn.
+
+## MH13 — submit_return_request (kiểm thử cục bộ 01/11/2026)
+
+Migration `20261101080125_submit_return_request.sql` thêm role
+`sports_store_return_request_writer`, helper
+`private.return_video_object_ready(text, uuid)`, policy chỉ áp cho role writer
+trên `profiles`/`orders` (khóa, không ghi)/`return_requests`/
+`business_events`/`notifications`, và hai RPC
+`get_return_request_context`, `submit_return_request`. Không đổi schema bảng.
+Chưa áp dụng lên cloud.
+
+Chạy kiểm thử (cần fixture PG17 ở cổng 55439 theo hướng dẫn P01.1 phía trên):
+
+```powershell
+node supabase/tests/run_return_request_submission.mjs
+```
+
+Runner nạp `fixtures/p011_auth_storage.sql.fixture` và
+`fixtures/mh13_storage_metadata.sql.fixture` (chỉ thêm cột `owner_id`,
+`metadata` mà Storage thật đã có), áp toàn bộ migration, chạy
+`return_request_submission.sql` (rollback) rồi
+`return_request_submission_concurrency.mjs` (dọn dữ liệu đã commit).
+Kết quả 01/11/2026: SQL suite PASS; đồng thời 6 lần gửi cùng key → 1 yêu cầu,
+6 key khác nhau → `ACTIVE_RETURN_EXISTS`, đúng 1 thông báo. Bộ
+`run_return_pickup_production.mjs` và `run_redelivery_production.mjs` vẫn
+PASS sau migration.
+
+Cần xác minh khi lên cloud: postgres đọc được `storage.objects` (helper owner
+postgres), Storage điền `owner_id`/`metadata.mimetype`/`metadata.size` khi
+upload, PostgREST trả đúng mã `PT404/PT409/PT422`.

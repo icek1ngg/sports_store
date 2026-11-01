@@ -16,6 +16,7 @@ import '../../features/cod/presentation/view_models/cod_providers.dart';
 import '../../features/deliveries/data/repositories/operational_providers.dart';
 import '../../features/deliveries/presentation/pages/delivery_route_pages.dart';
 import '../../features/deliveries/presentation/view_models/delivery_providers.dart';
+import '../../features/returns/presentation/pages/return_request_flow_page.dart';
 import '../shells/shipper_shell.dart';
 import 'operational_route_guard.dart';
 import 'dung_an_route_pages.dart';
@@ -151,6 +152,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/customer/checkout',
             caseSensitive: true,
             builder: (context, state) => const CheckoutPage(),
+          ),
+          GoRoute(
+            path: '/customer/orders/:orderId/return',
+            caseSensitive: true,
+            builder: (context, state) => ReturnRequestFlowPage(
+              orderId: state.pathParameters['orderId']!,
+              onExit: () => context.canPop()
+                  ? context.pop()
+                  : context.go('/customer/products'),
+            ),
           ),
           GoRoute(
             path: '/customer/cart',

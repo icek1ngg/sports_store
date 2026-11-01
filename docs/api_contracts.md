@@ -1818,3 +1818,60 @@ shipper. Quyền caller/task vẫn theo projection hiện có; nhiệm vụ khô
 gọn khi ảnh thiếu/tải lỗi. Bản này hỗ trợ ảnh HTTPS; object path private và hàng
 lấy trả/giao lại chưa có ảnh xác minh nên trả null, không lấy ảnh hàng đặt để
 giả làm ảnh hàng khách thực nhận.
+
+## MH13 — Tạo yêu cầu trả hàng (Sơn, 01/11/2026)
+
+Migration `20261101080125_submit_return_request.sql` (tạo bằng
+`npx --yes supabase@2.119.0 migration new submit_return_request`). **Chưa áp
+dụng lên cloud**; mới kiểm thử trên fixture PostgreSQL 17 cục bộ.
+
+`get_return_request_context(p_order_id uuid) → jsonb` — SECURITY INVOKER,
+chỉ role `customer`, đọc qua RLS của chính khách. Trả `order_id`,
+`order_status`, `delivered_at`, `subtotal_vnd`, `delivery_fee_vnd`,
+`total_paid_vnd`, `items[]` (`order_item_id`, `product_name`, `variant_label`,
+`quantity`, `unit_price_vnd`, `line_total_vnd`, `product_image_url`),
+`server_now`, `return_deadline` (= `delivered_at + 7 ngày`),
+`can_submit_return`, `eligibility_reason` (`null` | `not_delivered` |
+`active_return_exists` | `return_window_expired`), `active_return`.
+Đơn không thuộc khách → `PT404 ORDER_NOT_FOUND`; không phải customer →
+`42501 PERMISSION_DENIED`.
+
+`submit_return_request(p_order_id, p_request_id, p_reason, p_description,
+p_video_object_path, p_bank_name, p_account_number, p_account_holder) → jsonb`
+— SECURITY DEFINER, owner `sports_store_return_request_writer` (NOLOGIN,
+NOINHERIT, NOBYPASSRLS), danh tính qua `private.delivery_request_user_id()`.
+
+- Quyền: chỉ customer sở hữu đơn (`orders.customer_id`). Manager/shipper →
+  `42501 PERMISSION_DENIED`; chưa đăng nhập → `42501 AUTH_REQUIRED`.
+- Đơn phải `delivered` có `delivered_at` (`PT409 ORDER_NOT_DELIVERED`). Hạn
+  7 ngày đo bằng `clock_timestamp()` của server lúc gửi, sau khi khóa đơn
+  (`PT409 RETURN_WINDOW_EXPIRED`).
+- Video bắt buộc: path `<customer UUID>/<order UUID>/<tên file>`, object có
+  trong bucket private `return-videos`, `owner_id` = khách, `metadata.mimetype`
+  `video/*`, kích thước 1 byte – 100 MB (`PT422 VIDEO_REQUIRED`). Không dùng lại
+  video của yêu cầu cũ (`PT409 VIDEO_ALREADY_USED`). Kiểm tra qua helper
+  `private.return_video_object_ready` (owner postgres, chỉ trả boolean).
+- Input: lý do ∈ `defective|wrong_item|missing_items`; mô tả 10–1000 ký tự sau
+  khi gộp khoảng trắng; ngân hàng/chủ tài khoản 2–100 ký tự; số tài khoản 6–20
+  chữ số (bỏ khoảng trắng); chủ tài khoản lưu chữ in hoa (`22023
+  INVALID_ARGUMENT`).
+- Mỗi đơn chỉ một yêu cầu đang mở (`PT409 ACTIVE_RETURN_EXISTS`, kèm unique
+  index `return_requests_one_active_per_order_idx` làm chốt chặn cuối).
+- Chống gửi trùng: khóa `(customer_id, request_id)`. Gửi lại cùng key + cùng
+  nội dung (sau chuẩn hóa) trả lại đúng kết quả cũ với `replayed: true`; cùng
+  key khác nội dung → `PT409 IDEMPOTENCY_CONFLICT`. Advisory lock theo
+  request rồi theo đơn.
+- Ghi trong một transaction: `return_requests` (`pending_review`, kèm tài
+  khoản hoàn tiền), một `business_events` (`return_request`, `to_state =
+  pending_review`) và một thông báo cho mỗi manager. Không tạo `return_items`
+  (kế hoạch lấy hàng do manager quyết ở MH15), không đổi đơn/COD/tồn kho/hoàn
+  tiền.
+- ACK: `return_request_id`, `order_id`, `request_id`, `status`, `reason`,
+  `submitted_at`, `replayed`.
+
+Flutter: `ReturnRequestRepository` (`lib/features/returns/domain`), adapter
+`SupabaseReturnRequestRepository`. Upload video trước
+(`uploadBinary`, `upsert: false`, path dùng `request_id` làm tên file; 409
+Duplicate khi thử lại cùng key được coi là đã tải). Lỗi mạng/không rõ giữ
+nguyên `request_id` và path để gửi lại; lỗi nghiệp vụ hoặc sửa nội dung thì
+tạo `request_id` mới.

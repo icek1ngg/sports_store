@@ -60,6 +60,18 @@ class OperationalRouteLocation {
         invalidId: parts.length != 3 || !_uuid.hasMatch(parts[2]),
       );
     }
+    // MH13: /customer/orders/<order UUID>/return. Ownership, delivery state
+    // and the 7-day window are enforced by the return RPCs, not this guard.
+    if (parts.length >= 3 && parts[0] == 'customer' && parts[1] == 'orders') {
+      return OperationalRouteLocation(
+        protected: true,
+        customerOnly: true,
+        invalidId:
+            parts.length != 4 ||
+            parts[3] != 'return' ||
+            !_uuid.hasMatch(parts[2]),
+      );
+    }
     if (uri.path == '/cod') {
       final ids = uri.queryParametersAll['orderId'];
       final order = ids?.first;

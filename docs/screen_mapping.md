@@ -102,6 +102,23 @@ biến thể và bộ chọn vị trí trong màn đặt hàng là thành phần
 | MH19 | Danh sách hội thoại | Khách, Manager | Dung An | Khách mở hội thoại; manager xem danh sách và tin chưa đọc |
 | MH20 | Chi tiết hội thoại | Khách, Manager | Sơn | Đọc lịch sử, gửi/nhận tin văn bản và cập nhật đã đọc |
 
+### Trạng thái MH13 (01/11/2026)
+
+- Route `/customer/orders/:orderId/return` (chỉ customer; UUID sai bị chặn ở
+  guard) → `ReturnRequestFlowPage`. Bước 1 `CreateReturnPage` (lý do), bước 2
+  `ReturnRequestDetailsPage` (mô tả, video mở kiện, tài khoản nhận hoàn tiền,
+  nút "Gửi yêu cầu trả hàng"). Bước 2 được push lên trên bước 1; dữ liệu nhập
+  nằm trong `returnRequestFlowProvider(orderId)` nên quay lại không mất.
+- Dữ liệu thật: `get_return_request_context` + upload Storage `return-videos`
+  + `submit_return_request` (xem `api_contracts.md`, mục MH13).
+- Chưa có nút mở MH13 từ MH07: `CustomerOrdersPage.onCreateReturn` đã có sẵn
+  nhưng MH07 chưa được gắn route. Mã đơn hiển thị là UUID đầy đủ vì `orders`
+  không có cột mã đơn riêng.
+- Lý do trả dùng `ReturnReason` có wire value đúng enum `public.return_reason`:
+  `defective`, `wrong_item`, `missing_items`.
+- Preview DEMO riêng (390 × 884, không đăng nhập, repository DEMO, không gọi
+  Supabase): `flutter run -d edge -t tool/ui_preview/mh13_main.dart`.
+
 ## Điều hướng chính
 
 - Khách: MH01/MH02 → MH04 → MH05 → MH06 → MH16 → MH07.

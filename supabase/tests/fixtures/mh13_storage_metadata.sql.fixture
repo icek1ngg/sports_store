@@ -1,0 +1,13 @@
+-- TEST FIXTURE ONLY. Never apply to Supabase/cloud or an existing database.
+-- Adds the hosted storage.objects columns MH13 relies on (owner_id, metadata)
+-- to the minimal p011 Storage stub. Real Supabase Storage already has them.
+do $$
+begin
+  if current_setting('sports_store.fixture_mode', true) is distinct from 'p011_isolated' then
+    raise exception 'MH13 storage fixture requires the isolated p011 fixture';
+  end if;
+end;
+$$;
+alter table storage.objects
+  add column if not exists owner_id text,
+  add column if not exists metadata jsonb;
