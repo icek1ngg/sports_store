@@ -83,27 +83,35 @@ final class SupabaseReturnRequestRepository implements ReturnRequestRepository {
     });
   }
 
-  Future<T> _run<T>(Future<T> Function(ReadIdentity identity) action) async {
-    try {
-      return await access.run<T>(
-        roles: const {'customer'},
-        action: (identity) async {
-          try {
-            return await action(identity);
-          } on OperationalFailure {
-            rethrow;
-          } catch (error) {
-            // `run` normalizes unknown errors to OperationalFailure; carry
-            // the precise MH13 failure through it.
-            throw _ReturnFailureCarrier(mapReturnRequestError(error));
-          }
-        },
-      );
-    } on _ReturnFailureCarrier catch (carrier) {
-      throw carrier.failure;
-    } catch (error) {
-      throw mapReturnRequestError(error);
-    }
+  Future<T> _run<T>(Future<T> Function(ReadIdentity identity) action) =>
+      runCustomerReturnCall(access, action);
+}
+
+/// Runs a customer-only returns call inside the shared access epoch and
+/// rethrows a precise [ReturnRequestFailure] (MH13 and MH14).
+Future<T> runCustomerReturnCall<T>(
+  OperationalReadAccess access,
+  Future<T> Function(ReadIdentity identity) action,
+) async {
+  try {
+    return await access.run<T>(
+      roles: const {'customer'},
+      action: (identity) async {
+        try {
+          return await action(identity);
+        } on OperationalFailure {
+          rethrow;
+        } catch (error) {
+          // `run` normalizes unknown errors to OperationalFailure; carry the
+          // precise returns failure through it.
+          throw _ReturnFailureCarrier(mapReturnRequestError(error));
+        }
+      },
+    );
+  } on _ReturnFailureCarrier catch (carrier) {
+    throw carrier.failure;
+  } catch (error) {
+    throw mapReturnRequestError(error);
   }
 }
 
@@ -134,6 +142,7 @@ ReturnRequestFailure mapReturnRequestError(Object error) {
     final marker = error.message.trim();
     final code = switch ((error.code, marker)) {
       ('PT404', 'ORDER_NOT_FOUND') => ReturnRequestFailureCode.orderNotFound,
+      ('PT404', 'RETURN_NOT_FOUND') => ReturnRequestFailureCode.returnNotFound,
       ('PT409', 'ORDER_NOT_DELIVERED') =>
         ReturnRequestFailureCode.orderNotDelivered,
       ('PT409', 'RETURN_WINDOW_EXPIRED') =>

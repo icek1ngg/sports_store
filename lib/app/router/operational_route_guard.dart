@@ -72,6 +72,15 @@ class OperationalRouteLocation {
             !_uuid.hasMatch(parts[2]),
       );
     }
+    // MH14: /customer/returns/<return UUID>. Ownership is checked by
+    // get_my_return_request on every read.
+    if (parts.length >= 2 && parts[0] == 'customer' && parts[1] == 'returns') {
+      return OperationalRouteLocation(
+        protected: true,
+        customerOnly: true,
+        invalidId: parts.length != 3 || !_uuid.hasMatch(parts[2]),
+      );
+    }
     if (uri.path == '/cod') {
       final ids = uri.queryParametersAll['orderId'];
       final order = ids?.first;

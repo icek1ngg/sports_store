@@ -177,6 +177,8 @@ class ReturnVideoField extends StatelessWidget {
     required this.onPick,
     required this.onRemove,
     this.error,
+    this.pickLabel = 'Chọn video mở kiện',
+    this.pickKey = const ValueKey('mh13-pick-video'),
     super.key,
   });
 
@@ -184,6 +186,8 @@ class ReturnVideoField extends StatelessWidget {
   final VoidCallback? onPick;
   final VoidCallback? onRemove;
   final String? error;
+  final String pickLabel;
+  final Key pickKey;
 
   @override
   Widget build(BuildContext context) {
@@ -200,29 +204,35 @@ class ReturnVideoField extends StatelessWidget {
               side: BorderSide(color: borderColor),
             ),
             child: InkWell(
-              key: const ValueKey('mh13-pick-video'),
+              key: pickKey,
               borderRadius: BorderRadius.circular(14),
               onTap: onPick,
-              child: const Padding(
-                padding: EdgeInsets.symmetric(vertical: 22, horizontal: 16),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 22,
+                  horizontal: 16,
+                ),
                 child: Column(
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.video_call_outlined,
                       size: 30,
                       color: AppColors.ink,
                     ),
-                    SizedBox(height: 6),
+                    const SizedBox(height: 6),
                     Text(
-                      'Chọn video mở kiện',
-                      style: TextStyle(
+                      pickLabel,
+                      style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                         color: AppColors.ink,
                       ),
                     ),
-                    SizedBox(height: 2),
-                    Text('MP4, MOV, WEBM · tối đa 100 MB', style: _helper),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'MP4, MOV, WEBM · tối đa 100 MB',
+                      style: _helper,
+                    ),
                   ],
                 ),
               ),

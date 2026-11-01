@@ -926,3 +926,20 @@ PASS sau migration.
 Cần xác minh khi lên cloud: postgres đọc được `storage.objects` (helper owner
 postgres), Storage điền `owner_id`/`metadata.mimetype`/`metadata.size` khi
 upload, PostgREST trả đúng mã `PT404/PT409/PT422`.
+
+## MH14 — get_my_return_request (kiểm thử cục bộ 01/11/2026)
+
+Migration `20261101090627_get_my_return_request.sql`: role
+`sports_store_return_tracking_reader`, quyền SELECT theo cột trên
+`return_requests`, `orders`, `return_items`, `order_items`, `delivery_tasks`,
+`profiles` kèm policy chỉ áp cho role này, và RPC `get_my_return_request`.
+Không thêm bảng/cột, không có quyền ghi. Chưa áp dụng lên cloud.
+
+`node supabase/tests/run_return_request_submission.mjs` nay chạy thêm
+`return_tracking.sql`. Bộ này gửi yêu cầu bằng RPC thật của MH13 rồi **giả lập
+các bước của manager bằng UPDATE quyền admin** (MH15 chưa có lệnh duyệt):
+duyệt lấy hàng (`status`, `decided_by`, `decision_at`, `return_items`), phân
+công (`delivery_tasks` kind `return_pickup`), lấy hàng, nhận về cửa hàng,
+kiểm tra đạt, ghi hoàn tiền. Sau mỗi bước khách đọc lại và thấy trạng thái mới;
+khách B luôn nhận `RETURN_NOT_FOUND`; khách không đọc trực tiếp được
+`delivery_tasks`/`profiles`. Kết quả 01/11/2026: PASS (rollback).

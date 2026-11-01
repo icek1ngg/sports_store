@@ -19,15 +19,15 @@ class ReturnRequestDetailsPage extends ConsumerStatefulWidget {
   const ReturnRequestDetailsPage({
     required this.orderId,
     required this.totalPaidVnd,
-    required this.onFinished,
+    required this.onOpenReturn,
     super.key,
   });
 
   final String orderId;
   final int totalPaidVnd;
 
-  /// Leaves the flow after a successful submission.
-  final VoidCallback onFinished;
+  /// Opens tracking (MH14) with the return id the server just created.
+  final ValueChanged<String> onOpenReturn;
 
   static const stepLabel = 'Bước 2/2';
 
@@ -87,7 +87,7 @@ class _ReturnRequestDetailsPageState
     if (state.phase == ReturnSubmitPhase.succeeded) {
       return _SuccessView(
         receiptId: state.receipt?.returnRequestId,
-        onDone: widget.onFinished,
+        onDone: () => widget.onOpenReturn(state.receipt!.returnRequestId),
       );
     }
 
@@ -315,7 +315,7 @@ class _SuccessView extends StatelessWidget {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      child: const Text('Xong'),
+                      child: const Text('Theo dõi yêu cầu'),
                     ),
                   ),
                 ],

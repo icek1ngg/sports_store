@@ -17,6 +17,7 @@ import '../../features/deliveries/data/repositories/operational_providers.dart';
 import '../../features/deliveries/presentation/pages/delivery_route_pages.dart';
 import '../../features/deliveries/presentation/view_models/delivery_providers.dart';
 import '../../features/returns/presentation/pages/return_request_flow_page.dart';
+import '../../features/returns/presentation/pages/return_tracking_page.dart';
 import '../shells/shipper_shell.dart';
 import 'operational_route_guard.dart';
 import 'dung_an_route_pages.dart';
@@ -159,6 +160,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => ReturnRequestFlowPage(
               orderId: state.pathParameters['orderId']!,
               onExit: () => context.canPop()
+                  ? context.pop()
+                  : context.go('/customer/products'),
+              // Replace the form so "back" from tracking does not reopen it.
+              onOpenReturn: (returnId) =>
+                  context.go('/customer/returns/$returnId'),
+            ),
+          ),
+          GoRoute(
+            path: '/customer/returns/:returnId',
+            caseSensitive: true,
+            builder: (context, state) => ReturnTrackingPage(
+              returnId: state.pathParameters['returnId']!,
+              onBack: () => context.canPop()
                   ? context.pop()
                   : context.go('/customer/products'),
             ),

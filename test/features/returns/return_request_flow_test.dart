@@ -97,7 +97,7 @@ Future<void> _pump(
   WidgetTester tester,
   _FakeRepository repository,
   _FakePicker picker, {
-  VoidCallback? onExit,
+  ValueChanged<String>? onOpenReturn,
 }) async {
   tester.view.physicalSize = const Size(390, 884);
   tester.view.devicePixelRatio = 1;
@@ -109,7 +109,11 @@ Future<void> _pump(
         returnVideoPickerProvider.overrideWithValue(picker),
       ],
       child: MaterialApp(
-        home: ReturnRequestFlowPage(orderId: _orderId, onExit: onExit ?? () {}),
+        home: ReturnRequestFlowPage(
+          orderId: _orderId,
+          onExit: () {},
+          onOpenReturn: onOpenReturn ?? (_) {},
+        ),
       ),
     ),
   );
@@ -207,8 +211,13 @@ void main() {
     tester,
   ) async {
     final repository = _FakeRepository();
-    var exited = false;
-    await _pump(tester, repository, _FakePicker(), onExit: () => exited = true);
+    String? opened;
+    await _pump(
+      tester,
+      repository,
+      _FakePicker(),
+      onOpenReturn: (id) => opened = id,
+    );
     await _goToStep2(tester, 'defective');
     await _fillStep2(tester);
 
@@ -230,7 +239,7 @@ void main() {
     expect(find.byKey(const ValueKey('mh13-success')), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('mh13-done')));
-    expect(exited, isTrue);
+    expect(opened, '44444444-4444-4444-8444-444444444444');
   });
 
   testWidgets('ambiguous failure retries with the same key, no re-upload', (

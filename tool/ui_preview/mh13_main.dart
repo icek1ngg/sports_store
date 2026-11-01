@@ -108,7 +108,7 @@ class _Mh13PreviewFlow extends ConsumerWidget {
             builder: (_) => ReturnRequestDetailsPage(
               orderId: order.orderId,
               totalPaidVnd: order.totalPaidVnd,
-              onFinished: restart,
+              onOpenReturn: (_) => restart(),
             ),
           ),
         );

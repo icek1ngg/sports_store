@@ -59,15 +59,18 @@ try {
     console.log(`Migration applied to isolated fixture: ${name}`);
   }
 
-  const result = await client.query(
-    await readFile(resolve(testDir, 'return_request_submission.sql'), 'utf8'),
-  );
-  const pass = result.some(statement => statement.rows?.some(row =>
-    Object.values(row).includes('return_request_submission.sql: PASS')));
-  if (!pass || result.at(-1)?.command !== 'ROLLBACK') {
-    throw new Error('MH13 SQL suite did not return PASS + ROLLBACK');
+  // MH13 submission + MH14 tracking suites; each rolls back its own rows.
+  for (const name of ['return_request_submission.sql', 'return_tracking.sql']) {
+    const result = await client.query(
+      await readFile(resolve(testDir, name), 'utf8'),
+    );
+    const pass = result.some(statement => statement.rows?.some(row =>
+      Object.values(row).includes(`${name}: PASS`)));
+    if (!pass || result.at(-1)?.command !== 'ROLLBACK') {
+      throw new Error(`${name} did not return PASS + ROLLBACK`);
+    }
+    console.log(`${name}: PASS (transaction rolled back)`);
   }
-  console.log('return_request_submission.sql: PASS (transaction rolled back)');
 
   const concurrencyAdmin = new Client({ ...options, database });
   await concurrencyAdmin.connect();

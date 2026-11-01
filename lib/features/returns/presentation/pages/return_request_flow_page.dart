@@ -20,13 +20,18 @@ class ReturnRequestFlowPage extends ConsumerWidget {
   const ReturnRequestFlowPage({
     required this.orderId,
     required this.onExit,
+    required this.onOpenReturn,
     super.key,
   });
 
   final String orderId;
 
-  /// Leaves the flow (back from step 1, or "Xong" after success).
+  /// Leaves the flow (back from step 1).
   final VoidCallback onExit;
+
+  /// Opens MH14 for a return id returned by the server: the one just
+  /// created, or the order's existing active request.
+  final ValueChanged<String> onOpenReturn;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -60,13 +65,16 @@ class ReturnRequestFlowPage extends ConsumerWidget {
               }
             : null;
         if (overview == null || blocked != null) {
+          final activeId = data.activeReturnId;
           return _FlowStatus(
             key: const ValueKey('mh13-blocked'),
             onBack: onExit,
             message:
                 blocked ?? 'Đơn chưa giao thành công nên chưa thể trả hàng.',
-            actionLabel: 'Quay lại',
-            onAction: onExit,
+            actionLabel: activeId != null
+                ? 'Xem yêu cầu đang xử lý'
+                : 'Quay lại',
+            onAction: activeId != null ? () => onOpenReturn(activeId) : onExit,
           );
         }
         return CreateReturnPage(
@@ -82,7 +90,7 @@ class ReturnRequestFlowPage extends ConsumerWidget {
                 builder: (_) => ReturnRequestDetailsPage(
                   orderId: orderId,
                   totalPaidVnd: data.totalPaidVnd,
-                  onFinished: onExit,
+                  onOpenReturn: onOpenReturn,
                 ),
               ),
             );

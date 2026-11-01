@@ -119,6 +119,17 @@ biến thể và bộ chọn vị trí trong màn đặt hàng là thành phần
 - Preview DEMO riêng (390 × 884, không đăng nhập, repository DEMO, không gọi
   Supabase): `flutter run -d edge -t tool/ui_preview/mh13_main.dart`.
 
+### Trạng thái MH14 (01/11/2026)
+
+- Route `/customer/returns/:returnId` (chỉ customer) → `ReturnTrackingPage`,
+  dữ liệu thật qua `get_my_return_request`; MH13 gửi xong mở thẳng màn này.
+- Tự cập nhật khi đang mở bằng `ForegroundRefresh` dùng chung; nút tải lại và
+  kéo để tải lại cũng đọc trạng thái mới nhất.
+- Chưa có: yêu cầu bổ sung từ manager và lịch hẹn lấy hàng (schema chưa có,
+  phụ thuộc MH15); các lệnh duyệt/phân công/kiểm tra/hoàn tiền thuộc MH15.
+- Preview DEMO riêng (11 tình huống, không gọi Supabase):
+  `flutter run -d edge -t tool/ui_preview/mh14_main.dart`.
+
 ## Điều hướng chính
 
 - Khách: MH01/MH02 → MH04 → MH05 → MH06 → MH16 → MH07.

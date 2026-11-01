@@ -2,6 +2,7 @@ enum ReturnRequestFailureCode {
   sessionExpired,
   permissionDenied,
   orderNotFound,
+  returnNotFound,
   orderNotDelivered,
   returnWindowExpired,
   activeReturnExists,
@@ -25,6 +26,13 @@ class ReturnRequestFailure implements Exception {
       code == ReturnRequestFailureCode.network ||
       code == ReturnRequestFailureCode.unexpected;
 
+  /// The caller may no longer see this data (other account, lost access):
+  /// previously shown private data must be cleared, not kept as "stale".
+  bool get revokesAccess =>
+      code == ReturnRequestFailureCode.sessionExpired ||
+      code == ReturnRequestFailureCode.permissionDenied ||
+      code == ReturnRequestFailureCode.returnNotFound;
+
   String get message => switch (code) {
     ReturnRequestFailureCode.sessionExpired =>
       'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.',
@@ -32,6 +40,8 @@ class ReturnRequestFailure implements Exception {
       'Bạn không có quyền tạo yêu cầu trả hàng cho đơn này.',
     ReturnRequestFailureCode.orderNotFound =>
       'Không tìm thấy đơn hàng của bạn.',
+    ReturnRequestFailureCode.returnNotFound =>
+      'Không tìm thấy yêu cầu trả hàng của bạn.',
     ReturnRequestFailureCode.orderNotDelivered =>
       'Đơn chưa giao thành công nên chưa thể trả hàng.',
     ReturnRequestFailureCode.returnWindowExpired =>

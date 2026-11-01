@@ -1875,3 +1875,39 @@ Flutter: `ReturnRequestRepository` (`lib/features/returns/domain`), adapter
 Duplicate khi thử lại cùng key được coi là đã tải). Lỗi mạng/không rõ giữ
 nguyên `request_id` và path để gửi lại; lỗi nghiệp vụ hoặc sửa nội dung thì
 tạo `request_id` mới.
+
+## MH14 — Theo dõi yêu cầu trả của khách (Sơn, 01/11/2026)
+
+Migration `20261101090627_get_my_return_request.sql` (tạo bằng
+`npx --yes supabase@2.119.0 migration new get_my_return_request`). Chỉ đọc,
+không đổi bảng. **Chưa áp dụng lên cloud**; phụ thuộc migration MH13
+`20261101080125_submit_return_request.sql` (áp trước).
+
+`get_my_return_request(p_return_id uuid) → jsonb` — SECURITY DEFINER, owner
+`sports_store_return_tracking_reader` (NOLOGIN, NOINHERIT, NOBYPASSRLS, chỉ
+SELECT theo cột, policy chỉ cho đúng khách sở hữu).
+
+- Chỉ role `customer`; yêu cầu của khách khác hoặc id không tồn tại →
+  `PT404 RETURN_NOT_FOUND` (không phân biệt hai trường hợp). Manager/shipper
+  → `42501 PERMISSION_DENIED`; chưa đăng nhập → `42501 AUTH_REQUIRED`.
+- Trả: `return_id`, `order_id`, `status`, `reason`, `submitted_at`,
+  `decision_reason`, `decision_at`, `received_at_store`
+  (= `inspection_started_at`), `inspected_at`, `closed_at`,
+  `merchandise_vnd`, `delivery_fee_vnd`, `pickup_address`, `items[]` (hàng đã
+  duyệt thu hồi: `name`, `variant_label`, `quantity`), `pickup` và
+  `redelivery` (`status`, `assigned_at`, `collected_at`/`completed_at`,
+  `person` = tên + SĐT chỉ khi nhiệm vụ đang `assigned|accepted|in_transit`),
+  `refund` (chỉ khi đủ `refund_amount_vnd`, `refunded_at`,
+  `transfer_evidence_path`; không trả path), `refund_bank_name`,
+  `refund_account_masked` (`••••` + 4 số cuối), `server_now`.
+- Không có lịch hẹn, tuyến đường, vị trí hay yêu cầu bổ sung trong schema nên
+  không trả. "Yêu cầu bổ sung" cần schema + lệnh ghi phía MH15.
+
+Flutter: `ReturnTrackingRepository` → `SupabaseReturnTrackingRepository`;
+route `/customer/returns/:returnId` (guard customer, UUID). MH13 gửi thành
+công → `context.go('/customer/returns/<return_request_id>')`; đơn đã có yêu
+cầu đang mở → nút "Xem yêu cầu đang xử lý". Cập nhật khi đang mở màn dùng
+`ForegroundRefresh` dùng chung (3 s khi foreground + màn hiện tại, tải lại khi
+quay lại màn/app), dừng ở trạng thái kết thúc; không dùng Realtime (dự án chưa
+có publication). Mất kết nối giữ dữ liệu xác nhận gần nhất có nhãn + "Thử
+lại"; mất quyền/đổi tài khoản/`RETURN_NOT_FOUND` xóa dữ liệu đang hiển thị.
