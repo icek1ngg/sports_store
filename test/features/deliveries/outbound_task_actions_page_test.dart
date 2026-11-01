@@ -321,7 +321,10 @@ void main() {
       find.byKey(const ValueKey('outbound-action-loading')),
       findsOneWidget,
     );
-    expect(tester.widget<OutlinedButton>(action).onPressed, isNull);
+    expect(
+      find.byKey(const ValueKey('outbound-action-awaiting-read')),
+      findsOneWidget,
+    );
 
     response.complete();
     await tester.pumpAndSettle();

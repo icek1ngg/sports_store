@@ -44,21 +44,60 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   final guard = ref.watch(operationalRouteGuardProvider);
   final navigatorKey = GlobalKey<NavigatorState>();
   late final GoRouter router;
-  void recheckAfterPop() => scheduleMicrotask(() {
-    if (ref.mounted) router.refresh();
-  });
+  var popCheckScheduled = false;
+  var suppressPopRecheck = false;
+  var profileRefreshPending = false;
+  Uri? pendingPopLocation;
+  void recheckAfterPop() {
+    // A redirect can remove one or more pages itself. Those pops already have
+    // an authorization decision and must not start another check against the
+    // stale URI that go_router exposes while applying the redirect.
+    if (suppressPopRecheck) return;
+    if (popCheckScheduled) return;
+    popCheckScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      popCheckScheduled = false;
+      if (!ref.mounted || suppressPopRecheck) return;
+      // Refresh redirects the base URI of an imperative stack in go_router 18.
+      // go_router refreshes the base URI of an imperative stack. Preserve the
+      // actual revealed leaf for the router-owned redirect below so the stack
+      // remains mounted while that leaf is reauthorized.
+      pendingPopLocation = router.state.uri;
+      router.refresh();
+    });
+  }
+
   router = GoRouter(
     navigatorKey: navigatorKey,
     observers: [_RecheckOnPop(recheckAfterPop)],
     refreshListenable: guard,
     redirect: (context, state) async {
-      final destination = await guard.redirect(state);
+      final checkedLocation = pendingPopLocation ?? state.uri;
+      pendingPopLocation = null;
+      final destination = await guard.redirectLocation(checkedLocation);
       if (destination != null) {
+        suppressPopRecheck = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            suppressPopRecheck = false;
+            if (profileRefreshPending && ref.mounted) {
+              profileRefreshPending = false;
+              if (const {
+                '/',
+                '/login',
+                '/register',
+              }.contains(router.state.uri.path)) {
+                router.refresh();
+              }
+            }
+          });
+        });
         if (ref.mounted &&
             destination == '/' &&
-            guard.decisionFor(state.uri)?.failure != null) {
+            guard.decisionFor(checkedLocation)?.failure != null) {
           // A live authorization rejection may mean the cached profile role was
           // revoked. Refresh before the entry page chooses a role destination.
+          profileRefreshPending = true;
           ref.invalidate(currentProfileProvider);
         }
         return destination;
@@ -222,7 +261,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   // router and losing its navigator stack.
   ref.listen(currentProfileProvider, (_, _) {
     scheduleMicrotask(() {
-      if (ref.mounted) router.refresh();
+      // Entry routes need role resolution to pick a home screen. Refreshing a
+      // denied protected URL here restarts its guard while its redirect to '/'
+      // is still pending, repeatedly invalidating the same profile.
+      if (!ref.mounted) return;
+      if (suppressPopRecheck) {
+        profileRefreshPending = true;
+        return;
+      }
+      if (const {'/', '/login', '/register'}.contains(router.state.uri.path)) {
+        router.refresh();
+      }
     });
   });
   var observedSession = false;
@@ -376,6 +425,7 @@ class _OperationalRouteBoundaryState
                 child: ShipperShell(
                   key: ValueKey(_authorizedOperationalSession),
                   role: _operationalRole!,
+                  shipperId: session?.userId,
                   location: widget.location,
                   child: widget.child,
                 ),

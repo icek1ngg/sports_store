@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -66,6 +67,20 @@ void main() {
             taskReads++;
             return jsonResponse(request, assigned ? [row] : []);
           }
+          if (request.url.path.endsWith('/list_my_delivery_tasks')) {
+            return jsonResponse(request, {
+              'items': [row],
+              'next_cursor': null,
+              'filtered_total': 1,
+              'counts': {
+                'waiting': 1,
+                'in_transit': 0,
+                'completed': 0,
+                'ungrouped': 0,
+              },
+              'as_of': '2026-10-24T03:00:00Z',
+            });
+          }
           if (request.url.path.endsWith('/get_my_delivery_task')) {
             detailReads++;
             return jsonResponse(request, {
@@ -99,7 +114,13 @@ void main() {
         tester.element(find.byType(SportsStoreApp)),
       );
       final router = container.read(appRouterProvider);
-      router.go('/shipper/tasks/$taskId');
+      router.go('/shipper/tasks');
+      await _until(
+        tester,
+        () => find.byKey(const ValueKey('mh10-outlet')).evaluate().isNotEmpty,
+      );
+      expect(find.text(shipperA), findsOneWidget);
+      unawaited(router.push('/shipper/tasks/$taskId'));
       await _until(
         tester,
         () => find.text('Người nhận fixture MH11').evaluate().isNotEmpty,
@@ -142,6 +163,8 @@ void main() {
         expect(find.text('Người nhận fixture MH11'), findsNothing);
         expect(find.byKey(const ValueKey('mh18-outlet')), findsNothing);
       } else {
+        expect(find.text('Bản đồ'), findsOneWidget);
+        expect(find.byType(BackButton), findsOneWidget);
         // A cancelled task is still a permitted historical task, so the
         // route guard alone cannot clear an old current-detail projection.
         final beforeReturn = detailReads;

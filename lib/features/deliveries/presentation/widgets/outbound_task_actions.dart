@@ -153,10 +153,24 @@ class _OutboundTaskActionsState extends ConsumerState<OutboundTaskActions> {
       DeliveryTaskStatus.accepted => OutboundTaskAction.startDelivery,
       _ => null,
     };
+    // Keep the action out of the tree for the whole command lifecycle. The
+    // detail snapshot can remain `accepted` while the write, ACK validation,
+    // or authoritative refetch is in flight; rendering the old button here
+    // makes a successful tap look like a no-op and invites duplicate taps.
+    final actionReadPending =
+        action != null &&
+        (state.busy ||
+            state.pendingCommand != null ||
+            state.requiresReadRetry ||
+            (state.acknowledged &&
+                (state.confirmedAction == null ||
+                    state.confirmedAction == action)));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (action != null && canExecuteOutboundAction(widget.task, action))
+        if (action != null &&
+            !actionReadPending &&
+            canExecuteOutboundAction(widget.task, action))
           OutlinedButton(
             key: ValueKey(
               action == OutboundTaskAction.acceptGoods
@@ -172,6 +186,15 @@ class _OutboundTaskActionsState extends ConsumerState<OutboundTaskActions> {
                   : 'Bắt đầu giao hàng',
             ),
           ),
+        if (actionReadPending) ...[
+          const SizedBox(height: 4),
+          Text(
+            state.confirmedAction == null
+                ? 'Đã gửi yêu cầu. Đang cập nhật trạng thái nhiệm vụ…'
+                : 'Thao tác đã được ghi nhận. Đang cập nhật trạng thái nhiệm vụ…',
+            key: const ValueKey('outbound-action-awaiting-read'),
+          ),
+        ],
         if (state.busy) ...[
           const SizedBox(height: 8),
           const LinearProgressIndicator(

@@ -200,9 +200,7 @@ void main() {
         );
         await _pumpUntil(
           tester,
-          () =>
-              router.state.uri.path == '/' &&
-              _hasText('Ứng dụng đang được xây dựng.'),
+          () => router.state.uri.path == '/' && _hasKey('app-entry'),
           description: 'revoked notification destination rejected',
         );
         expect(guardReads, greaterThan(before));
