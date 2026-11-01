@@ -876,7 +876,7 @@ SELECT pg_temp.assert_rows(
       FROM information_schema.column_privileges AS grants
       WHERE grants.grantee = 'sports_store_delivery_reader'
         AND grants.table_schema = 'public'
-    ) = 33
+    ) = 34
       AND NOT EXISTS (
         SELECT 1
         FROM information_schema.column_privileges AS grants

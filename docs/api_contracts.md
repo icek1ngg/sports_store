@@ -1,5 +1,10 @@
 # Hợp đồng truy cập database
 
+Cập nhật 01/11/2026: shipper được tự yêu cầu giao lần hai sau thất bại lần một
+bằng `retry_outbound_delivery_task(p_task_id, p_request_id)`, không chờ quản lý
+duyệt. Biên nhận failure cũ giữ nguyên. [Hợp đồng mới](demos/shipper_self_retry_20261101.md)
+thay yêu cầu manager-only cho quyết định retry; quyền hoàn sớm vẫn của quản lý.
+
 P10.3: [Inventory RPC hiện hữu và hướng dẫn bàn giao](handover/delivery_p103.md)
 liệt kê 28 delivery/COD/return primitives, phân biệt Dart interface, proposed
 names và test fixture. Reuse client/role authorization; không thêm RPC/grants.

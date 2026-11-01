@@ -15,6 +15,7 @@ import '../widgets/outbound_completion_action.dart';
 import '../view_models/outbound_completion_view_model.dart';
 import '../view_models/outbound_failure_view_model.dart';
 import '../widgets/outbound_failure_action.dart';
+import '../widgets/outbound_retry_action.dart';
 import '../view_models/outbound_task_actions_view_model.dart';
 import '../view_models/return_pickup_view_model.dart';
 import '../widgets/return_pickup_action.dart';
@@ -47,6 +48,11 @@ class _DeliveryTaskDetailPageState
     await ref
         .read(deliveryTaskDetailViewModelProvider(widget.taskId).notifier)
         .refresh();
+  }
+
+  Future<void> _openRetryTask(String retryTaskId) async {
+    if (!mounted) return;
+    context.pushReplacement('/shipper/tasks/$retryTaskId');
   }
 
   @override
@@ -148,6 +154,7 @@ class _DeliveryTaskDetailPageState
           _DetailBody(
             details: details,
             onMapReturned: _refresh,
+            onRetryCreated: _openRetryTask,
             showCompletionRecovery: _completionControllerActive,
             showReturnPickupRecovery: _returnPickupControllerActive,
             showRedeliveryRecovery: _redeliveryControllerActive,
@@ -162,6 +169,7 @@ class _DetailBody extends StatelessWidget {
   const _DetailBody({
     required this.details,
     required this.onMapReturned,
+    required this.onRetryCreated,
     required this.showCompletionRecovery,
     required this.showReturnPickupRecovery,
     required this.showRedeliveryRecovery,
@@ -169,6 +177,7 @@ class _DetailBody extends StatelessWidget {
 
   final DeliveryTaskDetails details;
   final Future<void> Function() onMapReturned;
+  final Future<void> Function(String retryTaskId) onRetryCreated;
   final bool showCompletionRecovery;
   final bool showReturnPickupRecovery;
   final bool showRedeliveryRecovery;
@@ -209,7 +218,17 @@ class _DetailBody extends StatelessWidget {
           icon: Icons.payments_outlined,
           child: _CodSection(task: task),
         ),
-        if (isCurrent && task.kind == DeliveryTaskKind.outbound) ...[
+        if (task.kind == DeliveryTaskKind.outbound &&
+            task.status == DeliveryTaskStatus.failed &&
+            task.attemptNumber == 1 &&
+            (task.scope == DeliverySnapshotScope.restricted || isCurrent)) ...[
+          const SizedBox(height: 12),
+          _SectionCard(
+            title: 'Giao lại đơn hàng',
+            icon: Icons.replay_outlined,
+            child: OutboundRetryAction(task: task, onCreated: onRetryCreated),
+          ),
+        ] else if (isCurrent && task.kind == DeliveryTaskKind.outbound) ...[
           const SizedBox(height: 12),
           _SectionCard(
             title: 'Thao tác tiếp theo',

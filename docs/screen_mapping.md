@@ -1,5 +1,10 @@
 # Ánh xạ màn hình Sports Store
 
+Cập nhật 01/11/2026: MH11 cho shipper chọn **Giao lại lần 2** từ outbound
+thất bại lần đầu, không cần chờ quản lý duyệt. Mở task mới do server trả về,
+xác nhận tiếp tục giữ hàng rồi bắt đầu lần hai. MH10 có nhóm thất bại để tìm
+lại nhiệm vụ. [Hợp đồng mới](demos/shipper_self_retry_20261101.md).
+
 ## Khởi đầu phiên shipper và điều hướng — 01/11/2026
 
 Sau khi xác minh hồ sơ shipper tại `/` hoặc `/login`, ứng dụng tự chuyển đến
@@ -19,6 +24,10 @@ MH11 ẩn nút nhận hàng/bắt đầu giao trong lúc gửi lệnh hoặc ch�
 hiển thị tiến trình và giữ nút thử lại theo cùng request ID khi cần. Chỉ dữ liệu
 đọc lại từ server xác nhận trạng thái mới; phản hồi nhận lệnh không được coi là
 đã chuyển trạng thái trên màn hình.
+
+Khi quay lại MH11 từ bản đồ, controller thông báo lại trạng thái sau khi được
+resume để nút **Bắt đầu giao hàng** hoạt động nếu nhiệm vụ vẫn đủ điều kiện.
+Việc mở/đóng bản đồ không tự gửi lệnh giao hàng.
 
 P10.3: [Bàn giao Delivery/COD/Maps](handover/delivery_p103.md) ghi rõ MH10/11/12/18,
 owner/dependency, demo fixture có nhãn/cleanup, build/setup và status từng mức

@@ -309,6 +309,7 @@ begin
     (l_page->'counts'->>'waiting')::int = 3
     and (l_page->'counts'->>'in_transit')::int = 2
     and (l_page->'counts'->>'completed')::int = 2
+    and (l_page->'counts'->>'failed')::int = 1
     and (l_page->'counts'->>'ungrouped')::int = 4
   );
   perform pg_temp.assert_list('page is limited to two items', jsonb_array_length(l_page->'items') = 2);
@@ -344,6 +345,7 @@ begin
     and (l_page->'counts'->>'waiting')::int = 3
     and (l_page->'counts'->>'in_transit')::int = 2
     and (l_page->'counts'->>'completed')::int = 2
+    and (l_page->'counts'->>'failed')::int = 1
     and (l_page->'counts'->>'ungrouped')::int = 4
     and not exists (
       select 1
@@ -368,6 +370,14 @@ begin
       from jsonb_array_elements(l_page->'items') as item
       where item->>'status' not in ('delivered', 'returned_to_store')
     )
+  );
+  l_page := public.list_my_delivery_tasks(null, 'failed', null, 100, null);
+  perform pg_temp.assert_list('failed group keeps the failed row actionable',
+    (l_page->>'filtered_total')::int = 1
+    and (l_page->'counts'->>'failed')::int = 1
+    and (l_page->'counts'->>'ungrouped')::int = 4
+    and (l_page->'items'->0->>'status') = 'failed'
+    and (l_page->'items'->0->>'task_id') = '82000000-0000-0000-0000-000000000007'
   );
 
   l_page := public.list_my_delivery_tasks('return_pickup', null, null, 100, null);
@@ -431,7 +441,7 @@ begin
   );
   perform pg_temp.assert_list_error(
     'unknown state group is invalid',
-    'select public.list_my_delivery_tasks(null, ''failed'', null, 20, null)',
+    'select public.list_my_delivery_tasks(null, ''not-a-state'', null, 20, null)',
     '22023'
   );
   perform pg_temp.assert_list_error(

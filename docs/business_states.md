@@ -1,5 +1,11 @@
 # Trạng thái nghiệp vụ
 
+Quyết định người dùng ngày 01/11/2026 thay quy tắc P07.2 manager-only retry:
+sau outbound lần một thất bại, shipper đang giữ hàng được tự chọn giao lần hai.
+Task cũ vẫn `failed`; task hai mới `assigned`, order `awaiting_pickup`, chỉ
+start mới tăng count lên hai. Quản lý vẫn có quyền hoàn sớm trước start2.
+Không cần duyệt lý do thất bại. [Chi tiết](demos/shipper_self_retry_20261101.md).
+
 P10.3 handover giữ nguyên state contracts: accept là physical custody, start
 mới tăng outbound count; failed1→task2 cùng holder, không đổi người sau nhận;
 report handover khác manager receipt/inspection/restock; pickup/redelivery

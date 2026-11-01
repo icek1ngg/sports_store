@@ -151,6 +151,7 @@ final class DeliveryTaskPageDto {
         DeliveryTaskStateGroup.waiting => counts.waiting,
         DeliveryTaskStateGroup.inTransit => counts.inTransit,
         DeliveryTaskStateGroup.completed => counts.completed,
+        DeliveryTaskStateGroup.failed => counts.failed,
       };
       if (filteredTotal != expected) {
         throw DeliveryDtoReaders.invalid(
@@ -193,6 +194,10 @@ final class DeliveryTaskPageDto {
       inTransit: _readCount(map, 'in_transit'),
       completed: _readCount(map, 'completed'),
       ungrouped: _readCount(map, 'ungrouped'),
+      // P02.1 deployments before the failed-task filter did not expose a
+      // dedicated count. Keep their unfiltered receipt readable while the
+      // new server includes the field for the failed tab.
+      failed: _readOptionalCount(map, 'failed'),
     );
   }
 
@@ -202,6 +207,11 @@ final class DeliveryTaskPageDto {
       throw DeliveryDtoReaders.invalid(key, 'a non-negative integer');
     }
     return value;
+  }
+
+  static int _readOptionalCount(Map<String, dynamic> map, String key) {
+    if (!map.containsKey(key)) return 0;
+    return _readCount(map, key);
   }
 
   static bool _matchesGroup(
@@ -217,6 +227,7 @@ final class DeliveryTaskPageDto {
       DeliveryTaskStateGroup.completed =>
         status == DeliveryTaskStatus.delivered ||
             status == DeliveryTaskStatus.returnedToStore,
+      DeliveryTaskStateGroup.failed => status == DeliveryTaskStatus.failed,
     };
   }
 }

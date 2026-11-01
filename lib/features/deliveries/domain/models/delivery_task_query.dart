@@ -8,7 +8,8 @@ import 'delivery_task.dart';
 enum DeliveryTaskStateGroup {
   waiting('waiting'),
   inTransit('in_transit'),
-  completed('completed');
+  completed('completed'),
+  failed('failed');
 
   const DeliveryTaskStateGroup(this.value);
 
@@ -154,12 +155,20 @@ final class DeliveryTaskCounts {
     required this.inTransit,
     required this.completed,
     required this.ungrouped,
+    this.failed = 0,
   });
 
   final int waiting;
   final int inTransit;
   final int completed;
   final int ungrouped;
+
+  /// Failed tasks are exposed as a dedicated tab count while remaining part
+  /// of [ungrouped]. This preserves the original ungrouped total for clients
+  /// that predate the failed filter and avoids double-counting the same rows.
+  /// Older list receipts may omit this count; those receipts remain compatible
+  /// with a zero value until the server contract is upgraded.
+  final int failed;
 
   int get total => waiting + inTransit + completed + ungrouped;
 
@@ -169,11 +178,13 @@ final class DeliveryTaskCounts {
         waiting == other.waiting &&
         inTransit == other.inTransit &&
         completed == other.completed &&
+        failed == other.failed &&
         ungrouped == other.ungrouped;
   }
 
   @override
-  int get hashCode => Object.hash(waiting, inTransit, completed, ungrouped);
+  int get hashCode =>
+      Object.hash(waiting, inTransit, completed, failed, ungrouped);
 }
 
 /// One immutable page returned by the task-list read contract.

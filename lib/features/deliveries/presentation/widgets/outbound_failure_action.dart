@@ -96,9 +96,7 @@ class _OutboundFailureActionState extends ConsumerState<OutboundFailureAction> {
       children: [
         if (state.confirmed)
           Text(
-            state.disposition == OutboundFailureDisposition.storeReturnPending
-                ? 'Giao thất bại lần hai. Chờ hoàn về cửa hàng.'
-                : 'Giao thất bại. Chờ quản lý quyết định.',
+            _confirmedFailureText(state),
             key: const ValueKey('failure-confirmed'),
           ),
         if (state.busy) const Text('Đang gửi và xác minh kết quả…'),
@@ -206,7 +204,7 @@ class _FailureDialogState extends ConsumerState<_FailureDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'Không ghi nhận thu COD. Việc giao lại hoặc hoàn hàng do quản lý quyết định.',
+              'Không ghi nhận thu COD. Sau lần đầu thất bại, bạn có thể chọn giao lại lần 2; không cần chờ quản lý duyệt.',
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<OutboundFailureReason>(
@@ -255,4 +253,12 @@ class _FailureDialogState extends ConsumerState<_FailureDialog> {
       ],
     );
   }
+}
+
+String _confirmedFailureText(OutboundFailureState state) {
+  final attempt = state.details.asData?.value.task.attemptNumber;
+  if (attempt == 1) {
+    return 'Đã ghi nhận giao thất bại lần 1. Bạn có thể chọn giao lại lần 2, không cần chờ quản lý duyệt.';
+  }
+  return 'Giao thất bại lần hai. Chờ hoàn về cửa hàng.';
 }

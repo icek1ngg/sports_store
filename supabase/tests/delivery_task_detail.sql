@@ -461,10 +461,11 @@ begin
     and l_items -> 0 ->> 'item_id' = '51000000-0000-0000-0000-000000000001'
     and l_items -> 1000 ->> 'item_id' = '51000000-0000-0000-0000-000000001001');
   perform pg_temp.assert_detail('item shape and snapshot values are exact',
-    (select count(*) from jsonb_object_keys(l_items -> 0)) = 9
+    (select count(*) from jsonb_object_keys(l_items -> 0)) = 10
     and (l_items -> 0) ?& array[
       'item_id', 'item_source', 'product_name', 'variant_label', 'attributes',
-      'quantity', 'quantity_collected', 'unit_price_vnd', 'line_total_vnd'
+      'quantity', 'quantity_collected', 'unit_price_vnd', 'line_total_vnd',
+      'image_url'
     ]
     and l_items -> 0 ->> 'item_source' = 'order_snapshot'
     and l_items -> 0 ->> 'product_name' = 'Snapshot item 1'

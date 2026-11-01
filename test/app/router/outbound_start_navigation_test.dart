@@ -119,7 +119,16 @@ void main() {
         tester.element(find.byType(SportsStoreApp)),
       );
       final router = container.read(appRouterProvider);
-      router.go('/shipper/tasks/$taskId');
+      router.go('/shipper/tasks');
+
+      await _until(
+        tester,
+        () => find
+            .byKey(const ValueKey('delivery-task-$taskId'))
+            .evaluate()
+            .isNotEmpty,
+      );
+      await tester.tap(find.byKey(const ValueKey('delivery-task-$taskId')));
 
       await _until(tester, () {
         final finder = find.byKey(const ValueKey('outbound-start-delivery'));
@@ -128,6 +137,28 @@ void main() {
       });
       expect(router.state.uri.path, '/shipper/tasks/$taskId');
       expect(detailReads, greaterThanOrEqualTo(1));
+
+      // Returning from MH18 must reactivate the MH11 action controller.  The
+      // detail route remains in the navigator stack while the map is pushed,
+      // so Riverpod can pause and resume the auto-dispose action provider.
+      for (var cycle = 0; cycle < 2; cycle++) {
+        final mapButton = find.byKey(const ValueKey('task-detail-map'));
+        await tester.ensureVisible(mapButton);
+        await tester.tap(mapButton);
+        await _until(
+          tester,
+          () => find.byKey(const ValueKey('mh18-outlet')).evaluate().isNotEmpty,
+        );
+        await tester.pump(const Duration(milliseconds: 400));
+        final detailReadsBeforeReturn = detailReads;
+        router.pop();
+        await _until(tester, () {
+          final finder = find.byKey(const ValueKey('outbound-start-delivery'));
+          return detailReads > detailReadsBeforeReturn &&
+              finder.evaluate().isNotEmpty &&
+              tester.widget<ButtonStyleButton>(finder).onPressed != null;
+        });
+      }
 
       final start = find.byKey(const ValueKey('outbound-start-delivery'));
       await tester.drag(
