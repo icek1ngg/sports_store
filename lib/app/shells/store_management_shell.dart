@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/auth/presentation/view_models/auth_providers.dart';
 import '../../features/auth/presentation/view_models/auth_view_model.dart';
+import 'manager_navigation_bar.dart';
 
 /// Navigation for the connected Dung An screens. The profile comes from RLS.
 class StoreManagementShell extends ConsumerWidget {
@@ -22,6 +23,13 @@ class StoreManagementShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final form = ref.watch(authViewModelProvider);
     final manager = profile.role == AppRole.manager;
+    final path = GoRouterState.of(context).uri.path;
+    final locations = manager
+        ? ['/manager/orders', '/manager/products', '/chat', '/cod']
+        : ['/customer/products', '/chat'];
+    final selected = locations.indexWhere(
+      (location) => path == location || path.startsWith('$location/'),
+    );
     return Scaffold(
       appBar: AppBar(
         title: Text(profile.fullName ?? 'Sports Store'),
@@ -62,13 +70,13 @@ class StoreManagementShell extends ConsumerWidget {
         ),
       ),
       bottomNavigationBar: manager
-          ? NavigationBar(
-              selectedIndex: inbox ? 1 : 0,
-              onDestinationSelected: (index) =>
-                  context.go(index == 0 ? '/manager/products' : '/chat'),
+          ? ManagerNavigationBar(selectedIndex: selected < 0 ? 0 : selected)
+          : NavigationBar(
+              selectedIndex: selected < 0 ? 0 : selected,
+              onDestinationSelected: (index) => context.go(locations[index]),
               destinations: const [
                 NavigationDestination(
-                  icon: Icon(Icons.inventory_2_outlined),
+                  icon: Icon(Icons.storefront_outlined),
                   label: 'Sản phẩm',
                 ),
                 NavigationDestination(
@@ -76,8 +84,7 @@ class StoreManagementShell extends ConsumerWidget {
                   label: 'Hội thoại',
                 ),
               ],
-            )
-          : null,
+            ),
     );
   }
 }

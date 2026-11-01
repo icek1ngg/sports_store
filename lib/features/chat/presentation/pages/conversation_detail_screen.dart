@@ -26,11 +26,8 @@ class _ConversationDetailScreenState
       if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
       final provider = chatThreadProvider(widget.conversationId);
       final value = ref.read(provider).asData?.value;
-      if (value != null &&
-          !value.sending &&
-          !value.loadingOlder &&
-          value.error == null) {
-        ref.invalidate(provider);
+      if (value != null && !value.busy && value.error == null) {
+        unawaited(ref.read(provider.notifier).refreshLatest());
       }
     });
   }
@@ -61,9 +58,15 @@ class _ConversationDetailScreenState
         actions: [
           IconButton(
             tooltip: 'Tải tin nhắn mới',
-            onPressed: thread.isLoading || thread.asData?.value.sending == true
+            onPressed: thread.isLoading || thread.asData?.value.busy == true
                 ? null
-                : () => ref.invalidate(provider),
+                : () {
+                    if (thread.hasError) {
+                      ref.invalidate(provider);
+                    } else {
+                      unawaited(ref.read(provider.notifier).refreshLatest());
+                    }
+                  },
             icon: const Icon(Icons.refresh),
           ),
         ],
@@ -86,6 +89,7 @@ class _ConversationDetailScreenState
         ),
         data: (value) => Column(
           children: [
+            if (value.refreshing) const LinearProgressIndicator(),
             Expanded(
               child: value.page.messages.isEmpty
                   ? const Center(
@@ -100,7 +104,7 @@ class _ConversationDetailScreenState
                       itemBuilder: (context, index) {
                         if (index == value.page.messages.length) {
                           return TextButton(
-                            onPressed: value.loadingOlder || value.sending
+                            onPressed: value.busy
                                 ? null
                                 : () => ref.read(provider.notifier).loadOlder(),
                             child: Text(
@@ -179,9 +183,7 @@ class _ConversationDetailScreenState
                     const SizedBox(width: 8),
                     IconButton.filled(
                       tooltip: 'Gửi tin nhắn',
-                      onPressed: value.sending || value.loadingOlder
-                          ? null
-                          : _send,
+                      onPressed: value.busy ? null : _send,
                       icon: value.sending
                           ? const SizedBox(
                               width: 20,

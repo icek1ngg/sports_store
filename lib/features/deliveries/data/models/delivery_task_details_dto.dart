@@ -155,6 +155,7 @@ class DeliveryTaskDetailsDto {
   };
 
   static const _itemKeys = {
+    'image_url',
     'item_id',
     'item_source',
     'product_name',

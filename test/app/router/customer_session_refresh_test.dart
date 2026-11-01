@@ -318,6 +318,9 @@ void main() {
       expect(find.byKey(const ValueKey('checkout-form')), findsNothing);
       expect(find.byKey(const ValueKey('checkout-submit')), findsNothing);
       expect(guard.decisionFor(Uri.parse('/customer/checkout')), isNull);
+      expect(find.byType(CircularProgressIndicator), findsWidgets);
+      expect(find.text('Đang tải màn hình…'), findsOneWidget);
+      expect(find.text('Về trang đầu'), findsNothing);
       expect(app.fixture.placements, isEmpty);
       gate.complete();
       await _until(tester, () => _visible('checkout-form'));

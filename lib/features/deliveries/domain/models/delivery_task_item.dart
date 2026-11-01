@@ -31,6 +31,7 @@ class DeliveryTaskItem {
     this.quantityCollected,
     this.unitPriceVnd,
     this.lineTotalVnd,
+    this.imageUrl,
   }) : attributes = attributes == null ? null : _freezeJsonMap(attributes);
 
   final String itemId;
@@ -42,6 +43,7 @@ class DeliveryTaskItem {
   final int? quantityCollected;
   final int? unitPriceVnd;
   final int? lineTotalVnd;
+  final String? imageUrl;
 
   @override
   bool operator ==(Object other) {
@@ -54,7 +56,8 @@ class DeliveryTaskItem {
         quantity == other.quantity &&
         quantityCollected == other.quantityCollected &&
         unitPriceVnd == other.unitPriceVnd &&
-        lineTotalVnd == other.lineTotalVnd;
+        lineTotalVnd == other.lineTotalVnd &&
+        imageUrl == other.imageUrl;
   }
 
   @override
@@ -68,6 +71,7 @@ class DeliveryTaskItem {
     quantityCollected,
     unitPriceVnd,
     lineTotalVnd,
+    imageUrl,
   );
 }
 

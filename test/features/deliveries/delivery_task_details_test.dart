@@ -22,6 +22,26 @@ Map<String, dynamic> detailPayload({
 }
 
 void main() {
+  for (final image in [null, 'https://example.com/product.webp']) {
+    test('full detail response accepts approved image_url ($image)', () {
+      final item = outboundItemDto()..['image_url'] = image;
+      final detail = DeliveryTaskDetailsDto.fromJson(
+        detailPayload(items: [item]),
+        requestedTaskId: taskId,
+      ).toDomain();
+      expect(detail.items.single.imageUrl, image);
+      expect(detail.items.single.quantity, 2);
+      expect(detail.task.amountToCollectVnd, 550000);
+      item['refund_bank_account'] = 'must not be accepted';
+      expect(
+        () => DeliveryTaskDetailsDto.fromJson(
+          detailPayload(items: [item]),
+          requestedTaskId: taskId,
+        ),
+        throwsFormatException,
+      );
+    });
+  }
   test('immutable redelivery plan accepts safe variant snapshot only for current redelivery', () {
     final item = {
       ...returnItemDto(quantityCollected: 2),

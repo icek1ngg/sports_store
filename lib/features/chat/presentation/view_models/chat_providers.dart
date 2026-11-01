@@ -58,12 +58,15 @@ class ChatThreadState {
     required this.page,
     this.sending = false,
     this.loadingOlder = false,
+    this.refreshing = false,
     this.error,
   });
   final ChatMessagePage page;
   final bool sending;
   final bool loadingOlder;
+  final bool refreshing;
   final String? error;
+  bool get busy => sending || loadingOlder || refreshing;
 }
 
 class ChatThreadViewModel extends AsyncNotifier<ChatThreadState> {
@@ -72,15 +75,20 @@ class ChatThreadViewModel extends AsyncNotifier<ChatThreadState> {
   String? _pendingId;
   String? _pendingBody;
   String? _pendingOwner;
+  // Only a head read proves that all messages through this point were loaded.
+  // A local send ACK may jump over unread messages from the other participant.
+  ChatMessage? _contiguousHead;
   int _epoch = 0;
   @override
   Future<ChatThreadState> build() async {
-    _epoch++;
+    final epoch = ++_epoch;
+    _contiguousHead = null;
     final token = await ref.watch(chatSessionProvider.future);
     if (token == null) {
       throw const ChatFailure('Vui lòng đăng nhập để xem hội thoại.');
     }
     final owner = ref.read(supabaseClientProvider).auth.currentUser?.id;
+    final session = ref.read(supabaseClientProvider).auth.currentSession;
     if (_pendingOwner != owner) {
       _pendingId = null;
       _pendingBody = null;
@@ -89,12 +97,94 @@ class ChatThreadViewModel extends AsyncNotifier<ChatThreadState> {
     final page = await ref
         .watch(chatRepositoryProvider)
         .getMessages(conversationId);
+    if (ref.mounted &&
+        epoch == _epoch &&
+        identical(
+          ref.read(supabaseClientProvider).auth.currentSession,
+          session,
+        )) {
+      _contiguousHead = page.messages.lastOrNull;
+      // The head RPC has committed its read watermark. MH19 must fetch the
+      // server's new unread count even when the user never sends a reply.
+      ref.invalidate(chatInboxProvider);
+    }
     return ChatThreadState(page: page);
+  }
+
+  /// Merge a fresh head into all loaded history. If more than one page arrived
+  /// since the last read, walk backwards until the old tail is reached so the
+  /// resulting list has no hidden gap between the two snapshots.
+  Future<void> refreshLatest() async {
+    final current = state.asData?.value;
+    if (current == null || current.busy) return;
+    final epoch = _epoch;
+    final session = ref.read(supabaseClientProvider).auth.currentSession;
+    bool isCurrent() =>
+        ref.mounted &&
+        _epoch == epoch &&
+        identical(
+          ref.read(supabaseClientProvider).auth.currentSession,
+          session,
+        );
+    state = AsyncData(
+      ChatThreadState(
+        page: current.page,
+        refreshing: true,
+        error: current.error,
+      ),
+    );
+    try {
+      final repository = ref.read(chatRepositoryProvider);
+      var page = await repository.getMessages(conversationId);
+      if (!isCurrent()) return;
+      ref.invalidate(chatInboxProvider);
+      final head = page.messages.lastOrNull;
+      final fresh = [...page.messages];
+      if (current.page.messages.isNotEmpty) {
+        final anchor = _contiguousHead;
+        final cursors = <String>{};
+        while (page.hasMore &&
+            (anchor == null ||
+                page.messages.isEmpty ||
+                _compareMessages(page.messages.first, anchor) > 0)) {
+          if (page.messages.isEmpty || !cursors.add(page.messages.first.id)) {
+            throw const ChatFailure(
+              'Không thể nối lịch sử hội thoại. Hãy thử lại.',
+            );
+          }
+          page = await repository.getMessages(
+            conversationId,
+            beforeMessageId: page.messages.first.id,
+          );
+          if (!isCurrent()) return;
+          fresh.addAll(page.messages);
+        }
+      }
+      if (!isCurrent()) return;
+      _contiguousHead = head;
+      state = AsyncData(
+        ChatThreadState(
+          page: ChatMessagePage(
+            messages: _mergeMessages(current.page.messages, fresh),
+            // The cursor is still the oldest message already loaded, rather
+            // than the oldest message in the fresh head response.
+            hasMore: current.page.messages.isEmpty
+                ? page.hasMore
+                : current.page.hasMore,
+          ),
+          error: _pendingId == null ? null : current.error,
+        ),
+      );
+    } catch (error) {
+      if (isCurrent()) {
+        _handleActionError(current, error);
+      }
+    }
   }
 
   Future<bool> send(String body) async {
     final current = state.asData?.value;
-    if (current == null || current.sending || current.loadingOlder) {
+    if (current == null || current.busy) {
       return false;
     }
     if (body.trim().isEmpty || body.length > 4000) return false;
@@ -119,12 +209,7 @@ class ChatThreadViewModel extends AsyncNotifier<ChatThreadState> {
       if (!isCurrent()) return false;
       _pendingId = null;
       _pendingBody = null;
-      final messages =
-          [...current.page.messages.where((m) => m.id != message.id), message]
-            ..sort((a, b) {
-              final order = a.createdAt.compareTo(b.createdAt);
-              return order == 0 ? a.id.compareTo(b.id) : order;
-            });
+      final messages = _mergeMessages(current.page.messages, [message]);
       state = AsyncData(
         ChatThreadState(
           page: ChatMessagePage(
@@ -137,9 +222,7 @@ class ChatThreadViewModel extends AsyncNotifier<ChatThreadState> {
       return true;
     } catch (error) {
       if (isCurrent()) {
-        state = AsyncData(
-          ChatThreadState(page: current.page, error: chatErrorMessage(error)),
-        );
+        _handleActionError(current, error);
       }
       return false;
     }
@@ -148,8 +231,7 @@ class ChatThreadViewModel extends AsyncNotifier<ChatThreadState> {
   Future<void> loadOlder() async {
     final current = state.asData?.value;
     if (current == null ||
-        current.sending ||
-        current.loadingOlder ||
+        current.busy ||
         !current.page.hasMore ||
         current.page.messages.isEmpty) {
       return;
@@ -172,26 +254,45 @@ class ChatThreadViewModel extends AsyncNotifier<ChatThreadState> {
             beforeMessageId: current.page.messages.first.id,
           );
       if (!isCurrent()) return;
-      final byId = {
-        for (final m in [...page.messages, ...current.page.messages]) m.id: m,
-      };
       state = AsyncData(
         ChatThreadState(
           page: ChatMessagePage(
-            messages: byId.values.toList(),
+            messages: _mergeMessages(current.page.messages, page.messages),
             hasMore: page.hasMore,
           ),
         ),
       );
     } catch (error) {
       if (isCurrent()) {
-        state = AsyncData(
-          ChatThreadState(page: current.page, error: chatErrorMessage(error)),
-        );
+        _handleActionError(current, error);
       }
     }
   }
+
+  void _handleActionError(ChatThreadState current, Object error) {
+    if (error is ChatFailure && error.accessDenied) {
+      // A transport failure can preserve history; a permission failure must
+      // remove it immediately, rather than showing a now-inaccessible thread.
+      state = AsyncError(error, StackTrace.current);
+    } else {
+      state = AsyncData(
+        ChatThreadState(page: current.page, error: chatErrorMessage(error)),
+      );
+    }
+  }
 }
+
+int _compareMessages(ChatMessage a, ChatMessage b) {
+  final order = a.createdAt.compareTo(b.createdAt);
+  return order == 0 ? a.id.compareTo(b.id) : order;
+}
+
+List<ChatMessage> _mergeMessages(
+  List<ChatMessage> existing,
+  List<ChatMessage> incoming,
+) => ({
+  for (final message in [...existing, ...incoming]) message.id: message,
+}.values.toList()..sort(_compareMessages));
 
 String chatErrorMessage(Object error) => error is ChatFailure
     ? error.message

@@ -51,7 +51,38 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     navigatorKey: navigatorKey,
     observers: [_RecheckOnPop(recheckAfterPop)],
     refreshListenable: guard,
-    redirect: (context, state) => guard.redirect(state),
+    redirect: (context, state) async {
+      final destination = await guard.redirect(state);
+      if (destination != null) {
+        if (ref.mounted &&
+            destination == '/' &&
+            guard.decisionFor(state.uri)?.failure != null) {
+          // A live authorization rejection may mean the cached profile role was
+          // revoked. Refresh before the entry page chooses a role destination.
+          ref.invalidate(currentProfileProvider);
+        }
+        return destination;
+      }
+      if (!const {'/', '/login', '/register'}.contains(state.uri.path)) {
+        return null;
+      }
+      if (state.uri.path == '/' &&
+          ref.read(landingPageBuilderProvider) != null) {
+        return null;
+      }
+      final session = ref.read(authSessionProvider);
+      final profile = ref.read(currentProfileProvider);
+      final identity = session.asData?.value;
+      final account = profile.asData?.value;
+      if (!session.isLoading &&
+          !profile.isLoading &&
+          identity?.signedIn == true &&
+          account != null &&
+          account.id == identity!.userId) {
+        return homeRouteForRole(account.role);
+      }
+      return null;
+    },
     errorBuilder: (context, state) =>
         const _NavigationStatusPage(message: 'Không tìm thấy trang.'),
     routes: [
@@ -75,6 +106,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/manager/products',
+        builder: (context, state) => const DungAnRoutePage(),
+      ),
+      GoRoute(
+        path: '/manager/orders',
         builder: (context, state) => const DungAnRoutePage(),
       ),
       GoRoute(
@@ -103,10 +138,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       ShellRoute(
         observers: [_RecheckOnPop(recheckAfterPop)],
-        builder: (context, state, child) => _OperationalRouteBoundary(
-          guard: guard,
-          location: state.uri,
-          child: child,
+        builder: (context, state, child) => ListenableBuilder(
+          listenable: guard.decisionChanges,
+          builder: (context, _) => _OperationalRouteBoundary(
+            guard: guard,
+            location: state.uri,
+            child: child,
+          ),
         ),
         routes: [
           GoRoute(
@@ -179,6 +217,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
+  // Role resolution completes independently of the Auth SDK event. Refresh the
+  // redirect when the trusted profile becomes available, without recreating the
+  // router and losing its navigator stack.
+  ref.listen(currentProfileProvider, (_, _) {
+    scheduleMicrotask(() {
+      if (ref.mounted) router.refresh();
+    });
+  });
   var observedSession = false;
   String? observedUserId;
   ref.listen(authSessionProvider, (previous, next) {
@@ -234,6 +280,8 @@ class _OperationalRouteBoundary extends ConsumerStatefulWidget {
 class _OperationalRouteBoundaryState
     extends ConsumerState<_OperationalRouteBoundary> {
   String? _authorizedCustomerId;
+  Object? _authorizedOperationalSession;
+  String? _operationalRole;
 
   @override
   Widget build(BuildContext context) {
@@ -274,7 +322,28 @@ class _OperationalRouteBoundaryState
                   excluding: !allowed,
                   child: KeyedSubtree(
                     key: ValueKey(_authorizedCustomerId),
-                    child: widget.child,
+                    child: Scaffold(
+                      body: widget.child,
+                      bottomNavigationBar:
+                          widget.location.path == '/customer/products'
+                          ? NavigationBar(
+                              selectedIndex: 0,
+                              onDestinationSelected: (index) => context.go(
+                                index == 0 ? '/customer/products' : '/chat',
+                              ),
+                              destinations: const [
+                                NavigationDestination(
+                                  icon: Icon(Icons.storefront_outlined),
+                                  label: 'Sản phẩm',
+                                ),
+                                NavigationDestination(
+                                  icon: Icon(Icons.chat_bubble_outline),
+                                  label: 'Hội thoại',
+                                ),
+                              ],
+                            )
+                          : null,
+                    ),
                   ),
                 ),
               ),
@@ -283,12 +352,38 @@ class _OperationalRouteBoundaryState
         ],
       );
     }
-    if (!allowed) return status;
-    return ShipperShell(
-      key: ValueKey(session),
-      role: decision.role!,
-      location: widget.location,
-      child: widget.child,
+    if (!identical(session, _authorizedOperationalSession) ||
+        session?.failure != null ||
+        decision?.failure != null ||
+        decision?.invalidId == true) {
+      _authorizedOperationalSession = null;
+      _operationalRole = null;
+    }
+    if (allowed) {
+      _authorizedOperationalSession = session;
+      _operationalRole = decision.role;
+    }
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (_authorizedOperationalSession != null)
+          Offstage(
+            offstage: !allowed,
+            child: TickerMode(
+              enabled: allowed,
+              child: ExcludeFocus(
+                excluding: !allowed,
+                child: ShipperShell(
+                  key: ValueKey(_authorizedOperationalSession),
+                  role: _operationalRole!,
+                  location: widget.location,
+                  child: widget.child,
+                ),
+              ),
+            ),
+          ),
+        if (!allowed) status,
+      ],
     );
   }
 
@@ -308,15 +403,22 @@ class _OperationalRouteBoundaryState
     }
     return const _NavigationStatusPage(
       key: ValueKey('navigation-checking-access'),
-      message: 'Đang kiểm tra quyền truy cập…',
+      message: 'Đang tải màn hình…',
+      loading: true,
     );
   }
 }
 
 class _NavigationStatusPage extends StatelessWidget {
-  const _NavigationStatusPage({super.key, required this.message, this.onRetry});
+  const _NavigationStatusPage({
+    super.key,
+    required this.message,
+    this.onRetry,
+    this.loading = false,
+  });
   final String message;
   final VoidCallback? onRetry;
+  final bool loading;
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Sports Store')),
@@ -324,13 +426,18 @@ class _NavigationStatusPage extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(message),
+          if (loading) ...[
+            const CircularProgressIndicator(),
+            const SizedBox(height: 24),
+          ],
+          Semantics(liveRegion: true, child: Text(message)),
           if (onRetry != null)
             TextButton(onPressed: onRetry, child: const Text('Thử lại')),
-          TextButton(
-            onPressed: () => context.go('/'),
-            child: const Text('Về trang đầu'),
-          ),
+          if (!loading)
+            TextButton(
+              onPressed: () => context.go('/'),
+              child: const Text('Về trang đầu'),
+            ),
         ],
       ),
     ),

@@ -129,7 +129,10 @@ class OperationalRouteGuard extends ChangeNotifier {
   final CodRepository cod;
   late final StreamSubscription<OperationalSession> _subscription;
   OperationalSession? _observed;
-  OperationalRouteDecision? _decision;
+  final decisionChanges = ValueNotifier<OperationalRouteDecision?>(null);
+  OperationalRouteDecision? get _decision => decisionChanges.value;
+  set _decision(OperationalRouteDecision? value) =>
+      decisionChanges.value = value;
   int _sequence = 0;
   bool _disposed = false;
   String? _lastUserId;
@@ -263,6 +266,7 @@ class OperationalRouteGuard extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    decisionChanges.dispose();
     _sequence++;
     unawaited(_subscription.cancel());
     super.dispose();

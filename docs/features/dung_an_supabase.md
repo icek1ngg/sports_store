@@ -1,5 +1,59 @@
 # Kết nối Supabase cho các màn Dung An
 
+## Cập nhật sửa lỗi và tích hợp — 30/10/2026
+
+- MH01/MH02 sau khi có session và profile hợp lệ chuyển customer tới
+  `/customer/products`, manager tới `/manager/orders`, shipper tới
+  `/shipper/tasks`; không cần bấm thêm nút mở nhiệm vụ. Deep link hợp lệ được
+  giữ nguyên. Trang theo role từ chối tài khoản khác quyền.
+- Sau đồng bộ main, MH04/MH05/MH06/MH16 sử dụng các module
+  catalog/cart/checkout của Văn Đức và guard customer hiện có; không dùng
+  inbox làm trang mua hàng. MH08 đã có UI; route dùng
+  `ManagerOrdersPage` khi owner cung cấp `orderRepositoryProvider`, còn mặc
+  định thông báo thiếu dịch vụ đơn hàng. Adapter MH08 này chưa hoàn tất.
+- `lib/main.dart` nối `featureSessionScopeProvider` ở root ProviderScope với
+  `trustedFeatureSessionProvider` từ session/profile server; mỗi lần thay đổi
+  tạo generation mới để provider dùng chung không đọc cache của phiên trước.
+- Navigation khách có Sản phẩm/Hội thoại; manager có Đơn hàng/Sản phẩm/Hội
+  thoại/COD. COD manager có nút về quản lý đơn hàng.
+- MH20 poll/manual refresh ghép dữ liệu mới vào lịch sử đã tải, giữ cursor,
+  thứ tự `(created_at,id)` và không nhân đôi. Backfill tới mốc head liên tục
+  đã đọc, kể cả khi có ACK gửi tin mới hơn khoảng lịch sử chưa tải. Gửi/tải
+  lịch sử/refresh không chạy chồng; lỗi quyền xóa dữ liệu đang hiển thị, lỗi
+  mạng giữ lịch sử. MH19 được tải lại sau head read và khi quay về từ MH20.
+- MH03 chọn ảnh từ thiết bị qua `file_selector` 1.1.0. Chỉ nhận chữ ký file
+  PNG/JPEG/WebP, tối đa 5 MiB. ViewModel gọi repository kiểm tra manager rồi
+  upload vào bucket private `product-images`, object path
+  `<manager UUID>/<request UUID>.<extension>`, `upsert=false`. Preview dùng
+  signed URL; chỉ object path được lưu vào sản phẩm. UI chặn lưu/đóng trong
+  lúc chọn/upload, bỏ kết quả của tài khoản cũ, không báo thành công giả.
+- Upload Storage và lưu sản phẩm là hai thao tác riêng. Đóng biểu mẫu sau khi
+  upload có thể để lại ảnh private chưa được tham chiếu; không tự xóa ảnh
+  đang có hoặc đổi quyền bucket. Chưa nghiệm thu picker trên điện thoại thật.
+- Sửa helper `_hasText` và assertion root cũ của test điều hướng dùng chung.
+
+Không thay schema/RLS/RPC trong lượt này. Các kết quả ngày 29/10 bên dưới là
+lịch sử. Nghiệm thu ghi bằng tài khoản cloud thật vẫn chưa thực hiện: connector
+không có quyền project `bqoyfytmrtvjwrpshuhh`, CLI không có access token và
+không có tài khoản test được cấu hình trong environment. Không tạo tài khoản
+hoặc thay đổi dữ liệu cloud để vượt qua giới hạn này.
+
+Kết quả kiểm tra 30/10 trước lần đồng bộ main: `flutter analyze --no-pub` không có issue;
+72 test Auth/Catalog/Chat/toàn bộ router PASS, gồm giữ lịch sử chat khi poll,
+backfill khoảng trống sau ACK gửi tin, upload/đổi phiên, bridge Auth ở root
+và manager quay về từ COD. Runner PostgreSQL cô lập PASS 34 kiểm tra. Đây
+không phải bằng chứng thao tác ghi bằng tài khoản cloud thật.
+
+Lệnh kiểm tra thay đổi:
+
+```powershell
+flutter analyze --no-pub
+flutter test --no-pub --concurrency=1 test/features/auth test/features/catalog test/features/chat test/app/router --reporter expanded
+flutter build web --no-pub --dart-define-from-file=config/supabase.json
+node supabase/tests/run_dung_an_integration.mjs
+dart run tool/check_dung_an_backend.dart
+```
+
 Ứng dụng chính dùng cùng client được khởi tạo trong `lib/main.dart`, Riverpod,
 go_router và repository thật. `tool/ui_preview/prm_main.dart` chuyển vào cùng
 entrypoint; không còn bộ sản phẩm/hội thoại demo trong các màn này.
@@ -8,8 +62,8 @@ entrypoint; không còn bộ sản phẩm/hội thoại demo trong các màn nà
 | --- | --- | --- |
 | MH01 | `/`, `/login` khi chưa đăng nhập | Email/mật khẩu, báo lỗi Auth, khôi phục phiên, đọc vai trò từ `profiles`, đăng xuất |
 | MH02 | `/register` | Đăng ký khách, lưu họ tên/điện thoại qua trigger, hướng dẫn xác nhận email khi server yêu cầu |
-| MH03 | `/manager/products` hoặc `/` của manager | Đọc/tìm/lọc/phân trang sản phẩm; thêm/sửa/ngừng bán; quản lý SKU, thuộc tính, giá và tồn từng biến thể |
-| MH19 | `/chat` hoặc `/` của customer | Hội thoại thật, tìm nội dung/tên, lọc chưa đọc/chờ trả lời, tải lại; khách mở hội thoại riêng |
+| MH03 | `/manager/products` | Đọc/tìm/lọc/phân trang sản phẩm; thêm/sửa/ngừng bán; quản lý SKU, thuộc tính, giá và tồn từng biến thể; chọn/upload ảnh |
+| MH19 | `/chat` | Hội thoại thật, tìm nội dung/tên, lọc chưa đọc/chờ trả lời, tải lại; khách mở hội thoại riêng |
 | MH20 dùng chung | `/chat/:conversationId` | Mở theo ID, đọc/gửi văn bản, tải tin cũ và lưu mốc đã đọc |
 
 Manager có thanh điều hướng sản phẩm/hội thoại. Customer không mở được quản lý
@@ -30,7 +84,7 @@ không cho tồn thấp hơn lượng đã giữ, giữ nguyên `reserved`/`dama
 ngừng bán bằng `is_active=false` để giữ liên kết đơn hàng. Retry cùng request ID
 và payload trả kết quả cũ; đổi payload với cùng ID bị từ chối. Không xóa cứng
 sản phẩm đã được tham chiếu. Ảnh dùng URL HTTPS hoặc object path đã có trong
-bucket `product-images`; hiện chưa có bộ chọn/tải ảnh từ thiết bị.
+bucket `product-images`; đã có bộ chọn/tải ảnh từ thiết bị như cập nhật 30/10.
 
 Hàm public là SECURITY INVOKER, chuyển vào hàm private kiểm tra manager do
 inventory/ledger không có quyền ghi trực tiếp từ client. Bảng receipt private

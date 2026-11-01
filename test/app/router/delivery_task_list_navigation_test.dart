@@ -16,7 +16,10 @@ import '../../features/support/operational_supabase_fixture.dart';
 
 Future<void> _until(WidgetTester tester, bool Function() condition) async {
   for (var index = 0; index < 200; index++) {
-    await tester.pump(const Duration(milliseconds: 10));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 10)),
+    );
     if (condition()) return;
   }
   fail('Navigation fixture did not reach the expected state');
@@ -58,10 +61,16 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     // Transport/session fixture only: no business action or live backend.
     var recipient = 'Minh trước cập nhật';
+    var roleReads = 0;
+    var returning = false;
     final queries = <Map<String, dynamic>>[];
     final client = (await tester.runAsync(
       () => fixtureClient((request) async {
         if (request.url.path.endsWith('/profiles')) {
+          roleReads++;
+          if (returning) {
+            await Future<void>.delayed(const Duration(milliseconds: 150));
+          }
           return jsonResponse(request, [
             {'role': 'shipper'},
           ]);
@@ -167,12 +176,18 @@ void main() {
     final beforeReturn = queries.length;
     expect(router.state.uri.path, '/shipper/tasks/$taskId');
     recipient = 'Minh sau cập nhật';
+    final rolesBeforeReturn = roleReads;
+    returning = true;
     router.pop();
     await _until(
       tester,
       () =>
           queries.length > beforeReturn &&
-          find.text(recipient).evaluate().isNotEmpty,
+          find.text(recipient).evaluate().isNotEmpty &&
+          find
+              .byKey(const ValueKey('navigation-checking-access'))
+              .evaluate()
+              .isEmpty,
     );
     expect(queries.last['p_query'], 'Minh');
     expect(queries.last['p_kind'], 'outbound');
@@ -180,5 +195,9 @@ void main() {
     expect(queries.last['p_cursor'], isNull);
     expect(find.text('Minh trước cập nhật'), findsNothing);
     expect(router.state.uri.path, '/shipper/tasks');
+    await tester.pump(const Duration(seconds: 1));
+    expect(queries.length - beforeReturn, 1);
+    // Both the route guard and business read must revalidate authorization.
+    expect(roleReads - rolesBeforeReturn, greaterThanOrEqualTo(2));
   });
 }
