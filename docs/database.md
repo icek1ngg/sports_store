@@ -889,7 +889,7 @@ Migration CLI 20261027093919_report_delivery_handover_incidents.sql đã deploy.
 Khóa request→shared order advisory→order→outbound tasks UUID→COD; role/assignment/holder recheck trước replay. Chỉ INSERT report/event/notification; các grant UPDATE khóa id/order_id có WITH CHECK(false), không đổi state/COD/tồn/attempt. Historical dispatch validator đọc proof cũ nhưng không coi damaged là thiếu quantity; handover full bị chặn nếu có lost. Không sửa proofvalidator hiện tại của accept/start/fail/complete. Event request_id là UUID server, client key giữ riêng ledger. Notification chỉ profiles role manager, không customer. Pickup/redelivery UNSUPPORTED_TASK_KIND. [Contract/schema/checks/giới hạn](demos/p074_production_delivery_reporting.md).
 # Bổ sung snapshot ảnh — 30/10/2026
 
-Migration `20261030032703_delivery_item_images.sql` thêm
+Migration `20261030032730_delivery_item_images.sql` thêm
 `order_items.product_image_url`. Trigger insert lấy URL HTTPS từ sản phẩm;
 đơn cũ được backfill một lần từ catalog hiện tại (không khẳng định đó là ảnh
 tại thời điểm đặt đơn cũ). Thay đổi catalog sau đó không cập nhật snapshot.
@@ -943,3 +943,22 @@ công (`delivery_tasks` kind `return_pickup`), lấy hàng, nhận về cửa h�
 kiểm tra đạt, ghi hoàn tiền. Sau mỗi bước khách đọc lại và thấy trạng thái mới;
 khách B luôn nhận `RETURN_NOT_FOUND`; khách không đọc trực tiếp được
 `delivery_tasks`/`profiles`. Kết quả 01/11/2026: PASS (rollback).
+
+## Đối chiếu lịch sử migration với Production — 01/11/2026
+
+Project `bqoyfytmrtvjwrpshuhh` có 24 bản ghi trong
+`supabase_migrations.schema_migrations`, lấy bằng truy vấn chỉ đọc trong SQL
+Editor. So với thư mục `supabase/migrations` có ba chỗ lệch. Phải xử lý xong
+cả ba thì `supabase db push` mới chỉ còn MH13 và MH14.
+
+| Mục | Repo | Production | Xử lý |
+| --- | --- | --- | --- |
+| delivery_item_images | `20261030032703` | `20261030032730` | Đã đổi tên file thành `20261030032730_delivery_item_images.sql`; nội dung trùng từng ký tự với câu lệnh lưu trên Production (1820/1820, so sau khi chuẩn hóa xuống dòng). Không chạy lại SQL. |
+| mh18_delivery_access_invalidation | Chưa có | `20261029120415` | Chờ Minh Đức thêm file gốc `20261029120415_mh18_delivery_access_invalidation.sql`. Migration chỉ thêm trigger `AFTER` trên `delivery_tasks`/`profiles`; không đổi policy/grant mà MH13–MH14 dùng. |
+| dung_an_management_integration | `20261029041230` | Không ghi lịch sử; đối tượng đã có (chạy qua SQL Editor theo `supabase/manual`) | Ghi nhận bằng `supabase migration repair --status applied 20261029041230` khi nhóm đồng ý. Chưa chạy. |
+| fix_catalog_checkout_lock_order | `20261029094727` | Không ghi lịch sử; bản sửa chưa có trên Production (`private.save_managed_product` chưa có `locked_variants`) | Dung An xác nhận và xử lý trước (cách B). Không đánh dấu "applied" khi chưa áp dụng thật. |
+
+Khi ba mục trên xong, `supabase db push --dry-run` phải chỉ liệt kê, theo thứ
+tự: `20261101080125_submit_return_request.sql` (MH13), rồi
+`20261101090627_get_my_return_request.sql` (MH14). Nếu dry-run hiện thêm bất
+kỳ migration nào khác thì dừng lại, không push.
