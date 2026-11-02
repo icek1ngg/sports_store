@@ -1,5 +1,9 @@
 # Hợp đồng truy cập database
 
+Cập nhật 02/11/2026: nhận hàng outbound tự bắt đầu giao trong một giao dịch;
+MH10 tách nhóm giao lại lần một và thất bại lần hai.
+[Hành vi và hợp đồng mới](demos/shipper_accept_start_20261102.md).
+
 Cập nhật 01/11/2026: shipper được tự yêu cầu giao lần hai sau thất bại lần một
 bằng `retry_outbound_delivery_task(p_task_id, p_request_id)`, không chờ quản lý
 duyệt. Biên nhận failure cũ giữ nguyên. [Hợp đồng mới](demos/shipper_self_retry_20261101.md)

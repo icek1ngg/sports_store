@@ -1,5 +1,10 @@
 # Ánh xạ màn hình Sports Store
 
+Cập nhật 02/11/2026: MH11 nhận hàng là bắt đầu giao ngay; MH10 có **Giao lại**
+cho lần đầu không thành công và **Thất bại** cho lần hai. Quy tắc này thay
+cách phân nhóm ngày 01/11 bên dưới.
+[Chi tiết](demos/shipper_accept_start_20261102.md).
+
 Cập nhật 01/11/2026: MH11 cho shipper chọn **Giao lại lần 2** từ outbound
 thất bại lần đầu, không cần chờ quản lý duyệt. Mở task mới do server trả về,
 xác nhận tiếp tục giữ hàng rồi bắt đầu lần hai. MH10 có nhóm thất bại để tìm

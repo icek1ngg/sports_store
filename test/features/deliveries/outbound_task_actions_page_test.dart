@@ -199,9 +199,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     gate.complete();
     await tester.pumpAndSettle();
-    final start = find.byKey(const ValueKey('outbound-start-delivery'));
-    expect(start, findsOneWidget);
-    expect(tester.widget<ButtonStyleButton>(start).onPressed, isNotNull);
+    expect(find.text('Đang vận chuyển'), findsOneWidget);
+    expect(find.byKey(const ValueKey('outbound-start-delivery')), findsNothing);
     expect(harness.repository.detailReads, lessThan(5));
     expect(harness.commandRepository.commands, hasLength(1));
   });
@@ -241,7 +240,7 @@ void main() {
   });
 
   testWidgets(
-    'accept refetches accepted, then start refetches in-transit with correct buttons',
+    'accept-and-start refetches in-transit with the correct buttons',
     (tester) async {
       final harness = _ActionHarness();
       addTearDown(harness.close);
@@ -252,22 +251,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         harness.commandRepository.commands.single.action,
-        OutboundTaskAction.acceptGoods,
-      );
-      expect(find.text('Đã nhận hàng'), findsOneWidget);
-      expect(find.byKey(const ValueKey('outbound-accept-goods')), findsNothing);
-      expect(
-        find.byKey(const ValueKey('outbound-start-delivery')),
-        findsOneWidget,
-      );
-      expect(harness.listReloads, 1);
-
-      await _openAction(tester, 'outbound-start-delivery');
-      await _checkAndSubmit(tester);
-      await tester.pumpAndSettle();
-      expect(
-        harness.commandRepository.commands.map((command) => command.action),
-        [OutboundTaskAction.acceptGoods, OutboundTaskAction.startDelivery],
+        OutboundTaskAction.acceptAndStart,
       );
       expect(find.text('Đang vận chuyển'), findsOneWidget);
       expect(find.byKey(const ValueKey('outbound-accept-goods')), findsNothing);
@@ -275,6 +259,8 @@ void main() {
         find.byKey(const ValueKey('outbound-start-delivery')),
         findsNothing,
       );
+      expect(harness.listReloads, 1);
+      expect(harness.commandRepository.commands, hasLength(1));
       expect(find.byKey(const ValueKey('completion-open')), findsOneWidget);
       expect(
         tester
@@ -284,7 +270,7 @@ void main() {
             .onPressed,
         isNotNull,
       );
-      expect(harness.listReloads, 2);
+      expect(harness.listReloads, 1);
     },
   );
 
@@ -296,7 +282,9 @@ void main() {
     final response = Completer<void>();
     harness.commandRepository.handler = (_) async {
       await response.future;
-      harness.repository.remote = _details(status: DeliveryTaskStatus.accepted);
+      harness.repository.remote = _details(
+        status: DeliveryTaskStatus.inTransit,
+      );
     };
     await _pumpReady(tester, harness);
 
@@ -328,7 +316,7 @@ void main() {
 
     response.complete();
     await tester.pumpAndSettle();
-    expect(find.text('Đã nhận hàng'), findsOneWidget);
+    expect(find.text('Đang vận chuyển'), findsOneWidget);
   });
 
   testWidgets('timeout retry reuses the exact command key and payload', (
@@ -338,7 +326,9 @@ void main() {
     addTearDown(harness.close);
     var attempts = 0;
     harness.commandRepository.handler = (command) async {
-      harness.repository.remote = _details(status: DeliveryTaskStatus.accepted);
+      harness.repository.remote = _details(
+        status: DeliveryTaskStatus.inTransit,
+      );
       if (attempts++ == 0) throw TimeoutException('response lost');
     };
     await _pumpReady(tester, harness);
@@ -362,9 +352,9 @@ void main() {
     expect(harness.commandRepository.commands[0].requestId, _requestId);
     expect(
       harness.commandRepository.commands[1].action,
-      OutboundTaskAction.acceptGoods,
+      OutboundTaskAction.acceptAndStart,
     );
-    expect(find.text('Đã nhận hàng'), findsOneWidget);
+    expect(find.text('Đang vận chuyển'), findsOneWidget);
     expect(harness.listReloads, 1);
   });
 
@@ -374,7 +364,9 @@ void main() {
     final harness = _ActionHarness();
     addTearDown(harness.close);
     harness.commandRepository.handler = (_) async {
-      harness.repository.remote = _details(status: DeliveryTaskStatus.accepted);
+      harness.repository.remote = _details(
+        status: DeliveryTaskStatus.inTransit,
+      );
       harness.repository.readFailures.add(TimeoutException('detail read lost'));
     };
     await _pumpReady(tester, harness);
@@ -391,7 +383,7 @@ void main() {
     // still read-only because the command remains acknowledged in the VM.
     await tester.tap(find.byKey(const ValueKey('task-detail-retry')));
     await tester.pumpAndSettle();
-    expect(find.text('Đã nhận hàng'), findsOneWidget);
+    expect(find.text('Đang vận chuyển'), findsOneWidget);
     expect(find.byKey(const ValueKey('outbound-action-retry')), findsOneWidget);
     final beforeRetryReads = harness.repository.detailReads;
     final actionRetry = find.byKey(const ValueKey('outbound-action-retry'));
@@ -403,7 +395,7 @@ void main() {
     expect(harness.commandRepository.commands, hasLength(1));
     expect(harness.repository.detailReads, greaterThan(beforeRetryReads));
     expect(harness.listReloads, 1);
-    expect(find.text('Đã nhận hàng'), findsOneWidget);
+    expect(find.text('Đang vận chuyển'), findsOneWidget);
   });
 
   testWidgets('stale business code remains visible without local success', (

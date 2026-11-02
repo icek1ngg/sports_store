@@ -604,6 +604,17 @@ class OutboundTaskActionsViewModel extends Notifier<OutboundTaskActionsState> {
             OutboundCommandFailureCode.staleState,
           );
         }
+      case OutboundTaskAction.acceptAndStart:
+        // The combined RPC records both custody and departure atomically. A
+        // current read must therefore show the same in-transit state as a
+        // normal start, including both timestamps.
+        if (task.status != DeliveryTaskStatus.inTransit ||
+            task.acceptedAt == null ||
+            task.startedAt == null) {
+          throw const OutboundCommandFailure(
+            OutboundCommandFailureCode.staleState,
+          );
+        }
       case OutboundTaskAction.startDelivery:
         if (task.status != DeliveryTaskStatus.inTransit ||
             task.acceptedAt == null ||

@@ -352,7 +352,7 @@ class _DetailHero extends StatelessWidget {
                 background: AppColors.surface,
               ),
               _Pill(
-                label: _statusLabel(task.status, task.kind),
+                label: _statusLabel(task),
                 foreground: AppColors.onPrimary,
                 background: statusColor,
               ),
@@ -1026,13 +1026,20 @@ String _kindLabel(DeliveryTaskKind kind) => switch (kind) {
   DeliveryTaskKind.redelivery => 'Giao lại miễn phí',
 };
 
-String _statusLabel(DeliveryTaskStatus status, DeliveryTaskKind kind) {
+String _statusLabel(DeliveryTaskSnapshot task) {
+  final status = task.status;
+  final kind = task.kind;
   if (kind == DeliveryTaskKind.returnPickup) {
     return switch (status) {
       DeliveryTaskStatus.failed => 'Lấy hàng thất bại',
       DeliveryTaskStatus.returnedToStore => 'Cửa hàng đã nhận',
       _ => _genericStatusLabel(status),
     };
+  }
+  if (kind == DeliveryTaskKind.outbound &&
+      status == DeliveryTaskStatus.failed &&
+      task.attemptNumber == 1) {
+    return 'Lần 1 chưa giao được';
   }
   return _genericStatusLabel(status);
 }

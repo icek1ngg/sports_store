@@ -1,5 +1,9 @@
 # Database Sports Store
 
+Cập nhật 02/11/2026: thêm giao dịch nhận-và-bắt-đầu outbound, phân nhóm retry
+và failed theo lần giao mà không đổi enum/lịch sử task.
+[Hợp đồng và kiểm chứng](demos/shipper_accept_start_20261102.md).
+
 Cập nhật 01/11/2026: migration `20261101095549_shipper_retry_outbound_failure.sql`
 bổ sung RPC giao lại theo task cho shipper đang giữ hàng và mở đúng nhánh retry
 của giao dịch hiện hữu. Không đổi lịch sử task/attempt, ledger tồn hay COD.

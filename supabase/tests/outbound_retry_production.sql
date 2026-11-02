@@ -202,8 +202,30 @@ select public.fail_delivery_task((select id from p072_ids where name='early_task
 select public.accept_delivery_task((select id from p072_ids where name='assigned_task1'),'07250000-0000-0000-0000-000000000431'::uuid);
 select public.start_delivery_task((select id from p072_ids where name='assigned_task1'),'07250000-0000-0000-0000-000000000432'::uuid);
 select public.fail_delivery_task((select id from p072_ids where name='assigned_task1'),'07250000-0000-0000-0000-000000000433'::uuid,'reschedule',null);
-select public.accept_delivery_task((select id from p072_ids where name='accepted_task1'),'07250000-0000-0000-0000-000000000441'::uuid);
-select public.start_delivery_task((select id from p072_ids where name='accepted_task1'),'07250000-0000-0000-0000-000000000442'::uuid);
+insert into p072_responses(name,response)
+select 'combined_accept_start', public.accept_and_start_delivery_task(
+  (select id from p072_ids where name='accepted_task1'),
+  '07250000-0000-0000-0000-000000000441'::uuid
+);
+select pg_temp.assert_p072('combined accept/start returns receipt',
+  (select response is not null from p072_responses where name='combined_accept_start'));
+select pg_temp.assert_p072('combined accept/start receipt is in transit',
+  (select response->>'operation' = 'accept_and_start'
+     and response->>'task_status' = 'in_transit'
+     and response->>'request_id' = '07250000-0000-0000-0000-000000000441'
+   from p072_responses where name='combined_accept_start'));
+reset role;
+select pg_temp.assert_p072('combined accept/start task is in transit',
+  (select status = 'in_transit' and accepted_at is not null
+       and started_at is not null
+       from public.delivery_tasks
+       where id=(select id from p072_ids where name='accepted_task1')));
+set local role authenticated;
+select pg_temp.assert_p072('combined accept/start replay is exact',
+  public.accept_and_start_delivery_task(
+    (select id from p072_ids where name='accepted_task1'),
+    '07250000-0000-0000-0000-000000000441'::uuid
+  ) = (select response from p072_responses where name='combined_accept_start'));
 select public.fail_delivery_task((select id from p072_ids where name='accepted_task1'),'07250000-0000-0000-0000-000000000443'::uuid,'refusal',null);
 select public.accept_delivery_task((select id from p072_ids where name='fault_task1'),'07250000-0000-0000-0000-000000000451'::uuid);
 select public.start_delivery_task((select id from p072_ids where name='fault_task1'),'07250000-0000-0000-0000-000000000452'::uuid);

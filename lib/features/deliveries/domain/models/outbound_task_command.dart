@@ -4,6 +4,13 @@ import 'delivery_task.dart';
 /// Values are domain action names, not RPC or database enum names.
 enum OutboundTaskAction {
   acceptGoods('accept_goods'),
+
+  /// Accept the shipment and start the outbound trip in one transaction.
+  ///
+  /// This is the action presented for a newly assigned outbound task. The
+  /// legacy accept/start values remain available for old accepted tasks and
+  /// replaying commands created by earlier app versions.
+  acceptAndStart('accept_and_start'),
   startDelivery('start_delivery');
 
   const OutboundTaskAction(this.value);
@@ -135,6 +142,7 @@ bool canExecuteOutboundAction(
   }
   return switch ((action, task.status)) {
     (OutboundTaskAction.acceptGoods, DeliveryTaskStatus.assigned) => true,
+    (OutboundTaskAction.acceptAndStart, DeliveryTaskStatus.assigned) => true,
     (OutboundTaskAction.startDelivery, DeliveryTaskStatus.accepted) => true,
     _ => false,
   };
