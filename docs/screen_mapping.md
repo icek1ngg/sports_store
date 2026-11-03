@@ -732,3 +732,22 @@ Route /shipper/tasks/:taskId giữ nguyên. Outbound current in_transit lần1/2
 ## P07.4 — MH11 backend reporting (27/10/2026)
 
 Chỉ bổ sung RPC báo bàn giao/sự cố outbound, không thêm dialog hoặc đổi router/theme/shell trong P07.4. MH11 UI reporting và luồng receipt/inspection MH09 của Bảo chưa được giả lập hoàn tất. Report bàn giao không hiển thị như cửa hàng đã nhận/nhập tồn; incident không hiển thị như khách từ chối nhận hoặc đã tính bồi thường. Notification chủ cửa hàng dùng UUID task, MH17 renderer vẫn thuộc Bảo. Pickup/redelivery bị chặn đến khi có custody contract Sơn. [Scope/manifest/kiểm tra/deploy](demos/p074_production_delivery_reporting.md).
+
+### Trạng thái MH20 — Chi tiết hội thoại (03/11/2026)
+
+- Route `/chat/:conversationId` (mở từ MH19); không còn bọc shell MH19, có
+  header riêng "Quay lại". Shipper bị chặn ở route và ở server.
+- Header: "Cửa hàng Sports Store" (khách) hoặc tên khách (quản lý); không hứa
+  thời gian phản hồi; schema không có ngữ cảnh đơn/trả hàng nên không hiển thị.
+- Lịch sử: thứ tự thời gian máy chủ, dải phân cách theo ngày Hà Nội, giờ Hà
+  Nội, tên người gửi phía bên kia, "Đã gửi"/"Đã xem" cho tin mới nhất của mình
+  (từ mốc đã đọc của bên kia).
+- Làm mới: chính sách dùng chung 3 s khi màn đang hiển thị và app ở foreground
+  (trước đây 20 s, dừng hẳn khi có lỗi). Lượt kiểm tra chỉ đọc tin cuối + mốc đã
+  đọc; chỉ tải trang mới nhất (có ghi đã đọc) khi người nhận đang xem đáy hội
+  thoại, nếu đang kéo lên thì hiện "Có tin nhắn mới".
+- Gửi: chỉ văn bản 1–4.000 ký tự (cắt khoảng trắng); ô nhập không khóa khi đang
+  gửi và chỉ xóa phần đã gửi; lỗi giữ bản nháp, "Gửi lại" dùng cùng
+  `client_message_id`.
+- MH19 chuyển từ hẹn giờ 20 s sang cùng chính sách 3 s và tải lại khi quay về từ
+  MH20.

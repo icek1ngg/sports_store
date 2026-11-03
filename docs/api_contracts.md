@@ -1968,3 +1968,19 @@ Kiểm thử: `node supabase/tests/run_return_management.mjs` chạy thêm
 `return_management_resolution.sql` (chuỗi thật: MH13 → yêu cầu bổ sung ↔
 phản hồi → duyệt → shipper lấy/bàn giao → nhận → chấp nhận + nhập kho → hoàn
 tiền; và từ chối sau kiểm tra → giao lại; quyền, lặp lại, xung đột, rollback).
+
+## MH20 — Chi tiết hội thoại (03/11/2026)
+
+Không migration mới. Dùng nguyên `get_chat_messages` (trang mới nhất ghi mốc
+đã đọc của người gọi), `send_chat_message` (idempotent theo
+`(sender_id, client_message_id)`), `list_chat_conversations`.
+`ChatRepository.getActivity(conversationId)` là phép đọc thuần qua RLS hiện có:
+`conversations(id, customer_id, read_at_by_user)` + tin cuối
+`messages(id, sender_id, created_at)`; không ghi gì, không đánh dấu đã đọc.
+Không thấy hội thoại (RLS) → `ChatFailure(accessDenied)`, xóa lịch sử đang hiện.
+
+Đo 03/11/2026 tới project chung (mạng hiện tại, mỗi request median/p90):
+`get_chat_messages` ≈ 680/770 ms, `conversations` ≈ 590/750 ms,
+`messages` ≈ 470/680 ms. Độ trễ hiển thị tin mới: cũ 0–20 s chờ + ≈ 0,7 s
+(trung bình ≈ 10,7 s, tệ nhất ≈ 21 s, ngừng hẳn khi có lỗi); mới 0–3 s chờ +
+≈ 0,75 s kiểm tra song song + ≈ 0,7 s tải (trung bình ≈ 3 s, tệ nhất ≈ 4,5 s).

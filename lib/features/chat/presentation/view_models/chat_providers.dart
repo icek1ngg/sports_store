@@ -60,13 +60,39 @@ class ChatThreadState {
     this.loadingOlder = false,
     this.refreshing = false,
     this.error,
+    this.othersReadAt,
+    this.newBelow = false,
+    this.connectionIssue,
   });
   final ChatMessagePage page;
   final bool sending;
   final bool loadingOlder;
   final bool refreshing;
+
+  /// Last send/load action failure; the draft stays in the input.
   final String? error;
+
+  /// Server read watermark of the other side ("Đã xem" for own messages).
+  final DateTime? othersReadAt;
+
+  /// New messages exist but the viewer is scrolled up: not loaded, not read.
+  final bool newBelow;
+
+  /// The background freshness probe failed; history stays and it retries.
+  final String? connectionIssue;
   bool get busy => sending || loadingOlder || refreshing;
+
+  /// Copies the background freshness fields onto a new action state.
+  ChatThreadState carry(ChatThreadState from) => ChatThreadState(
+    page: page,
+    sending: sending,
+    loadingOlder: loadingOlder,
+    refreshing: refreshing,
+    error: error,
+    othersReadAt: from.othersReadAt,
+    newBelow: newBelow || from.newBelow,
+    connectionIssue: from.connectionIssue,
+  );
 }
 
 class ChatThreadViewModel extends AsyncNotifier<ChatThreadState> {
@@ -131,7 +157,7 @@ class ChatThreadViewModel extends AsyncNotifier<ChatThreadState> {
         page: current.page,
         refreshing: true,
         error: current.error,
-      ),
+      ).carry(current),
     );
     try {
       final repository = ref.read(chatRepositoryProvider);
@@ -173,6 +199,7 @@ class ChatThreadViewModel extends AsyncNotifier<ChatThreadState> {
                 : current.page.hasMore,
           ),
           error: _pendingId == null ? null : current.error,
+          othersReadAt: current.othersReadAt,
         ),
       );
     } catch (error) {
@@ -180,6 +207,84 @@ class ChatThreadViewModel extends AsyncNotifier<ChatThreadState> {
         _handleActionError(current, error);
       }
     }
+  }
+
+  bool _probing = false;
+
+  /// Polling is allowed with a send error on screen (the draft is kept) and
+  /// with a failed probe; only a missing snapshot or a running read stops it.
+  bool get canPoll {
+    final current = state.asData?.value;
+    return current != null && !current.busy && !_probing;
+  }
+
+  /// Foreground freshness check (shared 3 s policy). It only reads the latest
+  /// message id and read markers; the latest page — which records the read
+  /// marker — is loaded only while the viewer is looking at the newest
+  /// messages ([viewingLatest]). Otherwise a "new messages" hint is shown.
+  Future<void> poll({required bool viewingLatest}) async {
+    final current = state.asData?.value;
+    if (current == null || current.busy || _probing) return;
+    final epoch = _epoch;
+    final client = ref.read(supabaseClientProvider);
+    final session = client.auth.currentSession;
+    final viewer = client.auth.currentUser?.id;
+    bool isCurrent() =>
+        ref.mounted &&
+        _epoch == epoch &&
+        identical(client.auth.currentSession, session);
+    _probing = true;
+    try {
+      final activity = await ref
+          .read(chatRepositoryProvider)
+          .getActivity(conversationId);
+      if (!isCurrent()) return;
+      final latest = state.asData?.value ?? current;
+      final latestId = activity.latestMessageId;
+      final hasNew =
+          latestId != null &&
+          latest.page.messages.every((m) => m.id != latestId);
+      state = AsyncData(
+        ChatThreadState(
+          page: latest.page,
+          sending: latest.sending,
+          loadingOlder: latest.loadingOlder,
+          refreshing: latest.refreshing,
+          error: latest.error,
+          othersReadAt: viewer == null
+              ? null
+              : activity.otherSideReadAt(viewer),
+          newBelow: hasNew && !viewingLatest,
+        ),
+      );
+      _probing = false;
+      if (hasNew && viewingLatest) await refreshLatest();
+    } catch (error) {
+      if (!isCurrent()) return;
+      final latest = state.asData?.value ?? current;
+      if (error is ChatFailure && error.accessDenied) {
+        state = AsyncError(error, StackTrace.current);
+      } else {
+        state = AsyncData(
+          ChatThreadState(
+            page: latest.page,
+            error: latest.error,
+            othersReadAt: latest.othersReadAt,
+            newBelow: latest.newBelow,
+            connectionIssue: 'Mất kết nối, đang thử cập nhật lại. Lịch sử đã tải vẫn được giữ.',
+          ),
+        );
+      }
+    } finally {
+      _probing = false;
+    }
+  }
+
+  /// The viewer scrolled back to the newest messages: load (and read) them.
+  Future<void> showNewMessages() async {
+    final current = state.asData?.value;
+    if (current == null || !current.newBelow) return;
+    await refreshLatest();
   }
 
   Future<bool> send(String body) async {
@@ -201,7 +306,9 @@ class ChatThreadViewModel extends AsyncNotifier<ChatThreadState> {
       _pendingId = _uuid();
       _pendingBody = body.trim();
     }
-    state = AsyncData(ChatThreadState(page: current.page, sending: true));
+    state = AsyncData(
+      ChatThreadState(page: current.page, sending: true).carry(current),
+    );
     try {
       final message = await ref
           .read(chatRepositoryProvider)
@@ -216,7 +323,7 @@ class ChatThreadViewModel extends AsyncNotifier<ChatThreadState> {
             messages: messages,
             hasMore: current.page.hasMore,
           ),
-        ),
+        ).carry(current),
       );
       ref.invalidate(chatInboxProvider);
       return true;
@@ -245,7 +352,9 @@ class ChatThreadViewModel extends AsyncNotifier<ChatThreadState> {
           ref.read(supabaseClientProvider).auth.currentSession,
           session,
         );
-    state = AsyncData(ChatThreadState(page: current.page, loadingOlder: true));
+    state = AsyncData(
+      ChatThreadState(page: current.page, loadingOlder: true).carry(current),
+    );
     try {
       final page = await ref
           .read(chatRepositoryProvider)
@@ -260,7 +369,7 @@ class ChatThreadViewModel extends AsyncNotifier<ChatThreadState> {
             messages: _mergeMessages(current.page.messages, page.messages),
             hasMore: page.hasMore,
           ),
-        ),
+        ).carry(current),
       );
     } catch (error) {
       if (isCurrent()) {
@@ -276,7 +385,10 @@ class ChatThreadViewModel extends AsyncNotifier<ChatThreadState> {
       state = AsyncError(error, StackTrace.current);
     } else {
       state = AsyncData(
-        ChatThreadState(page: current.page, error: chatErrorMessage(error)),
+        ChatThreadState(
+          page: current.page,
+          error: chatErrorMessage(error),
+        ).carry(current),
       );
     }
   }

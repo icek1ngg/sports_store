@@ -48,3 +48,38 @@ class ChatFailure implements Exception {
   @override
   String toString() => message;
 }
+
+/// Cheap, read-only freshness probe for an open thread (MH20). Reading it
+/// never moves anyone's read marker; only loading the latest page does.
+class ChatActivity {
+  const ChatActivity({
+    required this.conversationId,
+    required this.customerId,
+    required this.readAtByUser,
+    this.latestMessageId,
+    this.latestMessageAt,
+    this.latestSenderId,
+  });
+  final String conversationId;
+  final String customerId;
+  final String? latestMessageId;
+  final DateTime? latestMessageAt;
+  final String? latestSenderId;
+
+  /// Server read watermark per participant user id.
+  final Map<String, DateTime> readAtByUser;
+
+  /// Latest time the *other side* has read up to, seen from [viewerId]:
+  /// a customer's messages are read by any manager; a manager's messages are
+  /// read by the conversation's customer.
+  DateTime? otherSideReadAt(String viewerId) {
+    final others = viewerId == customerId
+        ? readAtByUser.entries.where((e) => e.key != viewerId)
+        : readAtByUser.entries.where((e) => e.key == customerId);
+    DateTime? latest;
+    for (final e in others) {
+      if (latest == null || e.value.isAfter(latest)) latest = e.value;
+    }
+    return latest;
+  }
+}
