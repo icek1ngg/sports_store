@@ -7,6 +7,9 @@ abstract interface class ChatRepository {
     String conversationId, {
     String? beforeMessageId,
   });
+
+  /// Read-only probe (latest message + read markers); never marks read.
+  Future<ChatActivity> getActivity(String conversationId);
   Future<ChatMessage> sendMessage(
     String conversationId,
     String body,

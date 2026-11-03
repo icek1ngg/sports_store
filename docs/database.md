@@ -902,10 +902,97 @@ Migration CLI 20261027093919_report_delivery_handover_incidents.sql đã deploy.
 Khóa request→shared order advisory→order→outbound tasks UUID→COD; role/assignment/holder recheck trước replay. Chỉ INSERT report/event/notification; các grant UPDATE khóa id/order_id có WITH CHECK(false), không đổi state/COD/tồn/attempt. Historical dispatch validator đọc proof cũ nhưng không coi damaged là thiếu quantity; handover full bị chặn nếu có lost. Không sửa proofvalidator hiện tại của accept/start/fail/complete. Event request_id là UUID server, client key giữ riêng ledger. Notification chỉ profiles role manager, không customer. Pickup/redelivery UNSUPPORTED_TASK_KIND. [Contract/schema/checks/giới hạn](demos/p074_production_delivery_reporting.md).
 # Bổ sung snapshot ảnh — 30/10/2026
 
-Migration `20261030032703_delivery_item_images.sql` thêm
+Migration `20261030032730_delivery_item_images.sql` thêm
 `order_items.product_image_url`. Trigger insert lấy URL HTTPS từ sản phẩm;
 đơn cũ được backfill một lần từ catalog hiện tại (không khẳng định đó là ảnh
 tại thời điểm đặt đơn cũ). Thay đổi catalog sau đó không cập nhật snapshot.
 Chỉ cấp thêm quyền đọc cột cho role projection `sports_store_delivery_reader`,
 không cấp shipper quyền đọc catalog. RPC chi tiết nhiệm vụ trả URL theo item
 đã được kiểm tra quyền trong cùng snapshot truy vấn.
+
+## MH13 — submit_return_request (kiểm thử cục bộ 01/11/2026)
+
+Migration `20261101080125_submit_return_request.sql` thêm role
+`sports_store_return_request_writer`, helper
+`private.return_video_object_ready(text, uuid)`, policy chỉ áp cho role writer
+trên `profiles`/`orders` (khóa, không ghi)/`return_requests`/
+`business_events`/`notifications`, và hai RPC
+`get_return_request_context`, `submit_return_request`. Không đổi schema bảng.
+Chưa áp dụng lên cloud.
+
+Chạy kiểm thử (cần fixture PG17 ở cổng 55439 theo hướng dẫn P01.1 phía trên):
+
+```powershell
+node supabase/tests/run_return_request_submission.mjs
+```
+
+Runner nạp `fixtures/p011_auth_storage.sql.fixture` và
+`fixtures/mh13_storage_metadata.sql.fixture` (chỉ thêm cột `owner_id`,
+`metadata` mà Storage thật đã có), áp toàn bộ migration, chạy
+`return_request_submission.sql` (rollback) rồi
+`return_request_submission_concurrency.mjs` (dọn dữ liệu đã commit).
+Kết quả 01/11/2026: SQL suite PASS; đồng thời 6 lần gửi cùng key → 1 yêu cầu,
+6 key khác nhau → `ACTIVE_RETURN_EXISTS`, đúng 1 thông báo. Bộ
+`run_return_pickup_production.mjs` và `run_redelivery_production.mjs` vẫn
+PASS sau migration.
+
+Cần xác minh khi lên cloud: postgres đọc được `storage.objects` (helper owner
+postgres), Storage điền `owner_id`/`metadata.mimetype`/`metadata.size` khi
+upload, PostgREST trả đúng mã `PT404/PT409/PT422`.
+
+## MH14 — get_my_return_request (kiểm thử cục bộ 01/11/2026)
+
+Migration `20261101090627_get_my_return_request.sql`: role
+`sports_store_return_tracking_reader`, quyền SELECT theo cột trên
+`return_requests`, `orders`, `return_items`, `order_items`, `delivery_tasks`,
+`profiles` kèm policy chỉ áp cho role này, và RPC `get_my_return_request`.
+Không thêm bảng/cột, không có quyền ghi. Chưa áp dụng lên cloud.
+
+`node supabase/tests/run_return_request_submission.mjs` nay chạy thêm
+`return_tracking.sql`. Bộ này gửi yêu cầu bằng RPC thật của MH13 rồi **giả lập
+các bước của manager bằng UPDATE quyền admin** (MH15 chưa có lệnh duyệt):
+duyệt lấy hàng (`status`, `decided_by`, `decision_at`, `return_items`), phân
+công (`delivery_tasks` kind `return_pickup`), lấy hàng, nhận về cửa hàng,
+kiểm tra đạt, ghi hoàn tiền. Sau mỗi bước khách đọc lại và thấy trạng thái mới;
+khách B luôn nhận `RETURN_NOT_FOUND`; khách không đọc trực tiếp được
+`delivery_tasks`/`profiles`. Kết quả 01/11/2026: PASS (rollback).
+
+## Đối chiếu lịch sử migration với Production — 01/11/2026
+
+Project `bqoyfytmrtvjwrpshuhh` có 24 bản ghi trong
+`supabase_migrations.schema_migrations`, lấy bằng truy vấn chỉ đọc trong SQL
+Editor. So với thư mục `supabase/migrations` có ba chỗ lệch. Phải xử lý xong
+cả ba thì `supabase db push` mới chỉ còn MH13 và MH14.
+
+| Mục | Repo | Production | Xử lý |
+| --- | --- | --- | --- |
+| delivery_item_images | `20261030032703` | `20261030032730` | Đã đổi tên file thành `20261030032730_delivery_item_images.sql`; nội dung trùng từng ký tự với câu lệnh lưu trên Production (1820/1820, so sau khi chuẩn hóa xuống dòng). Không chạy lại SQL. |
+| mh18_delivery_access_invalidation | Chưa có | `20261029120415` | Chờ Minh Đức thêm file gốc `20261029120415_mh18_delivery_access_invalidation.sql`. Migration chỉ thêm trigger `AFTER` trên `delivery_tasks`/`profiles`; không đổi policy/grant mà MH13–MH14 dùng. |
+| dung_an_management_integration | `20261029041230` | Không ghi lịch sử; đối tượng đã có (chạy qua SQL Editor theo `supabase/manual`) | Ghi nhận bằng `supabase migration repair --status applied 20261029041230` khi nhóm đồng ý. Chưa chạy. |
+| fix_catalog_checkout_lock_order | `20261029094727` | Không ghi lịch sử; bản sửa chưa có trên Production (`private.save_managed_product` chưa có `locked_variants`) | Dung An xác nhận và xử lý trước (cách B). Không đánh dấu "applied" khi chưa áp dụng thật. |
+
+Khi ba mục trên xong, `supabase db push --dry-run` phải chỉ liệt kê, theo thứ
+tự: `20261101080125_submit_return_request.sql` (MH13), rồi
+`20261101090627_get_my_return_request.sql` (MH14). Nếu dry-run hiện thêm bất
+kỳ migration nào khác thì dừng lại, không push.
+
+## MH15 — quản lý yêu cầu trả hàng, giai đoạn 1 (kiểm thử cục bộ 02/11/2026)
+
+Migration `20261102050041_manager_return_management.sql`: role
+`sports_store_return_management_writer` (NOLOGIN, NOINHERIT, NOBYPASSRLS; quyền
+theo cột + policy riêng), bảng sổ idempotency
+`private.return_management_requests` (PK `actor_id, request_id`, FORCE RLS,
+chỉ writer đọc/ghi dòng của chính actor), helper `private.require_manager()`,
+`private.return_management_derived_uuid()`, bốn RPC trong `api_contracts.md`.
+Không đổi bảng/enum hiện có. Chưa áp dụng lên cloud.
+
+## MH15 — giai đoạn 2 (kiểm thử cục bộ 02/11/2026)
+
+Migration `20261102092824_return_management_resolution.sql`: bảng
+`private.return_info_requests` (một yêu cầu mở mỗi yêu cầu trả, FORCE RLS,
+chỉ writer), helper chỉ trả boolean/JSON có kiểm tra role
+(`private.storage_object_exists`, `private.return_pickup_handover_reported`,
+`private.manager_return_info_requests`), mở rộng quyền theo cột + policy của
+`sports_store_return_management_writer` (cập nhật tồn kho chỉ qua movement
+`return_received` không âm, gói hoàn tiền, phản hồi của khách). Không đổi bảng
+hay enum hiện có. Chưa áp dụng lên cloud.

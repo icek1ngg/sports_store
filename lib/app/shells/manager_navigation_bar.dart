@@ -11,9 +11,7 @@ class ManagerNavigationBar extends StatelessWidget {
   Widget build(BuildContext context) => NavigationBar(
     key: const ValueKey('manager-navigation'),
     selectedIndex: selectedIndex,
-    onDestinationSelected: (index) => context.go(
-      const ['/manager/orders', '/manager/products', '/chat', '/cod'][index],
-    ),
+    onDestinationSelected: (index) => context.go(managerDestinations[index]),
     destinations: const [
       NavigationDestination(
         icon: Icon(Icons.receipt_long_outlined),
@@ -28,6 +26,20 @@ class ManagerNavigationBar extends StatelessWidget {
         label: 'Hội thoại',
       ),
       NavigationDestination(icon: Icon(Icons.payments_outlined), label: 'COD'),
+      NavigationDestination(
+        key: ValueKey('manager-nav-returns'),
+        icon: Icon(Icons.assignment_return_outlined),
+        label: 'Trả hàng',
+      ),
     ],
   );
 }
+
+/// Manager tab routes, in navigation-bar order.
+const managerDestinations = [
+  '/manager/orders',
+  '/manager/products',
+  '/chat',
+  '/cod',
+  '/manager/returns',
+];

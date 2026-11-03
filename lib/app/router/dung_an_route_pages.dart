@@ -100,6 +100,10 @@ class DungAnRoutePage extends ConsumerWidget {
     } else {
       content = const ProductManagementScreen();
     }
+    if (detailBuilder != null) {
+      // MH20 has its own header with "Quay lại" to MH19.
+      return KeyedSubtree(key: ObjectKey(session.requireValue), child: content);
+    }
     return StoreManagementShell(
       key: ObjectKey(session.requireValue),
       profile: profile,

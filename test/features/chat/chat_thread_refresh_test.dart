@@ -40,6 +40,21 @@ class _Repository implements ChatRepository {
   var inboxReads = 0;
   var unread = 5;
 
+  /// Latest message id the read-only probe reports (null = empty thread).
+  String? latestId;
+  var activityReads = 0;
+
+  @override
+  Future<ChatActivity> getActivity(String conversationId) async {
+    activityReads++;
+    return ChatActivity(
+      conversationId: conversationId,
+      customerId: shipperA,
+      readAtByUser: const {},
+      latestMessageId: latestId,
+    );
+  }
+
   @override
   Future<List<ChatConversation>> getConversations() async {
     inboxReads++;
@@ -334,7 +349,7 @@ void main() {
     },
   );
 
-  testWidgets('the twenty-second UI poll preserves loaded history', (
+  testWidgets('the foreground poll loads new messages and keeps history', (
     tester,
   ) async {
     // Give the widget its own container; the setUp container remains unused.
@@ -356,7 +371,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Tin 1'), findsOneWidget);
     repository.read = (_) async => _page([4, 5], hasMore: true);
-    await tester.pump(const Duration(seconds: 20));
+    repository.latestId = _message(5).id;
+    // Shared foreground policy: checked every 3 s while the screen is shown.
+    await tester.pump(const Duration(seconds: 3));
     await tester.pumpAndSettle();
     expect(find.text('Tin 1'), findsOneWidget);
     expect(find.text('Tin 5'), findsOneWidget);
