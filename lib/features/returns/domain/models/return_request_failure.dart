@@ -10,6 +10,12 @@ enum ReturnRequestFailureCode {
   videoAlreadyUsed,
   invalidInput,
   idempotencyConflict,
+  stateConflict,
+  itemsMismatch,
+  invalidShipper,
+  amountMismatch,
+  evidenceRequired,
+  invalidTransferTime,
   network,
   backendUnavailable,
   unexpected,
@@ -56,6 +62,18 @@ class ReturnRequestFailure implements Exception {
       'Thông tin chưa hợp lệ. Vui lòng kiểm tra lại.',
     ReturnRequestFailureCode.idempotencyConflict =>
       'Yêu cầu trước đó đã được ghi nhận với nội dung khác.',
+    ReturnRequestFailureCode.stateConflict =>
+      'Yêu cầu đã được xử lý ở nơi khác. Tải lại để xem trạng thái mới.',
+    ReturnRequestFailureCode.itemsMismatch =>
+      'Sản phẩm hoặc số lượng thu hồi không khớp với đơn hàng.',
+    ReturnRequestFailureCode.invalidShipper =>
+      'Shipper đã chọn không còn khả dụng. Chọn shipper khác.',
+    ReturnRequestFailureCode.amountMismatch =>
+      'Số tiền hoàn phải bằng đúng tiền hàng cộng phí giao ban đầu.',
+    ReturnRequestFailureCode.evidenceRequired =>
+      'Chưa có chứng từ hợp lệ. Tải lên ảnh hoặc tệp chứng từ rồi thử lại.',
+    ReturnRequestFailureCode.invalidTransferTime =>
+      'Thời điểm chuyển khoản phải sau lúc kiểm tra và không ở tương lai.',
     ReturnRequestFailureCode.network =>
       'Không thể kết nối. Vui lòng kiểm tra mạng và gửi lại.',
     ReturnRequestFailureCode.backendUnavailable =>

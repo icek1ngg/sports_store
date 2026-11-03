@@ -1911,3 +1911,60 @@ cầu đang mở → nút "Xem yêu cầu đang xử lý". Cập nhật khi đan
 quay lại màn/app), dừng ở trạng thái kết thúc; không dùng Realtime (dự án chưa
 có publication). Mất kết nối giữ dữ liệu xác nhận gần nhất có nhãn + "Thử
 lại"; mất quyền/đổi tài khoản/`RETURN_NOT_FOUND` xóa dữ liệu đang hiển thị.
+
+
+## MH15 — Quản lý yêu cầu trả hàng, giai đoạn 1 (kiểm thử cục bộ 02/11/2026)
+
+Migration `20261102050041_manager_return_management.sql` (tạo bằng CLI 2.122.0).
+**Chưa áp dụng lên Supabase chung.** Mọi RPC kiểm tra `profiles.role = manager`
+ở server qua `private.require_manager()`; anon không có EXECUTE.
+
+| RPC | Quyền / tiền điều kiện | Kết quả |
+| --- | --- | --- |
+| `list_manager_return_requests(p_status text default null, p_query text default null) → jsonb` | SECURITY INVOKER; RLS manager | `items[]` (`return_id`, `order_id`, `status`, `reason`, `submitted_at`, `customer_name`, `total_vnd`, `line_count`, `first_item_name`), `counts{status:n}` theo tìm kiếm (không theo bộ lọc), `server_now`. Status lạ / query > 100 ký tự → `22023 INVALID_ARGUMENT`. |
+| `get_manager_return_request(p_return_request_id uuid) → jsonb` | SECURITY INVOKER | Chi tiết + `customer`, `recipient`, tiền, `order_items[]`, `return_items[]`, `video_paths[]` (gốc + bổ sung), `bank` (đầy đủ, chỉ manager), `pickup_task` mới nhất, `shippers[]`, `server_now`. Không có → `PT404 RETURN_NOT_FOUND`. |
+| `approve_return_collection(p_return_request_id uuid, p_request_id uuid, p_items jsonb, p_shipper_id uuid) → jsonb` | SECURITY DEFINER, owner `sports_store_return_management_writer` (NOLOGIN/NOINHERIT/NOBYPASSRLS); `pending_review`, chưa có return_items | Một giao dịch: tạo `return_items` từ `[{order_item_id, quantity}]` (≤ SL đã đặt, cùng đơn), gọi `approve_return_pickup_plan` + `assign_return_pickup_task` (request id con suy ra cố định từ `p_request_id`), thông báo khách + shipper. ACK: `operation`, `return_request_id`, `order_id`, `return_status=awaiting_return_pickup`, `task_id`, `shipper_id`, `approved_at`, `request_id`. Không đổi COD, tồn kho, hoàn tiền, đơn. |
+| `reject_return_request(p_return_request_id uuid, p_request_id uuid, p_reason text) → jsonb` | Như trên; `pending_review`; lý do 5–500 ký tự | `initially_rejected`, `decision_reason/decision_at/decided_by/closed_at`, event `return_initially_rejected`, thông báo khách. Không tạo thu hồi/hoàn tiền. |
+
+Lỗi: `42501 AUTH_REQUIRED | PERMISSION_DENIED | NOT_FOUND_OR_FORBIDDEN`,
+`22023 INVALID_ARGUMENT`, `PT409 STATE_CONFLICT | ITEMS_MISMATCH | INVALID_SHIPPER | IDEMPOTENCY_CONFLICT`.
+Idempotency: sổ `private.return_management_requests (actor_id, request_id)`;
+cùng khóa + cùng payload trả lại ACK cũ, khác payload → `IDEMPOTENCY_CONFLICT`,
+khóa mới sau khi đã quyết định → `STATE_CONFLICT`.
+
+Flutter: `ManagerReturnRepository` → `SupabaseManagerReturnRepository`;
+`managerReturnListProvider`, `managerReturnDetailProvider(returnId)`; giữ khóa
+khi kết quả chưa rõ (mạng/timeout), chặn bấm đúp, `STATE_CONFLICT` tải lại.
+
+Kiểm thử: `node supabase/tests/run_return_management.mjs` (SQL rollback +
+đồng thời: 6 lần bấm cùng khóa → 1 duyệt; 2 khóa khác nhau → 1 duyệt + 1
+`STATE_CONFLICT`). Bộ MH13/MH14, thu hồi, giao lại vẫn PASS với migration mới.
+
+## MH15 — Quản lý yêu cầu trả hàng, giai đoạn 2 (kiểm thử cục bộ 02/11/2026)
+
+Migration `20261102092824_return_management_resolution.sql` (CLI 2.122.0),
+áp sau giai đoạn 1. **Chưa áp dụng lên Supabase chung.** Không sửa RPC
+production của nhóm; nhận hàng và giao lại dùng nguyên
+`receive_customer_return`, `reject_return_after_inspection` (bên trong
+wrapper), `assign_redelivery_task`.
+
+| RPC | Quyền / tiền điều kiện | Kết quả |
+| --- | --- | --- |
+| `request_return_info(p_return_request_id, p_request_id, p_message)` | Manager; `pending_review` hoặc `under_inspection`; chưa có yêu cầu mở | Lưu `private.return_info_requests`, event `return_info_requested`, thông báo khách. Không đổi trạng thái. |
+| `get_my_return_info_request(p_return_id) → {info_request}` | Khách sở hữu (`PT404` nếu không) | Yêu cầu mới nhất: `message`, `requested_at`, `responded_at`. |
+| `respond_return_info(p_return_id, p_request_id, p_description, p_video_object_path default null)` | Khách sở hữu; có yêu cầu mở | Lưu phản hồi (10–1000 ký tự), video (đúng chủ, chưa dùng) nối vào `additional_video_paths`; thông báo manager. |
+| `accept_inspected_return(p_return_request_id, p_request_id, p_items [{return_item_id, sellable_quantity, damaged_quantity}], p_evidence_paths text[] default '{}')` | Manager; `under_inspection`; không có yêu cầu mở; phủ đủ mọi dòng, bán được + lỗi = thực nhận | `awaiting_refund`, `inspected_at/by`; `on_hand += bán được`, `damaged += lỗi`, một `inventory_movements` `return_received` mỗi biến thể; thông báo khách. |
+| `record_return_refund(p_return_request_id, p_request_id, p_amount_vnd, p_transferred_at, p_evidence_path)` | Manager; `awaiting_refund`; số tiền = `orders.total_cod_vnd`; thời điểm ≥ `inspected_at`, ≤ hiện tại + 5 phút; chứng từ có trong `refund-evidence` | `refunded`, gói hoàn tiền đầy đủ, `refund_request_id = p_request_id`, `closed_at`; thông báo khách. Không đổi COD. |
+| `reject_inspected_return(p_return_request_id, p_request_id, p_reason, p_evidence_paths text[])` | Manager; `under_inspection`; ≥ 1 bằng chứng có trong `inspection-evidence` | Lưu `inspection_evidence_paths` rồi gọi `reject_return_after_inspection` → `awaiting_redelivery`. |
+
+`get_manager_return_request` bổ sung: `inspection_started_at`, `inspected_at`,
+`inspection_evidence_paths`, `refund`, `info_requests[]`, `redelivery_task`,
+`pickup_task.handover_reported`. Lỗi mới: `PT409 AMOUNT_MISMATCH`,
+`PT422 EVIDENCE_REQUIRED`, `22023 INVALID_TRANSFER_TIME`. Chứng từ upload vào
+`<returnId>/<khóa lệnh>-<n>.<ext>` (policy Storage có sẵn); thử lại cùng khóa
+dùng lại đúng object.
+
+Kiểm thử: `node supabase/tests/run_return_management.mjs` chạy thêm
+`return_management_resolution.sql` (chuỗi thật: MH13 → yêu cầu bổ sung ↔
+phản hồi → duyệt → shipper lấy/bàn giao → nhận → chấp nhận + nhập kho → hoàn
+tiền; và từ chối sau kiểm tra → giao lại; quyền, lặp lại, xung đột, rollback).

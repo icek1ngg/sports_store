@@ -16,6 +16,8 @@ import '../../features/cod/presentation/view_models/cod_providers.dart';
 import '../../features/deliveries/data/repositories/operational_providers.dart';
 import '../../features/deliveries/presentation/pages/delivery_route_pages.dart';
 import '../../features/deliveries/presentation/view_models/delivery_providers.dart';
+import '../../features/returns/presentation/pages/manager_return_detail_page.dart';
+import '../../features/returns/presentation/pages/manager_returns_page.dart';
 import '../../features/returns/presentation/pages/return_request_flow_page.dart';
 import '../../features/returns/presentation/pages/return_tracking_page.dart';
 import '../shells/shipper_shell.dart';
@@ -216,6 +218,25 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     ),
                   ),
                 ],
+              ),
+            ],
+          ),
+          GoRoute(
+            path: '/manager/returns',
+            caseSensitive: true,
+            builder: (context, state) => ManagerReturnsPage(
+              onOpen: (id) => context.push<void>('/manager/returns/$id'),
+            ),
+            routes: [
+              GoRoute(
+                path: ':returnId',
+                caseSensitive: true,
+                builder: (context, state) => ManagerReturnDetailPage(
+                  returnId: state.pathParameters['returnId']!,
+                  onBack: () => context.canPop()
+                      ? context.pop()
+                      : context.go('/manager/returns'),
+                ),
               ),
             ],
           ),

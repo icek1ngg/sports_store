@@ -654,6 +654,33 @@ chưa có production endpoint. Không notification D7 chưa chốt hoặc UI P04
 [Contract, schema, kiểm thử và trạng thái deploy P04.1 production](demos/p041_production_accept_start.md).
 Implementation repository không đồng nghĩa đã deploy/Auth/PostgREST/cloud;
 không tự đánh dấu toàn bộ MH11 hoặc luồng giao→COD hoàn tất.
+### Trạng thái MH15 — Quản lý yêu cầu trả hàng (02/11/2026, giai đoạn 1)
+
+- Tên hiển thị: "Quản lý yêu cầu trả hàng" (không hiện mã màn hình). Route
+  `/manager/returns` (danh sách) và `/manager/returns/:returnId` (chi tiết),
+  guard `managerOnly` + UUID; mục "Trả hàng" trên thanh điều hướng manager.
+- Danh sách: tìm theo mã yêu cầu, mã đơn (UUID đầy đủ hoặc ≥ 4 ký tự hex, chấp
+  nhận tiền tố TH/DH, dấu #/-) hoặc tên khách; lọc theo trạng thái, số đếm theo
+  từng trạng thái. Mở chi tiết không đổi trạng thái.
+- Chi tiết: khách/SĐT, sản phẩm đơn + tiền hàng/phí giao/tổng COD, lý do + mô
+  tả, video (signed URL 10 phút, mở tab mới), thông tin nhận hoàn (chỉ
+  manager), nhiệm vụ thu hồi, quyết định.
+- Thao tác theo trạng thái: `pending_review` → "Duyệt lấy hàng" (chọn sản
+  phẩm/số lượng + shipper, một giao dịch) hoặc "Từ chối" (lý do + xác nhận).
+  Trạng thái khác chưa có thao tác ở giai đoạn 1 (hiện ghi chú bước tiếp theo).
+- Preview DEMO: `flutter run -d edge --web-port 7415 -t tool/ui_preview/mh15_main.dart`.
+- Giai đoạn 2 (02/11/2026): thao tác theo trạng thái —
+  `pending_review`: duyệt lấy hàng / từ chối / yêu cầu bổ sung;
+  `returning_to_store`: "Xác nhận đã nhận hàng" (chỉ khi shipper đã báo bàn
+  giao); `under_inspection`: chấp nhận (chia bán được/lỗi, nhập kho một lần) /
+  từ chối sau kiểm tra (bắt buộc bằng chứng) / yêu cầu bổ sung — khóa khi đang
+  chờ khách phản hồi; `awaiting_refund`: ghi nhận hoàn tiền (đúng tiền hàng +
+  phí giao ban đầu, thời điểm chuyển thực tế, chứng từ); `awaiting_redelivery`:
+  phân công giao lại miễn phí. MH14 hiển thị và trả lời yêu cầu bổ sung (mô tả +
+  video tùy chọn).
+- Chưa có thao tác riêng cho `manager_action_required` (thu hồi/giao lại thất
+  bại): màn hiện hướng dẫn liên hệ và yêu cầu không tự đóng.
+
 ### P04.1 — Kết quả deploy cloud 26/10/2026
 
 Sau khi người dùng duyệt project `bqoyfytmrtvjwrpshuhh` và đăng nhập CLI,

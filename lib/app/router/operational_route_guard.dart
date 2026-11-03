@@ -17,6 +17,7 @@ class OperationalRouteLocation {
     this.map = false,
     this.invalidId = false,
     this.customerOnly = false,
+    this.managerOnly = false,
   });
 
   final bool protected;
@@ -27,6 +28,8 @@ class OperationalRouteLocation {
   // Only routes that require the customer role without an entity-specific
   // route check may share this authorization scope.
   final bool customerOnly;
+  // Manager-only screens; every RPC behind them re-checks the role.
+  final bool managerOnly;
   static final _uuid = RegExp(
     r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
   );
@@ -79,6 +82,16 @@ class OperationalRouteLocation {
         protected: true,
         customerOnly: true,
         invalidId: parts.length != 3 || !_uuid.hasMatch(parts[2]),
+      );
+    }
+    // Return management: /manager/returns and /manager/returns/<UUID>.
+    if (parts.length >= 2 && parts[0] == 'manager' && parts[1] == 'returns') {
+      return OperationalRouteLocation(
+        protected: true,
+        managerOnly: true,
+        invalidId:
+            parts.length > 3 ||
+            (parts.length == 3 && !_uuid.hasMatch(parts[2])),
       );
     }
     if (uri.path == '/cod') {
@@ -232,6 +245,8 @@ class OperationalRouteGuard extends ChangeNotifier {
       } else {
         final allowed = target.customerOnly
             ? const {'customer'}
+            : target.managerOnly
+            ? const {'manager'}
             : state.uri.path == '/shipper/tasks'
             ? const {'shipper'}
             : state.uri.path == '/cod'

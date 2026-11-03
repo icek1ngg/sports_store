@@ -10,7 +10,10 @@ const _rejectedBranch = {
 
 /// Strict mapping of `get_my_return_request`. Timeline events are derived
 /// only from server timestamps present in the response.
-ReturnTracking returnTrackingFromJson(Map<String, Object?> json) {
+ReturnTracking returnTrackingFromJson(
+  Map<String, Object?> json, {
+  ReturnInfoRequest? infoRequest,
+}) {
   final returnId = requiredUuid(json, 'return_id');
   final orderId = requiredUuid(json, 'order_id');
   final status = ReturnRequestStatus.parse(requiredField(json, 'status'));
@@ -134,8 +137,8 @@ ReturnTracking returnTrackingFromJson(Map<String, Object?> json) {
     pickupAddress: requiredString(json, 'pickup_address', nonBlank: true),
     pickup: pickupJson == null ? null : _person(pickupJson),
     decisionReason: nullableString(json, 'decision_reason'),
-    // The schema has no "more information" request yet (needs MH15).
-    infoRequest: null,
+    // Read separately through get_my_return_info_request (MH15).
+    infoRequest: infoRequest,
     refund: refund,
     refundBankName: nullableString(json, 'refund_bank_name'),
     refundAccountMasked: nullableString(json, 'refund_account_masked'),
@@ -151,5 +154,16 @@ ReturnPickupAssignment? _person(Map<String, Object?> task) {
   return ReturnPickupAssignment(
     shipperName: requiredString(person, 'name', nonBlank: true),
     shipperPhone: nullableString(person, 'phone'),
+  );
+}
+
+/// Strict mapping of `get_my_return_info_request` (latest request or null).
+ReturnInfoRequest? returnInfoRequestFromJson(Map<String, Object?> json) {
+  final info = nullableObject(json, 'info_request');
+  if (info == null) return null;
+  return ReturnInfoRequest(
+    message: requiredString(info, 'message', nonBlank: true),
+    requestedAt: requiredUtcTimestamp(info, 'requested_at'),
+    respondedAt: nullableUtcTimestamp(info, 'responded_at'),
   );
 }

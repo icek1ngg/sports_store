@@ -962,3 +962,24 @@ Khi ba mục trên xong, `supabase db push --dry-run` phải chỉ liệt kê, t
 tự: `20261101080125_submit_return_request.sql` (MH13), rồi
 `20261101090627_get_my_return_request.sql` (MH14). Nếu dry-run hiện thêm bất
 kỳ migration nào khác thì dừng lại, không push.
+
+## MH15 — quản lý yêu cầu trả hàng, giai đoạn 1 (kiểm thử cục bộ 02/11/2026)
+
+Migration `20261102050041_manager_return_management.sql`: role
+`sports_store_return_management_writer` (NOLOGIN, NOINHERIT, NOBYPASSRLS; quyền
+theo cột + policy riêng), bảng sổ idempotency
+`private.return_management_requests` (PK `actor_id, request_id`, FORCE RLS,
+chỉ writer đọc/ghi dòng của chính actor), helper `private.require_manager()`,
+`private.return_management_derived_uuid()`, bốn RPC trong `api_contracts.md`.
+Không đổi bảng/enum hiện có. Chưa áp dụng lên cloud.
+
+## MH15 — giai đoạn 2 (kiểm thử cục bộ 02/11/2026)
+
+Migration `20261102092824_return_management_resolution.sql`: bảng
+`private.return_info_requests` (một yêu cầu mở mỗi yêu cầu trả, FORCE RLS,
+chỉ writer), helper chỉ trả boolean/JSON có kiểm tra role
+(`private.storage_object_exists`, `private.return_pickup_handover_reported`,
+`private.manager_return_info_requests`), mở rộng quyền theo cột + policy của
+`sports_store_return_management_writer` (cập nhật tồn kho chỉ qua movement
+`return_received` không âm, gói hoàn tiền, phản hồi của khách). Không đổi bảng
+hay enum hiện có. Chưa áp dụng lên cloud.

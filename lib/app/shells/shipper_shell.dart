@@ -20,6 +20,16 @@ class ShipperShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final form = ref.watch(authViewModelProvider);
+    // Return management draws its own header (same as MH13/MH14); only the
+    // list shows the manager navigation.
+    if (role == 'manager' && location.path.startsWith('/manager/returns')) {
+      return Scaffold(
+        body: child,
+        bottomNavigationBar: location.path == '/manager/returns'
+            ? const ManagerNavigationBar(selectedIndex: 4)
+            : null,
+      );
+    }
     final cod = location.path == '/cod';
     final notifications = location.path == '/notifications';
     return Scaffold(

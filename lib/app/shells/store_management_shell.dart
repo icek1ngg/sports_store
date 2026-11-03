@@ -25,7 +25,7 @@ class StoreManagementShell extends ConsumerWidget {
     final manager = profile.role == AppRole.manager;
     final path = GoRouterState.of(context).uri.path;
     final locations = manager
-        ? ['/manager/orders', '/manager/products', '/chat', '/cod']
+        ? managerDestinations
         : ['/customer/products', '/chat'];
     final selected = locations.indexWhere(
       (location) => path == location || path.startsWith('$location/'),

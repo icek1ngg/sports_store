@@ -92,10 +92,17 @@ final class SupabaseReturnRequestRepository implements ReturnRequestRepository {
 Future<T> runCustomerReturnCall<T>(
   OperationalReadAccess access,
   Future<T> Function(ReadIdentity identity) action,
+) => runReturnCall(access, const {'customer'}, action);
+
+/// Same as [runCustomerReturnCall] for an explicit role set (manager screens).
+Future<T> runReturnCall<T>(
+  OperationalReadAccess access,
+  Set<String> roles,
+  Future<T> Function(ReadIdentity identity) action,
 ) async {
   try {
     return await access.run<T>(
-      roles: const {'customer'},
+      roles: roles,
       action: (identity) async {
         try {
           return await action(identity);
@@ -153,6 +160,14 @@ ReturnRequestFailure mapReturnRequestError(Object error) {
         ReturnRequestFailureCode.videoAlreadyUsed,
       ('PT409', 'IDEMPOTENCY_CONFLICT') =>
         ReturnRequestFailureCode.idempotencyConflict,
+      ('PT409', 'STATE_CONFLICT') => ReturnRequestFailureCode.stateConflict,
+      ('PT409', 'ITEMS_MISMATCH') => ReturnRequestFailureCode.itemsMismatch,
+      ('PT409', 'INVALID_SHIPPER') => ReturnRequestFailureCode.invalidShipper,
+      ('PT409', 'AMOUNT_MISMATCH') => ReturnRequestFailureCode.amountMismatch,
+      ('PT422', 'EVIDENCE_REQUIRED') =>
+        ReturnRequestFailureCode.evidenceRequired,
+      ('22023', 'INVALID_TRANSFER_TIME') =>
+        ReturnRequestFailureCode.invalidTransferTime,
       ('PT422', 'VIDEO_REQUIRED') => ReturnRequestFailureCode.videoRequired,
       ('22023', _) || ('22P02', _) => ReturnRequestFailureCode.invalidInput,
       ('404', _) ||
