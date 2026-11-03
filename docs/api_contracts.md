@@ -1,5 +1,9 @@
 # Hợp đồng truy cập database
 
+Cập nhật 02/11/2026: MH11 đọc đầy đủ snapshot nhiệm vụ đã kết thúc của chính
+shipper qua API bổ sung; COD lấy từ ledger, quyền thao tác vẫn theo trạng thái.
+[Chi tiết hợp đồng](demos/shipper_history_details_20261102.md).
+
 Cập nhật 02/11/2026: nhận hàng outbound tự bắt đầu giao trong một giao dịch;
 MH10 tách nhóm giao lại lần một và thất bại lần hai.
 [Hành vi và hợp đồng mới](demos/shipper_accept_start_20261102.md).

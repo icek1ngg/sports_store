@@ -293,7 +293,7 @@ void main() {
       expect(find.text('Đã nhận: 2'), findsOneWidget);
       expect(find.text('Đã nhận: 1'), findsOneWidget);
       expect(find.text('Không thu tiền'), findsOneWidget);
-      expect(find.text('Ghi chú chưa khả dụng.'), findsOneWidget);
+      expect(find.text('Nhiệm vụ chưa có ghi chú.'), findsOneWidget);
       expect(find.textContaining('/ 2'), findsNothing);
       expect(find.textContaining('ngân'), findsNothing);
       expect(find.textContaining('video'), findsNothing);

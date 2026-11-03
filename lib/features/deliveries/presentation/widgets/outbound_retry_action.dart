@@ -16,10 +16,17 @@ class OutboundRetryAction extends ConsumerStatefulWidget {
   const OutboundRetryAction({
     super.key,
     required this.task,
+    this.canRetry = false,
     required this.onCreated,
   });
 
   final DeliveryTaskSnapshot task;
+
+  /// Server-authorized retry capability for a readable history projection.
+  ///
+  /// Current/restricted projections retain their existing action gate. A
+  /// history task is eligible only when the detail RPC explicitly grants it.
+  final bool canRetry;
   final Future<void> Function(String retryTaskId) onCreated;
 
   @override
@@ -39,7 +46,8 @@ class _OutboundRetryActionState extends ConsumerState<OutboundRetryAction> {
         task.status == DeliveryTaskStatus.failed &&
         task.attemptNumber == 1 &&
         (task.scope == DeliverySnapshotScope.restricted ||
-            task.scope == DeliverySnapshotScope.current);
+            task.scope == DeliverySnapshotScope.current ||
+            (task.scope == DeliverySnapshotScope.history && widget.canRetry));
   }
 
   Future<void> _openConfirmation(OutboundRetryState state) async {
@@ -83,7 +91,10 @@ class _OutboundRetryActionState extends ConsumerState<OutboundRetryAction> {
       final vm = ref.read(
         outboundRetryViewModelProvider(widget.task.taskId).notifier,
       );
-      final retryTaskId = await vm.submit(task: widget.task);
+      final retryTaskId = await vm.submit(
+        task: widget.task,
+        canRetry: widget.canRetry,
+      );
       if (mounted && retryTaskId != null) {
         await _navigateOnce(retryTaskId);
       }

@@ -18,7 +18,8 @@ class DeliveryTaskDto {
     this.startedAt,
     this.completedAt,
     required this.itemSource,
-  }) : _allowMissingDestinationCoordinates = false;
+  }) : _allowMissingDestinationCoordinates = false,
+       _allowReadableHistory = false;
 
   const DeliveryTaskDto._({
     required this.taskId,
@@ -36,11 +37,13 @@ class DeliveryTaskDto {
     this.completedAt,
     required this.itemSource,
     required this._allowMissingDestinationCoordinates,
+    required this._allowReadableHistory,
   });
 
   factory DeliveryTaskDto.fromJson(
     Map<String, dynamic> json, {
     bool allowMissingDestinationCoordinates = false,
+    bool allowReadableHistory = false,
   }) {
     final taskId = DeliveryDtoReaders.readRequiredUuid(json, 'task_id');
     final kind = DeliveryTaskKind.fromValue(
@@ -95,6 +98,7 @@ class DeliveryTaskDto {
         ),
       ),
       allowMissingDestinationCoordinates: allowMissingDestinationCoordinates,
+      allowReadableHistory: allowReadableHistory,
     );
   }
 
@@ -113,6 +117,7 @@ class DeliveryTaskDto {
   final DateTime? completedAt;
   final DeliveryItemSource itemSource;
   final bool _allowMissingDestinationCoordinates;
+  final bool _allowReadableHistory;
 
   DeliveryTaskSnapshot toDomain() {
     _validate();
@@ -163,7 +168,10 @@ class DeliveryTaskDto {
       );
     }
 
-    final expectedScope = _scopeForStatus(status);
+    final expectedScope = _scopeForStatus(
+      status,
+      readableHistory: _allowReadableHistory,
+    );
     if (scope != expectedScope) {
       throw DeliveryDtoReaders.invalid(
         'snapshot_scope',
@@ -171,10 +179,16 @@ class DeliveryTaskDto {
       );
     }
 
-    final expectedItemSource = _itemSourceFor(kind, scope);
+    final expectedItemSource = _itemSourceFor(
+      kind,
+      scope,
+      readableHistory: _allowReadableHistory,
+    );
     final approvedRedeliveryPlan =
         kind == DeliveryTaskKind.redelivery &&
-        scope == DeliverySnapshotScope.current &&
+        (scope == DeliverySnapshotScope.current ||
+            (scope == DeliverySnapshotScope.history &&
+                _allowReadableHistory)) &&
         itemSource == DeliveryItemSource.returnPlan;
     if (itemSource != expectedItemSource && !approvedRedeliveryPlan) {
       throw DeliveryDtoReaders.invalid(
@@ -186,6 +200,9 @@ class DeliveryTaskDto {
     _validateTimestamps();
     if (scope == DeliverySnapshotScope.current) {
       _validateCurrentFields();
+    } else if (scope == DeliverySnapshotScope.history &&
+        _allowReadableHistory) {
+      _validateHistoryFields();
     } else {
       _validateMaskedFields();
     }
@@ -247,6 +264,55 @@ class DeliveryTaskDto {
     }
   }
 
+  /// Terminal tasks remain readable to the shipper who owned the task.
+  ///
+  /// History is a read-only projection: all task/order snapshot fields may be
+  /// present, but the presentation layer must not infer that any command is
+  /// still available from this scope.
+  void _validateHistoryFields() {
+    if (orderId == null) {
+      throw DeliveryDtoReaders.invalid(
+        'order_id',
+        'a UUID for an authorized history task',
+      );
+    }
+    if (kind == DeliveryTaskKind.outbound) {
+      if (returnRequestId != null) {
+        throw DeliveryDtoReaders.invalid(
+          'return_request_id',
+          'null for an outbound task',
+        );
+      }
+    } else if (returnRequestId == null) {
+      throw DeliveryDtoReaders.invalid(
+        'return_request_id',
+        'a UUID for a return task',
+      );
+    }
+    if (amountToCollectVnd == null) {
+      throw DeliveryDtoReaders.invalid(
+        'amount_to_collect_vnd',
+        'a value for an authorized history task',
+      );
+    }
+    if (kind != DeliveryTaskKind.outbound && amountToCollectVnd != 0) {
+      throw DeliveryDtoReaders.invalid(
+        'amount_to_collect_vnd',
+        '0 for a non-outbound task',
+      );
+    }
+    if (destination == null) {
+      throw DeliveryDtoReaders.invalid(
+        'destination',
+        'the recipient snapshot for an authorized history task',
+      );
+    }
+    _validateDestination(
+      destination!,
+      allowMissingDestinationCoordinates: _allowMissingDestinationCoordinates,
+    );
+  }
+
   void _validateTimestamps() {
     for (final timestamp in [assignedAt, acceptedAt, startedAt, completedAt]) {
       if (timestamp != null && !timestamp.isUtc) {
@@ -258,7 +324,10 @@ class DeliveryTaskDto {
     }
   }
 
-  static DeliverySnapshotScope _scopeForStatus(DeliveryTaskStatus status) {
+  static DeliverySnapshotScope _scopeForStatus(
+    DeliveryTaskStatus status, {
+    required bool readableHistory,
+  }) {
     return switch (status) {
       DeliveryTaskStatus.assigned ||
       DeliveryTaskStatus.accepted ||
@@ -266,18 +335,25 @@ class DeliveryTaskDto {
       DeliveryTaskStatus.delivered ||
       DeliveryTaskStatus.cancelled ||
       DeliveryTaskStatus.returnedToStore => DeliverySnapshotScope.history,
-      DeliveryTaskStatus.pendingAssignment ||
-      DeliveryTaskStatus.failed ||
+      DeliveryTaskStatus.pendingAssignment => DeliverySnapshotScope.restricted,
       DeliveryTaskStatus.managerActionRequired =>
-        DeliverySnapshotScope.restricted,
+        readableHistory
+            ? DeliverySnapshotScope.history
+            : DeliverySnapshotScope.restricted,
+      DeliveryTaskStatus.failed =>
+        readableHistory
+            ? DeliverySnapshotScope.history
+            : DeliverySnapshotScope.restricted,
     };
   }
 
   static DeliveryItemSource _itemSourceFor(
     DeliveryTaskKind kind,
-    DeliverySnapshotScope scope,
-  ) {
-    if (scope != DeliverySnapshotScope.current) {
+    DeliverySnapshotScope scope, {
+    required bool readableHistory,
+  }) {
+    if (scope == DeliverySnapshotScope.restricted ||
+        (scope == DeliverySnapshotScope.history && !readableHistory)) {
       return DeliveryItemSource.unavailable;
     }
     return switch (kind) {

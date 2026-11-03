@@ -216,17 +216,23 @@ class _DetailBody extends StatelessWidget {
               ? 'Giao lại miễn phí'
               : 'COD',
           icon: Icons.payments_outlined,
-          child: _CodSection(task: task),
+          child: _CodSection(details: details),
         ),
         if (task.kind == DeliveryTaskKind.outbound &&
             task.status == DeliveryTaskStatus.failed &&
             task.attemptNumber == 1 &&
-            (task.scope == DeliverySnapshotScope.restricted || isCurrent)) ...[
+            (task.scope == DeliverySnapshotScope.restricted ||
+                isCurrent ||
+                details.canRetry)) ...[
           const SizedBox(height: 12),
           _SectionCard(
             title: 'Giao lại đơn hàng',
             icon: Icons.replay_outlined,
-            child: OutboundRetryAction(task: task, onCreated: onRetryCreated),
+            child: OutboundRetryAction(
+              task: task,
+              canRetry: details.canRetry,
+              onCreated: onRetryCreated,
+            ),
           ),
         ] else if (isCurrent && task.kind == DeliveryTaskKind.outbound) ...[
           const SizedBox(height: 12),
@@ -420,8 +426,9 @@ class _RecipientSection extends StatelessWidget {
     final scheme = theme.colorScheme;
     final destination = task.destination;
     final isCurrent = task.scope == DeliverySnapshotScope.current;
+    final isReadableHistory = task.scope == DeliverySnapshotScope.history;
 
-    if (!isCurrent || destination == null) {
+    if ((!isCurrent && !isReadableHistory) || destination == null) {
       return _RestrictedInfo(
         text: 'Thông tin người nhận và địa chỉ đã được giới hạn.',
         icon: Icons.lock_outline,
@@ -462,27 +469,29 @@ class _RecipientSection extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 14),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            DeliveryCallAction(task: task),
-            if (_canOpenMap(task))
-              OutlinedButton.icon(
-                key: const ValueKey('task-detail-map'),
-                onPressed: () => _openMap(context),
-                icon: const Icon(Icons.map_outlined),
-                label: const Text('Mở bản đồ'),
-              ),
-          ],
-        ),
-        const SizedBox(height: 5),
-        Text(
-          'Gọi điện chỉ mở trình quay số; bạn quyết định thực hiện cuộc gọi.',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: scheme.onSurfaceVariant,
+        if (isCurrent) ...[
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              DeliveryCallAction(task: task),
+              if (_canOpenMap(task))
+                OutlinedButton.icon(
+                  key: const ValueKey('task-detail-map'),
+                  onPressed: () => _openMap(context),
+                  icon: const Icon(Icons.map_outlined),
+                  label: const Text('Mở bản đồ'),
+                ),
+            ],
           ),
-        ),
+          const SizedBox(height: 5),
+          Text(
+            'Gọi điện chỉ mở trình quay số; bạn quyết định thực hiện cuộc gọi.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -504,6 +513,8 @@ class _NotesSection extends StatelessWidget {
     final note = details.notes;
     final theme = Theme.of(context);
     final isCurrent = details.task.scope == DeliverySnapshotScope.current;
+    final isReadableHistory =
+        details.task.scope == DeliverySnapshotScope.history;
     final notesAreAvailable =
         details.notesSource != DeliveryNotesSource.unavailableSchema;
     if (!isCurrent ||
@@ -511,7 +522,9 @@ class _NotesSection extends StatelessWidget {
         note == null ||
         note.trim().isEmpty) {
       return _RestrictedInfo(
-        text: isCurrent ? 'Ghi chú chưa khả dụng.' : 'Ghi chú đã bị giới hạn.',
+        text: isCurrent || isReadableHistory
+            ? 'Nhiệm vụ chưa có ghi chú.'
+            : 'Ghi chú đã bị giới hạn.',
         icon: Icons.info_outline,
       );
     }
@@ -529,7 +542,8 @@ class _ItemsSection extends StatelessWidget {
     final task = details.task;
     final theme = Theme.of(context);
     final isCurrent = task.scope == DeliverySnapshotScope.current;
-    if (!isCurrent) {
+    final isReadableHistory = task.scope == DeliverySnapshotScope.history;
+    if (!isCurrent && !isReadableHistory) {
       return _RestrictedInfo(
         text: 'Danh sách hàng không có trong phạm vi nhiệm vụ này.',
         icon: Icons.lock_outline,
@@ -668,15 +682,19 @@ class _ItemRow extends StatelessWidget {
 }
 
 class _CodSection extends StatelessWidget {
-  const _CodSection({required this.task});
+  const _CodSection({required this.details});
 
-  final DeliveryTaskSnapshot task;
+  final DeliveryTaskDetails details;
 
   @override
   Widget build(BuildContext context) {
+    final task = details.task;
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    if (task.scope != DeliverySnapshotScope.current) {
+    final isReadable =
+        task.scope == DeliverySnapshotScope.current ||
+        task.scope == DeliverySnapshotScope.history;
+    if (!isReadable) {
       return _RestrictedInfo(
         text: 'Thông tin COD đã được giới hạn.',
         icon: Icons.lock_outline,
@@ -684,15 +702,27 @@ class _CodSection extends StatelessWidget {
     }
 
     final isOutbound = task.kind == DeliveryTaskKind.outbound;
-    final amount = task.amountToCollectVnd;
-    final amountLabel = switch ((isOutbound, amount)) {
-      (true, final value?) => _formatVnd(value),
-      (true, null) => 'Chưa có tổng COD',
-      (false, _) =>
-        task.kind == DeliveryTaskKind.returnPickup
-            ? 'Không thu tiền'
-            : 'Không thu COD',
-    };
+    final cod = details.cod;
+    if (isOutbound && cod == null) {
+      return const _RestrictedInfo(
+        text: 'Thông tin COD chưa khả dụng.',
+        icon: Icons.info_outline,
+      );
+    }
+    final amountLabel = isOutbound
+        ? _formatVnd(cod!.expectedAmountVnd)
+        : task.kind == DeliveryTaskKind.returnPickup
+        ? 'Không thu tiền'
+        : 'Không thu COD';
+    final expectedAmount = isOutbound
+        ? _formatVnd(cod!.expectedAmountVnd)
+        : null;
+    final collectedAmount = isOutbound
+        ? _formatVnd(cod!.collectedAmountVnd)
+        : null;
+    final receivedAmount = isOutbound
+        ? _formatVnd(cod!.receivedAmountVnd)
+        : null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -706,7 +736,7 @@ class _CodSection extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           isOutbound
-              ? 'Tổng COD cần thu'
+              ? _codStatusLabel(cod!.status)
               : task.kind == DeliveryTaskKind.returnPickup
               ? 'Thu hồi hàng tại khách'
               : 'Giao lại miễn phí · Không thu COD lần hai',
@@ -717,9 +747,19 @@ class _CodSection extends StatelessWidget {
         if (isOutbound) ...[
           const SizedBox(height: 10),
           Text(
-            amount == null
-                ? 'Tổng COD chưa khả dụng.'
-                : 'Chưa có chi tiết tiền hàng và phí giao hàng.',
+            'Dự kiến: $expectedAmount',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+          Text(
+            'Đã thu: $collectedAmount',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+          Text(
+            'Cửa hàng đã nhận: $receivedAmount',
             style: theme.textTheme.bodySmall?.copyWith(
               color: scheme.onSurfaceVariant,
             ),
@@ -729,6 +769,12 @@ class _CodSection extends StatelessWidget {
     );
   }
 }
+
+String _codStatusLabel(DeliveryCodStatus status) => switch (status) {
+  DeliveryCodStatus.uncollected => 'Chưa thu COD',
+  DeliveryCodStatus.collected => 'Shipper đã thu COD',
+  DeliveryCodStatus.received => 'Cửa hàng đã nhận COD',
+};
 
 class _ActionSection extends StatelessWidget {
   const _ActionSection({required this.task});
@@ -791,8 +837,10 @@ class _ReadOnlyNotice extends StatelessWidget {
           const SizedBox(width: 9),
           Expanded(
             child: Text(
-              isMasked
-                  ? 'Đây là bản ghi lịch sử hoặc bị giới hạn; dữ liệu riêng tư không được hiển thị.'
+              scope == DeliverySnapshotScope.history
+                  ? 'Thông tin lần giao này được lưu để xem lại. Nếu đủ điều kiện, bạn có thể tạo lần giao tiếp theo ở mục Giao lại đơn hàng.'
+                  : isMasked
+                  ? 'Dữ liệu riêng tư không được hiển thị vì nhiệm vụ không còn trong phạm vi.'
                   : 'Các thao tác được xác minh theo nhiệm vụ trên server. Báo bàn giao chưa phải cửa hàng nhận, kiểm tra hoặc nhập lại tồn kho.',
               style: theme.textTheme.bodySmall,
             ),

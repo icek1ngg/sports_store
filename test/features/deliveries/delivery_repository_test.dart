@@ -41,7 +41,7 @@ void main() {
             {'role': 'shipper'},
           ]);
         }
-        if (request.url.path.endsWith('/get_my_delivery_task')) {
+        if (request.url.path.endsWith('/get_my_delivery_task_history')) {
           expect(request.body, contains(taskId));
           return jsonResponse(request, detailPayload());
         }
@@ -57,7 +57,10 @@ void main() {
       expect(details.items.single.quantity, 2);
       expect(details.task.amountToCollectVnd, 550000);
       expect(details.itemsAvailable, isTrue);
-      expect(paths.where((p) => p.endsWith('/get_my_delivery_task')).length, 1);
+      expect(
+        paths.where((p) => p.endsWith('/get_my_delivery_task_history')).length,
+        1,
+      );
       expect(
         paths.any(
           (p) =>
@@ -76,14 +79,16 @@ void main() {
   );
 
   test('history and unavailable redelivery never fabricate items', () async {
-    var dto = maskedTaskDto(status: 'delivered', scope: 'history');
+    var dto = currentTaskDto(status: 'delivered')
+      ..['snapshot_scope'] = 'history'
+      ..['completed_at'] = '2026-10-24T03:00:00Z';
     final client = await fixtureClient((request) async {
       if (request.url.path.endsWith('/profiles')) {
         return jsonResponse(request, [
           {'role': 'shipper'},
         ]);
       }
-      expect(request.url.path, endsWith('/get_my_delivery_task'));
+      expect(request.url.path, endsWith('/get_my_delivery_task_history'));
       return jsonResponse(request, detailPayload(task: dto, items: const []));
     });
     final access = OperationalReadAccess(client);
@@ -93,8 +98,8 @@ void main() {
     });
     final repo = SupabaseDeliveryRepository(access: access);
     final historical = await repo.getTaskDetails(taskId);
-    expect(historical.task.destination, isNull);
-    expect(historical.itemsAvailable, isFalse);
+    expect(historical.task.destination, isNotNull);
+    expect(historical.itemsAvailable, isTrue);
     dto = currentTaskDto(
       kind: 'redelivery',
       returnRequest: returnRequestId,
@@ -247,7 +252,7 @@ void main() {
           {'role': 'shipper'},
         ]);
       }
-      expect(request.url.path, endsWith('/get_my_delivery_task'));
+      expect(request.url.path, endsWith('/get_my_delivery_task_history'));
       return jsonResponse(request, {
         'code': 'P0002',
         'message': 'not found or forbidden',
@@ -274,7 +279,7 @@ void main() {
             {'role': 'shipper'},
           ]);
         }
-        expect(request.url.path, endsWith('/get_my_delivery_task'));
+        expect(request.url.path, endsWith('/get_my_delivery_task_history'));
         if (mode == 'network') {
           throw http.ClientException('private endpoint payload');
         }
@@ -311,7 +316,7 @@ void main() {
           {'role': 'shipper'},
         ]);
       }
-      expect(request.url.path, endsWith('/get_my_delivery_task'));
+      expect(request.url.path, endsWith('/get_my_delivery_task_history'));
       oldRequest = request;
       entered.complete();
       return late.future;
@@ -441,7 +446,7 @@ void main() {
           {'role': 'shipper'},
         ]);
       }
-      expect(request.url.path, endsWith('/get_my_delivery_task'));
+      expect(request.url.path, endsWith('/get_my_delivery_task_history'));
       detailCalls++;
       return jsonResponse(request, detailPayload(items: all));
     });

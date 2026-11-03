@@ -236,7 +236,10 @@ class OutboundRetryViewModel extends Notifier<OutboundRetryState> {
 
   /// Starts the server transition after the caller has shown the explicit
   /// confirmation. The failed task identity is the only business input.
-  Future<String?> submit({required DeliveryTaskSnapshot task}) async {
+  Future<String?> submit({
+    required DeliveryTaskSnapshot task,
+    bool canRetry = false,
+  }) async {
     final session = _session;
     if (_disposed ||
         !_visible ||
@@ -246,8 +249,8 @@ class OutboundRetryViewModel extends Notifier<OutboundRetryState> {
         state.pendingCommand != null ||
         state.acknowledgement != null ||
         state.requiresReadRetry ||
-        !_eligible(task)) {
-      if (!_eligible(task) && !_disposed) {
+        !_eligible(task, canRetry: canRetry)) {
+      if (!_eligible(task, canRetry: canRetry) && !_disposed) {
         _validation(OutboundCommandFailureCode.staleState);
       }
       return null;
@@ -491,13 +494,14 @@ class OutboundRetryViewModel extends Notifier<OutboundRetryState> {
     _closeKeepAlive = null;
   }
 
-  static bool _eligible(DeliveryTaskSnapshot task) =>
+  static bool _eligible(DeliveryTaskSnapshot task, {required bool canRetry}) =>
       task.taskId.isNotEmpty &&
       task.kind == DeliveryTaskKind.outbound &&
       task.status == DeliveryTaskStatus.failed &&
       task.attemptNumber == 1 &&
       (task.scope == DeliverySnapshotScope.restricted ||
-          task.scope == DeliverySnapshotScope.current);
+          task.scope == DeliverySnapshotScope.current ||
+          (task.scope == DeliverySnapshotScope.history && canRetry));
 
   static bool _usable(OperationalSession? value) =>
       value != null && value.userId != null && value.failure == null;

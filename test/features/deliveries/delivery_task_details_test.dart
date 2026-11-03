@@ -157,6 +157,136 @@ void main() {
     }
   });
 
+  test(
+    'readable history projection preserves owned snapshots and COD ledger',
+    () {
+      final task = currentTaskDto(status: 'delivered')
+        ..['snapshot_scope'] = 'history'
+        ..['completed_at'] = '2026-10-23T04:00:00Z';
+      final details = DeliveryTaskDetailsDto.fromJson(
+        {
+          ...detailPayload(task: task),
+          'cod': {
+            'status': 'received',
+            'expected_amount_vnd': 550000,
+            'collected_amount_vnd': 550000,
+            'received_amount_vnd': 550000,
+            'collected_at': '2026-10-23T03:30:00Z',
+            'handed_over_at': '2026-10-23T04:00:00Z',
+            'received_at': '2026-10-23T04:30:00Z',
+          },
+          'capabilities': {'can_retry': false},
+        },
+        requestedTaskId: taskId,
+        allowReadableHistory: true,
+      ).toDomain();
+
+      expect(details.task.scope, DeliverySnapshotScope.history);
+      expect(details.task.destination?.name, 'Nguyễn Văn A');
+      expect(details.items.single.productName, 'Bóng đá');
+      expect(details.cod?.status, DeliveryCodStatus.received);
+      expect(details.cod?.receivedAmountVnd, 550000);
+      expect(details.canRetry, isFalse);
+    },
+  );
+
+  test('readable history redelivery accepts approved return-plan metadata', () {
+    final task =
+        currentTaskDto(
+            kind: 'redelivery',
+            status: 'returned_to_store',
+            returnRequest: returnRequestId,
+            amount: 0,
+            itemSource: 'return_plan',
+          )
+          ..['snapshot_scope'] = 'history'
+          ..['completed_at'] = '2026-10-23T04:00:00Z';
+    final item = returnItemDto(quantityCollected: null)
+      ..['variant_label'] = 'Size M'
+      ..['attributes'] = {'size': 'M'};
+    final details = DeliveryTaskDetailsDto.fromJson(
+      {
+        ...detailPayload(task: task, items: [item]),
+        'cod': null,
+        'capabilities': {'can_retry': false},
+      },
+      requestedTaskId: taskId,
+      allowReadableHistory: true,
+    ).toDomain();
+
+    expect(details.task.kind, DeliveryTaskKind.redelivery);
+    expect(details.items.single.itemSource, DeliveryItemSource.returnPlan);
+    expect(details.items.single.variantLabel, 'Size M');
+    expect(details.items.single.quantityCollected, isNull);
+  });
+
+  test('readable history redelivery without a plan stays item-free', () {
+    final task =
+        currentTaskDto(
+            kind: 'redelivery',
+            status: 'returned_to_store',
+            returnRequest: returnRequestId,
+            amount: 0,
+            itemSource: 'unavailable_redelivery_plan',
+          )
+          ..['snapshot_scope'] = 'history'
+          ..['completed_at'] = '2026-10-23T04:00:00Z';
+    final details = DeliveryTaskDetailsDto.fromJson(
+      {
+        ...detailPayload(task: task, items: const []),
+        'cod': null,
+        'capabilities': {'can_retry': false},
+      },
+      requestedTaskId: taskId,
+      allowReadableHistory: true,
+    ).toDomain();
+
+    expect(details.task.scope, DeliverySnapshotScope.history);
+    expect(details.items, isEmpty);
+    expect(details.itemsAvailable, isFalse);
+  });
+
+  test('rejects malformed history COD and retry capability projections', () {
+    final task = currentTaskDto(status: 'failed')
+      ..['snapshot_scope'] = 'history'
+      ..['completed_at'] = '2026-10-23T04:00:00Z';
+    final payload = {
+      ...detailPayload(task: task),
+      'cod': {
+        'status': 'received',
+        'expected_amount_vnd': 550000,
+        'collected_amount_vnd': 0,
+        'received_amount_vnd': 550000,
+        'collected_at': null,
+        'handed_over_at': null,
+        'received_at': '2026-10-23T04:30:00Z',
+      },
+      'capabilities': {'can_retry': true},
+    };
+    expect(
+      () => DeliveryTaskDetailsDto.fromJson(
+        payload,
+        requestedTaskId: taskId,
+        allowReadableHistory: true,
+      ).toDomain(),
+      throwsFormatException,
+    );
+
+    final malformedCapabilities = {
+      ...detailPayload(task: task),
+      'cod': null,
+      'capabilities': {'can_retry': 'true'},
+    };
+    expect(
+      () => DeliveryTaskDetailsDto.fromJson(
+        malformedCapabilities,
+        requestedTaskId: taskId,
+        allowReadableHistory: true,
+      ),
+      throwsFormatException,
+    );
+  });
+
   test('rejects wrong identity, leaked fields, and malformed envelope', () {
     final wrongId = detailPayload(task: currentTaskDto(task: orderId));
     expect(

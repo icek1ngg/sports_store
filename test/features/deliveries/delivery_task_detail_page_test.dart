@@ -127,13 +127,12 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(
-      find.text('Chưa có chi tiết tiền hàng và phí giao hàng.'),
-      findsOneWidget,
-    );
-    expect(find.text('Ghi chú chưa khả dụng.'), findsOneWidget);
+    expect(find.text('Dự kiến: 550.000 đ'), findsOneWidget);
+    expect(find.text('Đã thu: 0 đ'), findsOneWidget);
+    expect(find.text('Cửa hàng đã nhận: 0 đ'), findsOneWidget);
+    expect(find.text('Nhiệm vụ chưa có ghi chú.'), findsOneWidget);
     expect(find.text('Ghi chú riêng tư không được phép'), findsNothing);
-    expect(find.text('Tổng COD cần thu'), findsOneWidget);
+    expect(find.text('Chưa thu COD'), findsOneWidget);
     expect(
       tester
           .widget<OutlinedButton>(
@@ -182,24 +181,80 @@ void main() {
     expect(find.text('Bắt đầu giao lại'), findsOneWidget);
   });
 
-  testWidgets('history projection does not render private detail fields', (
+  testWidgets('history projection renders owned detail fields read-only', (
     tester,
   ) async {
     final vm = _FixtureDetailViewModel(_taskId, AsyncData(_historyDetails()));
     await tester.pumpWidget(_app(_taskId, vm));
 
     expect(find.text('Lịch sử'), findsOneWidget);
+    expect(find.text('Nguyễn Văn A'), findsOneWidget);
+    expect(find.text('0900000000'), findsOneWidget);
+    expect(find.text('550.000 đ'), findsOneWidget);
+    expect(find.text('Bóng đá'), findsOneWidget);
+    expect(find.text('Nhiệm vụ chưa có ghi chú.'), findsOneWidget);
+    expect(find.text('Cửa hàng đã nhận COD'), findsOneWidget);
+    expect(find.text('Cửa hàng đã nhận: 550.000 đ'), findsOneWidget);
     expect(
-      find.text('Thông tin người nhận và địa chỉ đã được giới hạn.'),
+      find.text(
+        'Thông tin lần giao này được lưu để xem lại. Nếu đủ điều kiện, bạn có thể tạo lần giao tiếp theo ở mục Giao lại đơn hàng.',
+      ),
       findsOneWidget,
     );
-    expect(find.text('Thông tin COD đã được giới hạn.'), findsOneWidget);
-    expect(find.text('Nguyễn Văn A'), findsNothing);
-    expect(find.text('0900000000'), findsNothing);
-    expect(find.text('550.000 đ'), findsNothing);
-    expect(find.text('Bóng đá'), findsNothing);
-    expect(find.text('Dữ liệu riêng tư bị lộ'), findsNothing);
     expect(find.byKey(const ValueKey('task-detail-map')), findsNothing);
+  });
+
+  testWidgets('history COD uses ledger status instead of task status', (
+    tester,
+  ) async {
+    final vm = _FixtureDetailViewModel(
+      _taskId,
+      AsyncData(
+        _historyDetails(
+          status: DeliveryCodStatus.collected,
+          receivedAmountVnd: 0,
+        ),
+      ),
+    );
+    await tester.pumpWidget(_app(_taskId, vm));
+
+    expect(find.text('Shipper đã thu COD'), findsOneWidget);
+    expect(find.text('Đã thu: 550.000 đ'), findsOneWidget);
+    expect(find.text('Cửa hàng đã nhận: 0 đ'), findsOneWidget);
+    expect(find.text('Giao lại lần 2'), findsNothing);
+  });
+
+  testWidgets('failed history without server retry capability is read-only', (
+    tester,
+  ) async {
+    final vm = _FixtureDetailViewModel(
+      _taskId,
+      AsyncData(_failedHistoryDetails(canRetry: false)),
+    );
+    await tester.pumpWidget(_app(_taskId, vm));
+
+    expect(find.text('Lần 1 chưa giao được'), findsOneWidget);
+    expect(find.text('Chưa thu COD'), findsOneWidget);
+    expect(find.text('Giao lại lần 2'), findsNothing);
+    expect(
+      find.text(
+        'Thông tin lần giao này được lưu để xem lại. Nếu đủ điều kiện, bạn có thể tạo lần giao tiếp theo ở mục Giao lại đơn hàng.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('failed history exposes retry only when server grants it', (
+    tester,
+  ) async {
+    final vm = _FixtureDetailViewModel(
+      _taskId,
+      AsyncData(_failedHistoryDetails(canRetry: true)),
+    );
+    await tester.pumpWidget(_app(_taskId, vm));
+
+    expect(find.byKey(const ValueKey('outbound-retry-open')), findsOneWidget);
+    expect(find.text('Giao lại lần 2'), findsOneWidget);
   });
 
   testWidgets('loading and failures never retain old private data', (
@@ -330,6 +385,7 @@ DeliveryTaskDetails _inTransitDetails(DeliveryTaskKind kind) {
       itemSource: task.itemSource,
     ),
     items: base.items,
+    cod: base.cod,
   );
 }
 
@@ -361,6 +417,12 @@ DeliveryTaskDetails _outboundDetails([
         quantity: 2,
       ),
     ],
+    cod: const DeliveryCodSnapshot(
+      status: DeliveryCodStatus.uncollected,
+      expectedAmountVnd: 550000,
+      collectedAmountVnd: 0,
+      receivedAmountVnd: 0,
+    ),
   );
 }
 
@@ -406,7 +468,10 @@ DeliveryTaskDetails _redeliveryDetails() {
   );
 }
 
-DeliveryTaskDetails _historyDetails() {
+DeliveryTaskDetails _historyDetails({
+  DeliveryCodStatus status = DeliveryCodStatus.received,
+  int receivedAmountVnd = 550000,
+}) {
   return DeliveryTaskDetails(
     task: const DeliveryTaskSnapshot(
       taskId: _taskId,
@@ -414,19 +479,50 @@ DeliveryTaskDetails _historyDetails() {
       status: DeliveryTaskStatus.delivered,
       attemptNumber: 1,
       scope: DeliverySnapshotScope.history,
+      orderId: '22222222-2222-4222-8222-222222222222',
       amountToCollectVnd: 550000,
       destination: _destination,
-      itemSource: DeliveryItemSource.unavailable,
+      itemSource: DeliveryItemSource.orderSnapshot,
     ),
     items: [
       DeliveryTaskItem(
         itemId: '44444444-4444-4444-8444-444444444444',
         itemSource: DeliveryItemSource.orderSnapshot,
-        productName: 'Dữ liệu riêng tư bị lộ',
+        productName: 'Bóng đá',
         quantity: 1,
       ),
     ],
     notes: 'Dữ liệu riêng tư bị lộ',
+    cod: DeliveryCodSnapshot(
+      status: status,
+      expectedAmountVnd: 550000,
+      collectedAmountVnd: 550000,
+      receivedAmountVnd: receivedAmountVnd,
+    ),
+  );
+}
+
+DeliveryTaskDetails _failedHistoryDetails({required bool canRetry}) {
+  return DeliveryTaskDetails(
+    task: const DeliveryTaskSnapshot(
+      taskId: _taskId,
+      kind: DeliveryTaskKind.outbound,
+      status: DeliveryTaskStatus.failed,
+      attemptNumber: 1,
+      scope: DeliverySnapshotScope.history,
+      orderId: '22222222-2222-4222-8222-222222222222',
+      amountToCollectVnd: 550000,
+      destination: _destination,
+      itemSource: DeliveryItemSource.orderSnapshot,
+    ),
+    items: const [],
+    cod: const DeliveryCodSnapshot(
+      status: DeliveryCodStatus.uncollected,
+      expectedAmountVnd: 550000,
+      collectedAmountVnd: 0,
+      receivedAmountVnd: 0,
+    ),
+    canRetry: canRetry,
   );
 }
 

@@ -20,6 +20,42 @@ enum DeliveryNotesSource {
   }
 }
 
+enum DeliveryCodStatus {
+  uncollected('uncollected'),
+  collected('collected'),
+  received('received');
+
+  const DeliveryCodStatus(this.value);
+  final String value;
+
+  static DeliveryCodStatus fromValue(String value) {
+    for (final status in values) {
+      if (status.value == value) return status;
+    }
+    throw FormatException('Unknown delivery COD status: $value');
+  }
+}
+
+class DeliveryCodSnapshot {
+  const DeliveryCodSnapshot({
+    required this.status,
+    required this.expectedAmountVnd,
+    required this.collectedAmountVnd,
+    required this.receivedAmountVnd,
+    this.collectedAt,
+    this.handedOverAt,
+    this.receivedAt,
+  });
+
+  final DeliveryCodStatus status;
+  final int expectedAmountVnd;
+  final int collectedAmountVnd;
+  final int receivedAmountVnd;
+  final DateTime? collectedAt;
+  final DateTime? handedOverAt;
+  final DateTime? receivedAt;
+}
+
 class DeliveryTaskDetails {
   DeliveryTaskDetails({
     required this.task,
@@ -27,6 +63,8 @@ class DeliveryTaskDetails {
     this.notes,
     this.notesSource = DeliveryNotesSource.unavailableSchema,
     this.asOf,
+    this.cod,
+    this.canRetry = false,
   }) : items = List.unmodifiable(items);
 
   final DeliveryTaskSnapshot task;
@@ -34,6 +72,8 @@ class DeliveryTaskDetails {
   final String? notes;
   final DeliveryNotesSource notesSource;
   final DateTime? asOf;
+  final DeliveryCodSnapshot? cod;
+  final bool canRetry;
 
   bool get itemsAvailable =>
       task.itemSource == DeliveryItemSource.orderSnapshot ||

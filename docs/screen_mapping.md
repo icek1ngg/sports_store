@@ -1,5 +1,9 @@
 # Ánh xạ màn hình Sports Store
 
+Cập nhật 02/11/2026: MH11 giữ người nhận, hàng hóa và COD khi xem lại nhiệm vụ
+đã giao/thất bại của chính shipper. Quyền xem độc lập với quyền thao tác.
+[Chi tiết](demos/shipper_history_details_20261102.md).
+
 Cập nhật 02/11/2026: MH11 nhận hàng là bắt đầu giao ngay; MH10 có **Giao lại**
 cho lần đầu không thành công và **Thất bại** cho lần hai. Quy tắc này thay
 cách phân nhóm ngày 01/11 bên dưới.

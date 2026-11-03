@@ -1,5 +1,9 @@
 # Database Sports Store
 
+Cập nhật 02/11/2026: API lịch sử nhiệm vụ và các trường COD tối thiểu cho
+shipper được phân công; không mở quyền ghi hoặc quyền xem nhiệm vụ người khác.
+[Hợp đồng](demos/shipper_history_details_20261102.md).
+
 Cập nhật 02/11/2026: thêm giao dịch nhận-và-bắt-đầu outbound, phân nhóm retry
 và failed theo lần giao mà không đổi enum/lịch sử task.
 [Hợp đồng và kiểm chứng](demos/shipper_accept_start_20261102.md).
