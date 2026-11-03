@@ -63,7 +63,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // actual revealed leaf for the router-owned redirect below so the stack
       // remains mounted while that leaf is reauthorized.
       pendingPopLocation = router.state.uri;
-      router.refresh();
+      // AppBar/Navigator.maybePop updates the delegate before the route
+      // information provider reports the revealed stack. Refreshing that
+      // provider here can restore the page that was just popped. Restore the
+      // delegate's current stack explicitly, as GoRouter.pop itself does.
+      router.restore(router.routerDelegate.currentConfiguration);
     });
   }
 

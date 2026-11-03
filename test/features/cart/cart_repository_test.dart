@@ -134,6 +134,61 @@ void main() {
     },
   );
 
+  for (final apiPageSize in [1, 2]) {
+    test(
+      'ascending UUID cursor keeps every cart item with API cap $apiPageSize',
+      () async {
+        const otherId = '50000000-0000-4000-8000-000000000002';
+        final requests = <http.Request>[];
+        final source = [
+          _row(quantity: 1),
+          {
+            ..._row(quantity: 3),
+            'variant_id': otherId,
+            'product_variants': _variant()..['id'] = otherId,
+          },
+        ];
+        final repository = await _repository((request) async {
+          if (request.url.path.endsWith('/profiles')) {
+            return jsonResponse(request, [
+              {'role': 'customer'},
+            ]);
+          }
+          requests.add(request);
+          final query = request.url.queryParameters;
+          final after = query['variant_id']?.substring(3);
+          final rows = source
+              .where(
+                (row) =>
+                    after == null ||
+                    (row['variant_id'] as String).compareTo(after) > 0,
+              )
+              .toList();
+          final ascending =
+              query['order']?.startsWith('variant_id.asc') == true;
+          rows.sort((left, right) {
+            final comparison = (left['variant_id'] as String).compareTo(
+              right['variant_id'] as String,
+            );
+            return ascending ? comparison : -comparison;
+          });
+          return jsonResponse(request, rows.take(apiPageSize).toList());
+        });
+        final items = await repository.getItems();
+        expect(items.map((item) => item.variantId), [variantId, otherId]);
+        expect(items.map((item) => item.quantity), [1, 3]);
+        expect(
+          requests.every(
+            (request) =>
+                request.url.queryParameters['order'] ==
+                'variant_id.asc.nullslast',
+          ),
+          isTrue,
+        );
+      },
+    );
+  }
+
   test(
     'insert collision retries same absolute target without key-column upsert',
     () async {

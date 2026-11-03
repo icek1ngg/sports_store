@@ -38,7 +38,7 @@ class SupabaseCartRepository implements CartRepository {
           .eq('customer_id', identity.userId);
       if (cursor != null) query = query.gt('variant_id', cursor);
       final rows = await query
-          .order('variant_id')
+          .order('variant_id', ascending: true)
           .limit(_pageSize)
           .retry(enabled: false);
       identity.ensureCurrent();

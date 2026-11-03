@@ -14,6 +14,13 @@ class CartFailure implements Exception {
 
   final CartFailureCode code;
 
+  String get loadMessage => switch (code) {
+    CartFailureCode.network =>
+      'Không tải được giỏ hàng. Kiểm tra kết nối và thử lại.',
+    CartFailureCode.unexpected => 'Không tải được giỏ hàng. Vui lòng thử lại.',
+    _ => message,
+  };
+
   String get message => switch (code) {
     CartFailureCode.sessionExpired => 'Phiên đăng nhập đã hết hạn.',
     CartFailureCode.permissionDenied => 'Bạn không có quyền truy cập giỏ hàng.',

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../cart/domain/models/cart_failure.dart';
 import '../../../cart/presentation/view_models/cart_providers.dart';
 import '../../domain/models/product.dart';
 import '../../domain/models/product_variant.dart';
@@ -17,6 +18,17 @@ class ProductDetailsPage extends ConsumerWidget {
 
   final String productId;
 
+  static void _backToCatalog(BuildContext context) {
+    final router = GoRouter.maybeOf(context);
+    if (router == null) {
+      Navigator.maybePop(context);
+    } else if (router.canPop()) {
+      router.pop();
+    } else {
+      router.go('/customer/products');
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final productState = ref.watch(productDetailsProvider(productId));
@@ -25,6 +37,7 @@ class ProductDetailsPage extends ConsumerWidget {
     return Scaffold(
       key: const ValueKey('catalog-product-details'),
       appBar: AppBar(
+        leading: BackButton(onPressed: () => _backToCatalog(context)),
         title: const Text('Chi tiết sản phẩm'),
         actions: [
           IconButton(
@@ -128,7 +141,7 @@ class _UnavailableProductState extends StatelessWidget {
             Text(message, textAlign: TextAlign.center),
             const SizedBox(height: 20),
             OutlinedButton(
-              onPressed: () => Navigator.of(context).maybePop(),
+              onPressed: () => ProductDetailsPage._backToCatalog(context),
               child: const Text('Quay lại'),
             ),
           ],
@@ -236,6 +249,7 @@ class _ProductDetailsContentState
     final category = product.categoryName.trim();
     final cart = ref.watch(cartProvider);
     final cartData = cart.asData?.value;
+    final loadError = cart.error;
     final busy = cartData?.isMutating == true;
     final pending = cartData?.hasPendingMutation == true;
 
@@ -326,7 +340,9 @@ class _ProductDetailsContentState
             const SizedBox(height: 8),
             Text(
               cartData?.mutationError?.message ??
-                  'Không tải được giỏ hàng. Vui lòng thử lại.',
+                  (loadError is CartFailure
+                      ? loadError.loadMessage
+                      : 'Không tải được giỏ hàng. Vui lòng thử lại.'),
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
             TextButton(

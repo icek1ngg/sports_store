@@ -202,7 +202,7 @@ class CartPage extends ConsumerWidget {
   }
 
   static String _cartErrorMessage(Object? error) {
-    if (error is CartFailure) return error.message;
+    if (error is CartFailure) return error.loadMessage;
     return 'Không tải được giỏ hàng. Vui lòng thử lại.';
   }
 }
