@@ -15,14 +15,17 @@ class DeliveryTaskItemDto {
     this.lineTotalVnd,
     this.imageUrl,
     this.allowReturnMetadata = false,
+    this.allowRedeliveryPlan = false,
   });
 
   factory DeliveryTaskItemDto.fromJson(
     Map<String, dynamic> json, {
     bool allowReturnMetadata = false,
+    bool allowRedeliveryPlan = false,
   }) {
     return DeliveryTaskItemDto(
       allowReturnMetadata: allowReturnMetadata,
+      allowRedeliveryPlan: allowRedeliveryPlan,
       itemId: DeliveryDtoReaders.readRequiredUuid(json, 'item_id'),
       itemSource: DeliveryItemSource.fromValue(
         DeliveryDtoReaders.readRequiredString(
@@ -65,6 +68,7 @@ class DeliveryTaskItemDto {
   final int? lineTotalVnd;
   final String? imageUrl;
   final bool allowReturnMetadata;
+  final bool allowRedeliveryPlan;
 
   DeliveryTaskItem toDomain() {
     _validate();
@@ -134,9 +138,9 @@ class DeliveryTaskItemDto {
         }
         _validateLineTotal();
       case DeliveryItemSource.returnPlan:
-        if (quantityCollected == null ||
-            unitPriceVnd != null ||
+        if (unitPriceVnd != null ||
             lineTotalVnd != null ||
+            (!allowRedeliveryPlan && quantityCollected == null) ||
             (!allowReturnMetadata &&
                 (variantLabel != null || attributes != null))) {
           throw DeliveryDtoReaders.invalid(

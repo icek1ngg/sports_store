@@ -378,9 +378,11 @@ do $$
 declare
   l_accept oid := to_regprocedure('public.accept_delivery_task(uuid,uuid)');
   l_start oid := to_regprocedure('public.start_delivery_task(uuid,uuid)');
+  l_combined oid := to_regprocedure('public.accept_and_start_delivery_task(uuid,uuid)');
 begin
   perform pg_temp.assert_outbound('accept RPC exists', l_accept is not null);
   perform pg_temp.assert_outbound('start RPC exists', l_start is not null);
+  perform pg_temp.assert_outbound('combined accept/start RPC exists', l_combined is not null);
   perform pg_temp.assert_outbound(
     'accept execute is authenticated-only',
     has_function_privilege('authenticated', l_accept, 'EXECUTE')
@@ -394,6 +396,16 @@ begin
       and not has_function_privilege('anon', l_start, 'EXECUTE')
       and not has_function_privilege('service_role', l_start, 'EXECUTE')
       and not has_function_privilege('public', l_start, 'EXECUTE')
+  );
+  perform pg_temp.assert_outbound(
+    'combined accept/start is invoker and authenticated-only',
+    not (select p.prosecdef from pg_proc p where p.oid = l_combined)
+      and (select p.proconfig @> array['search_path=""']
+           from pg_proc p where p.oid = l_combined)
+      and has_function_privilege('authenticated', l_combined, 'EXECUTE')
+      and not has_function_privilege('anon', l_combined, 'EXECUTE')
+      and not has_function_privilege('service_role', l_combined, 'EXECUTE')
+      and not has_function_privilege('public', l_combined, 'EXECUTE')
   );
   perform pg_temp.assert_outbound(
     'client cannot write delivery/inventory tables',
@@ -1050,7 +1062,11 @@ returns trigger
 language plpgsql
 as $$
 begin
-  if new.request_id = '04120000-0000-0000-0000-000000000450'::uuid then
+  if new.request_id = '04120000-0000-0000-0000-000000000450'::uuid
+     or (
+       new.operation = 'start'
+       and new.task_id = '04120000-0000-0000-0000-000000000108'::uuid
+     ) then
     raise exception using errcode = 'P0001', message = 'P041_TEST_FAULT';
   end if;
   return new;
@@ -1099,6 +1115,13 @@ select pg_temp.assert_outbound_error(
   $sql$select public.accept_delivery_task(
     '04120000-0000-0000-0000-000000000108'::uuid,
     '04120000-0000-0000-0000-000000000450'::uuid)$sql$,
+  'P0001', 'P041_TEST_FAULT'
+);
+select pg_temp.assert_outbound_error(
+  'combined accept/start fault rolls back accept before start',
+  $sql$select public.accept_and_start_delivery_task(
+    '04120000-0000-0000-0000-000000000108'::uuid,
+    '04120000-0000-0000-0000-000000000452'::uuid)$sql$,
   'P0001', 'P041_TEST_FAULT'
 );
 reset role;

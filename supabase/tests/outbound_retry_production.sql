@@ -1,4 +1,4 @@
--- P07.2 production manager retry/return decision contract.
+-- P07.2 production manager/shipper retry and return decision contract.
 --
 -- This suite intentionally runs in one transaction and rolls back. It uses
 -- the real P03.3 assignment, P04.1 accept/start and P07.1 failure RPCs; only
@@ -202,8 +202,30 @@ select public.fail_delivery_task((select id from p072_ids where name='early_task
 select public.accept_delivery_task((select id from p072_ids where name='assigned_task1'),'07250000-0000-0000-0000-000000000431'::uuid);
 select public.start_delivery_task((select id from p072_ids where name='assigned_task1'),'07250000-0000-0000-0000-000000000432'::uuid);
 select public.fail_delivery_task((select id from p072_ids where name='assigned_task1'),'07250000-0000-0000-0000-000000000433'::uuid,'reschedule',null);
-select public.accept_delivery_task((select id from p072_ids where name='accepted_task1'),'07250000-0000-0000-0000-000000000441'::uuid);
-select public.start_delivery_task((select id from p072_ids where name='accepted_task1'),'07250000-0000-0000-0000-000000000442'::uuid);
+insert into p072_responses(name,response)
+select 'combined_accept_start', public.accept_and_start_delivery_task(
+  (select id from p072_ids where name='accepted_task1'),
+  '07250000-0000-0000-0000-000000000441'::uuid
+);
+select pg_temp.assert_p072('combined accept/start returns receipt',
+  (select response is not null from p072_responses where name='combined_accept_start'));
+select pg_temp.assert_p072('combined accept/start receipt is in transit',
+  (select response->>'operation' = 'accept_and_start'
+     and response->>'task_status' = 'in_transit'
+     and response->>'request_id' = '07250000-0000-0000-0000-000000000441'
+   from p072_responses where name='combined_accept_start'));
+reset role;
+select pg_temp.assert_p072('combined accept/start task is in transit',
+  (select status = 'in_transit' and accepted_at is not null
+       and started_at is not null
+       from public.delivery_tasks
+       where id=(select id from p072_ids where name='accepted_task1')));
+set local role authenticated;
+select pg_temp.assert_p072('combined accept/start replay is exact',
+  public.accept_and_start_delivery_task(
+    (select id from p072_ids where name='accepted_task1'),
+    '07250000-0000-0000-0000-000000000441'::uuid
+  ) = (select response from p072_responses where name='combined_accept_start'));
 select public.fail_delivery_task((select id from p072_ids where name='accepted_task1'),'07250000-0000-0000-0000-000000000443'::uuid,'refusal',null);
 select public.accept_delivery_task((select id from p072_ids where name='fault_task1'),'07250000-0000-0000-0000-000000000451'::uuid);
 select public.start_delivery_task((select id from p072_ids where name='fault_task1'),'07250000-0000-0000-0000-000000000452'::uuid);
@@ -408,6 +430,112 @@ select pg_temp.assert_p072('late fault leaves no task/notification/event mutatio
 reset role;
 drop trigger p072_test_late_fault on public.notifications;
 drop function public.p072_test_late_fault();
+
+-- A shipper who owns the failed attempt can request the same idempotent retry
+-- directly. The wrapper derives order/holder from the task and the nested RPC
+-- runs under the restricted writer role, without a manager approval.
+set local role authenticated;
+select pg_temp.set_p072_claims('07250000-0000-0000-0000-000000000004');
+do $$
+declare
+  l_owner text;
+begin
+  select pg_get_userbyid(p.proowner)
+    into l_owner
+  from pg_proc p
+  where p.oid = 'public.retry_outbound_delivery_task(uuid,uuid)'::regprocedure;
+  if l_owner is null
+     or not has_function_privilege(
+       l_owner,
+       'public.decide_outbound_retry(uuid,uuid,text,uuid,uuid)',
+       'EXECUTE'
+     ) then
+    raise exception 'P07.2 shipper wrapper owner cannot execute nested retry RPC';
+  end if;
+  if not has_function_privilege(
+       'authenticated',
+       'public.retry_outbound_delivery_task(uuid,uuid)',
+       'EXECUTE'
+     )
+     or has_function_privilege(
+       'anon',
+       'public.retry_outbound_delivery_task(uuid,uuid)',
+       'EXECUTE'
+     )
+     or has_function_privilege(
+       'service_role',
+       'public.retry_outbound_delivery_task(uuid,uuid)',
+       'EXECUTE'
+     ) then
+    raise exception 'P07.2 shipper wrapper ACL is broader than authenticated';
+  end if;
+end;
+$$;
+insert into p072_responses(name,response)
+select 'self_retry', public.retry_outbound_delivery_task(
+  (select id from p072_ids where name='fault_task1'),
+  '07250000-0000-0000-0000-000000000511'::uuid
+);
+insert into p072_ids(name,id)
+select 'fault_task2', (response->>'task_id')::uuid
+from p072_responses
+where name='self_retry';
+reset role;
+select pg_temp.assert_p072('shipper retry creates task 2 without approval',
+  (select response->>'decision' = 'retry'
+      and response->>'task_status' = 'assigned'
+      and response->>'order_status' = 'awaiting_pickup'
+      and (response->>'attempt_number')::int = 2
+      and response->>'holder_id' = '07250000-0000-0000-0000-000000000004'
+   from p072_responses where name='self_retry')
+  and (select t.status = 'assigned'
+         and t.attempt_number = 2
+         and t.assigned_shipper_id = '07250000-0000-0000-0000-000000000004'::uuid
+         and t.accepted_at is null
+         and t.started_at is null
+       from public.delivery_tasks t
+       where t.id=(select id from p072_ids where name='fault_task2'))
+  and (select o.status='awaiting_pickup' and o.delivery_attempt_count=1
+       from public.orders o
+       where o.id='07250000-0000-0000-0000-000000000014'::uuid)
+  and (select count(*)=1
+       from public.delivery_tasks
+       where order_id='07250000-0000-0000-0000-000000000014'::uuid
+         and attempt_number=2)
+  and (select count(*)=1
+       from public.inventory_movements
+       where order_id='07250000-0000-0000-0000-000000000014'::uuid
+         and kind='dispatch')
+  and (select e.actor_id='07250000-0000-0000-0000-000000000004'::uuid
+       from public.business_events e
+       where e.id=(select (response->>'event_id')::uuid
+                   from p072_responses where name='self_retry'))
+);
+set local role authenticated;
+select pg_temp.set_p072_claims('07250000-0000-0000-0000-000000000004');
+select pg_temp.assert_p072('shipper retry replay is exact and idempotent',
+  public.retry_outbound_delivery_task(
+    (select id from p072_ids where name='fault_task1'),
+    '07250000-0000-0000-0000-000000000511'::uuid
+  ) = (select response from p072_responses where name='self_retry'));
+select pg_temp.set_p072_claims('07250000-0000-0000-0000-000000000005');
+select pg_temp.assert_p072_error(
+  'different shipper cannot invoke task retry wrapper',
+  $$select public.retry_outbound_delivery_task(
+    (select id from p072_ids where name='fault_task1'),
+    '07250000-0000-0000-0000-000000000512'::uuid)$$,
+  '42501', 'NOT_FOUND_OR_FORBIDDEN'
+);
+select pg_temp.assert_p072_error(
+  'shipper cannot choose manager return directly',
+  $$select public.decide_outbound_retry(
+    '07250000-0000-0000-0000-000000000014'::uuid,
+    '07250000-0000-0000-0000-000000000513'::uuid,
+    'return_to_store',
+    (select id from p072_ids where name='fault_task1'),
+    null)$$,
+  '42501', 'PERMISSION_DENIED'
+);
 
 -- Read privacy: a different shipper/customer cannot use an old assignment or
 -- order ownership to read the retry task; private ledgers are also denied.

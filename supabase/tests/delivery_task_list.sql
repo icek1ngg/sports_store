@@ -126,6 +126,16 @@ select
   30000
 from generate_series(1, 12) as numbers(n);
 
+update public.orders
+set status = 'awaiting_redelivery'::public.order_status
+where id in (
+  '62000000-0000-0000-0000-000000000007'::uuid,
+  '62000000-0000-0000-0000-000000000012'::uuid
+);
+update public.orders
+set status = 'awaiting_store_return'::public.order_status
+where id = '62000000-0000-0000-0000-000000000006'::uuid;
+
 insert into public.return_requests (
   id, order_id, customer_id, request_id, status, reason, description,
   video_object_path
@@ -267,6 +277,33 @@ values
     'Other Shipper Recipient', '0900000212', 'List address 12, Ha Noi', 21.042000,
     105.812000, 550000, now() - interval '1 minute', null,
     now() - interval '1 minute', now() - interval '1 minute'
+  ),
+  (
+    '82000000-0000-0000-0000-000000000013'::uuid,
+    '62000000-0000-0000-0000-000000000007'::uuid, null, 'outbound',
+    '12000000-0000-0000-0000-000000000004'::uuid,
+    '12000000-0000-0000-0000-000000000003'::uuid, 'failed', 2,
+    'Failed Delivery 2', '0900000213', 'List address 7, Ha Noi', 21.037000,
+    105.807000, 550000, now() - interval '13 minutes', now() - interval '12 minutes',
+    now() - interval '12 minutes', now() - interval '12 minutes'
+  ),
+  (
+    '82000000-0000-0000-0000-000000000014'::uuid,
+    '62000000-0000-0000-0000-000000000012'::uuid, null, 'outbound',
+    '12000000-0000-0000-0000-000000000004'::uuid,
+    '12000000-0000-0000-0000-000000000003'::uuid, 'failed', 1,
+    'Retry Delivery', '0900000214', 'List address 12, Ha Noi', 21.042000,
+    105.812000, 550000, now() - interval '14 minutes', now() - interval '13 minutes',
+    now() - interval '13 minutes', now() - interval '13 minutes'
+  ),
+  (
+    '82000000-0000-0000-0000-000000000015'::uuid,
+    '62000000-0000-0000-0000-000000000006'::uuid, null, 'outbound',
+    '12000000-0000-0000-0000-000000000004'::uuid,
+    '12000000-0000-0000-0000-000000000003'::uuid, 'failed', 1,
+    'Returned Early', '0900000215', 'List address 6, Ha Noi', 21.036000,
+    105.806000, 550000, now() - interval '15 minutes', now() - interval '14 minutes',
+    now() - interval '14 minutes', now() - interval '14 minutes'
   );
 
 -- Anonymous and authenticated non-shippers cannot call the function or gain
@@ -304,12 +341,14 @@ declare
   l_second_ids text[];
 begin
   l_page := public.list_my_delivery_tasks(null, null, null, 2, null);
-  perform pg_temp.assert_list('A full filtered_total is 11', (l_page->>'filtered_total')::int = 11);
+  perform pg_temp.assert_list('A full filtered_total is 14', (l_page->>'filtered_total')::int = 14);
   perform pg_temp.assert_list('A full counts include ungrouped states',
     (l_page->'counts'->>'waiting')::int = 3
     and (l_page->'counts'->>'in_transit')::int = 2
     and (l_page->'counts'->>'completed')::int = 2
-    and (l_page->'counts'->>'ungrouped')::int = 4
+    and (l_page->'counts'->>'retry')::int = 1
+    and (l_page->'counts'->>'failed')::int = 1
+    and (l_page->'counts'->>'ungrouped')::int = 7
   );
   perform pg_temp.assert_list('page is limited to two items', jsonb_array_length(l_page->'items') = 2);
   perform pg_temp.assert_list('next cursor exists for another page', l_page->>'next_cursor' is not null);
@@ -344,7 +383,9 @@ begin
     and (l_page->'counts'->>'waiting')::int = 3
     and (l_page->'counts'->>'in_transit')::int = 2
     and (l_page->'counts'->>'completed')::int = 2
-    and (l_page->'counts'->>'ungrouped')::int = 4
+    and (l_page->'counts'->>'retry')::int = 1
+    and (l_page->'counts'->>'failed')::int = 1
+    and (l_page->'counts'->>'ungrouped')::int = 7
     and not exists (
       select 1
       from jsonb_array_elements(l_page->'items') as item
@@ -368,6 +409,21 @@ begin
       from jsonb_array_elements(l_page->'items') as item
       where item->>'status' not in ('delivered', 'returned_to_store')
     )
+  );
+  l_page := public.list_my_delivery_tasks(null, 'retry', null, 100, null);
+  perform pg_temp.assert_list('retry group keeps first failed row actionable',
+    (l_page->>'filtered_total')::int = 1
+    and (l_page->'counts'->>'retry')::int = 1
+    and (l_page->'counts'->>'ungrouped')::int = 7
+    and (l_page->'items'->0->>'status') = 'failed'
+    and (l_page->'items'->0->>'task_id') = '82000000-0000-0000-0000-000000000014'
+  );
+  l_page := public.list_my_delivery_tasks(null, 'failed', null, 100, null);
+  perform pg_temp.assert_list('failed group contains only second failed attempt',
+    (l_page->>'filtered_total')::int = 1
+    and (l_page->'counts'->>'failed')::int = 1
+    and (l_page->'counts'->>'ungrouped')::int = 7
+    and (l_page->'items'->0->>'task_id') = '82000000-0000-0000-0000-000000000013'
   );
 
   l_page := public.list_my_delivery_tasks('return_pickup', null, null, 100, null);
@@ -431,7 +487,7 @@ begin
   );
   perform pg_temp.assert_list_error(
     'unknown state group is invalid',
-    'select public.list_my_delivery_tasks(null, ''failed'', null, 20, null)',
+    'select public.list_my_delivery_tasks(null, ''not-a-state'', null, 20, null)',
     '22023'
   );
   perform pg_temp.assert_list_error(
@@ -536,7 +592,7 @@ begin
     end if;
     l_cursor := l_page->>'next_cursor';
   end loop;
-  perform pg_temp.assert_list('all 11 rows are reachable by cursor pages', cardinality(l_seen) = 11);
+  perform pg_temp.assert_list('all 14 rows are reachable by cursor pages', cardinality(l_seen) = 14);
   perform pg_temp.assert_list('cursor pages contain no duplicate task IDs',
     cardinality(l_seen) = (select count(distinct id) from unnest(l_seen) as seen(id))
   );

@@ -876,14 +876,34 @@ SELECT pg_temp.assert_rows(
       FROM information_schema.column_privileges AS grants
       WHERE grants.grantee = 'sports_store_delivery_reader'
         AND grants.table_schema = 'public'
-    ) = 33
+    ) = 43
+      AND (
+        SELECT count(*)
+        FROM information_schema.column_privileges AS grants
+        WHERE grants.grantee = 'sports_store_delivery_reader'
+          AND grants.table_schema = 'public'
+          AND grants.table_name = 'cod_collections'
+      ) = 9
+      AND NOT EXISTS (
+        SELECT 1
+        FROM information_schema.column_privileges AS grants
+        WHERE grants.grantee = 'sports_store_delivery_reader'
+          AND grants.table_schema = 'public'
+          AND grants.table_name = 'cod_collections'
+          AND grants.column_name NOT IN (
+            'order_id', 'shipper_id', 'status', 'expected_amount_vnd',
+            'collected_amount_vnd', 'received_amount_vnd', 'collected_at',
+            'handed_over_at', 'received_at'
+          )
+      )
       AND NOT EXISTS (
         SELECT 1
         FROM information_schema.column_privileges AS grants
         WHERE grants.grantee = 'sports_store_delivery_reader'
           AND grants.table_schema = 'public'
           AND grants.table_name NOT IN (
-            'profiles', 'delivery_tasks', 'order_items', 'return_items'
+            'profiles', 'delivery_tasks', 'order_items', 'return_items',
+            'cod_collections'
           )
       )
       AND NOT EXISTS (

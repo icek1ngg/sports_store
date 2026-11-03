@@ -149,6 +149,15 @@ void main() {
                 authorized ? [delivery_fixtures.currentTaskDto()] : [],
               );
             }
+            if (request.url.path.endsWith('/get_my_delivery_task_history')) {
+              return jsonResponse(request, {
+                'task': delivery_fixtures.currentTaskDto(),
+                'items': [],
+                'notes': null,
+                'notes_source': 'unavailable_schema',
+                'as_of': '2026-10-28T03:00:00Z',
+              });
+            }
             if (request.url.path.endsWith('/get_my_delivery_task')) {
               return jsonResponse(request, {
                 'task': delivery_fixtures.currentTaskDto(),
@@ -200,9 +209,7 @@ void main() {
         );
         await _pumpUntil(
           tester,
-          () =>
-              router.state.uri.path == '/' &&
-              _hasText('Ứng dụng đang được xây dựng.'),
+          () => router.state.uri.path == '/' && _hasKey('app-entry'),
           description: 'revoked notification destination rejected',
         );
         expect(guardReads, greaterThan(before));

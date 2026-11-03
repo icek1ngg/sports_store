@@ -4,12 +4,13 @@ import 'delivery_task_dto.dart';
 import 'delivery_task_item_dto.dart';
 import 'dto_readers.dart';
 
-/// DTO for the single-snapshot `get_my_delivery_task` response.
+/// DTO for the authorized single-snapshot delivery detail response.
 ///
 /// The RPC deliberately returns one approved task projection and its approved
-/// item projections. This mapper rejects shape changes at the data boundary so
-/// a detail read cannot accidentally start accepting order, return, catalog,
-/// bank, video, or storage data.
+/// item projections. The history RPC opts into readable terminal snapshots;
+/// the legacy/map RPC keeps the masked history contract. This mapper rejects
+/// shape changes at the data boundary so a detail read cannot accidentally
+/// start accepting order, return, catalog, bank, video, or storage data.
 class DeliveryTaskDetailsDto {
   DeliveryTaskDetailsDto({
     required this.task,
@@ -17,12 +18,15 @@ class DeliveryTaskDetailsDto {
     required this.notes,
     required this.notesSource,
     required this.asOf,
+    this.cod,
+    this.canRetry = false,
   }) : items = List.unmodifiable(items);
 
   factory DeliveryTaskDetailsDto.fromJson(
     Map<String, dynamic> json, {
     required String requestedTaskId,
     bool allowMissingDestinationCoordinates = false,
+    bool allowReadableHistory = false,
   }) {
     DeliveryDtoReaders.checkUuid(requestedTaskId, 'task_id');
     _checkKeys(json, _responseKeys, 'detail response');
@@ -36,6 +40,7 @@ class DeliveryTaskDetailsDto {
     final task = DeliveryTaskDto.fromJson(
       taskJson,
       allowMissingDestinationCoordinates: allowMissingDestinationCoordinates,
+      allowReadableHistory: allowReadableHistory,
     );
     if (task.taskId.toLowerCase() != requestedTaskId.toLowerCase()) {
       throw DeliveryDtoReaders.invalid('task_id', 'the requested task UUID');
@@ -57,7 +62,11 @@ class DeliveryTaskDetailsDto {
         itemJson,
         allowReturnMetadata:
             task.kind == DeliveryTaskKind.redelivery &&
-            task.scope == DeliverySnapshotScope.current &&
+            (task.scope == DeliverySnapshotScope.current ||
+                task.scope == DeliverySnapshotScope.history) &&
+            task.itemSource == DeliveryItemSource.returnPlan,
+        allowRedeliveryPlan:
+            task.kind == DeliveryTaskKind.redelivery &&
             task.itemSource == DeliveryItemSource.returnPlan,
       );
       if (item.itemSource != task.itemSource ||
@@ -70,11 +79,11 @@ class DeliveryTaskDetailsDto {
       items.add(item);
     }
 
-    // Historical/restricted tasks and redelivery tasks intentionally expose
-    // no item rows. An empty list is a privacy boundary, not a missing-data
-    // signal to be filled by reading orders or return requests.
+    // Restricted tasks and redelivery tasks without an approved item source
+    // intentionally expose no item rows. An empty list is a privacy boundary,
+    // not a missing-data signal to be filled by reading another table.
     final itemsMustBeEmpty =
-        task.scope != DeliverySnapshotScope.current ||
+        task.scope == DeliverySnapshotScope.restricted ||
         task.itemSource == DeliveryItemSource.unavailable ||
         task.itemSource == DeliveryItemSource.unavailableRedeliveryPlan;
     if (itemsMustBeEmpty && items.isNotEmpty) {
@@ -102,12 +111,17 @@ class DeliveryTaskDetailsDto {
       );
     }
 
+    final cod = _readCod(json['cod']);
+    final canRetry = _readCanRetry(json['capabilities']);
+
     return DeliveryTaskDetailsDto(
       task: task,
       items: items,
       notes: null,
       notesSource: notesSource,
       asOf: asOf,
+      cod: cod,
+      canRetry: canRetry,
     );
   }
 
@@ -116,6 +130,8 @@ class DeliveryTaskDetailsDto {
   final String? notes;
   final DeliveryNotesSource notesSource;
   final DateTime asOf;
+  final DeliveryCodSnapshot? cod;
+  final bool canRetry;
 
   DeliveryTaskDetails toDomain() => DeliveryTaskDetails(
     task: task.toDomain(),
@@ -123,6 +139,8 @@ class DeliveryTaskDetailsDto {
     notes: notes,
     notesSource: notesSource,
     asOf: asOf,
+    cod: cod,
+    canRetry: canRetry,
   );
 
   static const _responseKeys = {
@@ -131,6 +149,8 @@ class DeliveryTaskDetailsDto {
     'notes',
     'notes_source',
     'as_of',
+    'cod',
+    'capabilities',
   };
 
   static const _taskKeys = {
@@ -186,5 +206,83 @@ class DeliveryTaskDetailsDto {
         'only the approved projection fields',
       );
     }
+  }
+
+  static DeliveryCodSnapshot? _readCod(Object? raw) {
+    if (raw == null) return null;
+    if (raw is! Map) {
+      throw DeliveryDtoReaders.invalid('cod', 'an object or null');
+    }
+    final map = _asStringMap(raw, 'cod');
+    const keys = {
+      'status',
+      'expected_amount_vnd',
+      'collected_amount_vnd',
+      'received_amount_vnd',
+      'collected_at',
+      'handed_over_at',
+      'received_at',
+    };
+    if (map.keys.any((key) => !keys.contains(key))) {
+      throw DeliveryDtoReaders.invalid('cod', 'only the approved COD fields');
+    }
+    final expected = DeliveryDtoReaders.readRequiredInteger(
+      map,
+      'expected_amount_vnd',
+    );
+    final collected = DeliveryDtoReaders.readRequiredInteger(
+      map,
+      'collected_amount_vnd',
+    );
+    final received = DeliveryDtoReaders.readRequiredInteger(
+      map,
+      'received_amount_vnd',
+    );
+    if (expected < 0 ||
+        collected < 0 ||
+        received < 0 ||
+        collected > expected ||
+        received > collected) {
+      throw DeliveryDtoReaders.invalid(
+        'cod',
+        'consistent non-negative amounts',
+      );
+    }
+    return DeliveryCodSnapshot(
+      status: DeliveryCodStatus.fromValue(
+        DeliveryDtoReaders.readRequiredString(map, 'status', nonBlank: false),
+      ),
+      expectedAmountVnd: expected,
+      collectedAmountVnd: collected,
+      receivedAmountVnd: received,
+      collectedAt: DeliveryDtoReaders.readNullableTimestamp(
+        map,
+        'collected_at',
+      ),
+      handedOverAt: DeliveryDtoReaders.readNullableTimestamp(
+        map,
+        'handed_over_at',
+      ),
+      receivedAt: DeliveryDtoReaders.readNullableTimestamp(map, 'received_at'),
+    );
+  }
+
+  static bool _readCanRetry(Object? raw) {
+    if (raw == null) return false;
+    if (raw is! Map) {
+      throw DeliveryDtoReaders.invalid('capabilities', 'an object or null');
+    }
+    final map = _asStringMap(raw, 'capabilities');
+    if (map.keys.any((key) => key != 'can_retry')) {
+      throw DeliveryDtoReaders.invalid(
+        'capabilities',
+        'only the approved capability fields',
+      );
+    }
+    final value = map['can_retry'];
+    if (value is! bool) {
+      throw DeliveryDtoReaders.invalid('can_retry', 'a boolean');
+    }
+    return value;
   }
 }

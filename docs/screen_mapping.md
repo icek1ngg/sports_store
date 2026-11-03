@@ -1,5 +1,43 @@
 # Ánh xạ màn hình Sports Store
 
+Cập nhật 02/11/2026: MH11 giữ người nhận, hàng hóa và COD khi xem lại nhiệm vụ
+đã giao/thất bại của chính shipper. Quyền xem độc lập với quyền thao tác.
+[Chi tiết](demos/shipper_history_details_20261102.md).
+
+Cập nhật 02/11/2026: MH11 nhận hàng là bắt đầu giao ngay; MH10 có **Giao lại**
+cho lần đầu không thành công và **Thất bại** cho lần hai. Quy tắc này thay
+cách phân nhóm ngày 01/11 bên dưới.
+[Chi tiết](demos/shipper_accept_start_20261102.md).
+
+Cập nhật 01/11/2026: MH11 cho shipper chọn **Giao lại lần 2** từ outbound
+thất bại lần đầu, không cần chờ quản lý duyệt. Mở task mới do server trả về,
+xác nhận tiếp tục giữ hàng rồi bắt đầu lần hai. MH10 có nhóm thất bại để tìm
+lại nhiệm vụ. [Hợp đồng mới](demos/shipper_self_retry_20261101.md).
+
+## Khởi đầu phiên shipper và điều hướng — 01/11/2026
+
+Sau khi xác minh hồ sơ shipper tại `/` hoặc `/login`, ứng dụng tự chuyển đến
+MH10 `/shipper/tasks`. Khi khởi động process app mới, không khôi phục phiên từ
+bộ nhớ thiết bị (`persistSession: false`), nên người dùng đăng nhập ở MH01.
+Đưa app ra nền rồi quay lại trong cùng process vẫn giữ phiên. Các liên kết nhiệm vụ,
+bản đồ và COD đang mở vẫn dùng guard hiện có. Thanh ứng dụng trong shell giao
+nhận có nút **Đăng xuất**, khóa khi đang xử lý và báo lỗi nếu thao tác thất bại.
+
+Tiêu đề thanh trên MH10 hiển thị ID shipper hiện tại. MH18 dùng tiêu đề **Bản đồ**
+và một nút Back do shell cung cấp; nút tải lại nằm trong nội dung bản đồ.
+Back MH18 → MH11 kiểm tra quyền của đúng URL chi tiết vừa lộ ra trên ngăn xếp,
+không dùng URL danh sách gốc của ngăn xếp `push`. Việc đọc lại chi tiết vẫn giữ
+để không hiển thị thông tin đã bị thu hồi quyền hoặc đổi phân công.
+
+MH11 ẩn nút nhận hàng/bắt đầu giao trong lúc gửi lệnh hoặc chờ xác minh kết quả,
+hiển thị tiến trình và giữ nút thử lại theo cùng request ID khi cần. Chỉ dữ liệu
+đọc lại từ server xác nhận trạng thái mới; phản hồi nhận lệnh không được coi là
+đã chuyển trạng thái trên màn hình.
+
+Khi quay lại MH11 từ bản đồ, controller thông báo lại trạng thái sau khi được
+resume để nút **Bắt đầu giao hàng** hoạt động nếu nhiệm vụ vẫn đủ điều kiện.
+Việc mở/đóng bản đồ không tự gửi lệnh giao hàng.
+
 P10.3: [Bàn giao Delivery/COD/Maps](handover/delivery_p103.md) ghi rõ MH10/11/12/18,
 owner/dependency, demo fixture có nhãn/cleanup, build/setup và status từng mức
 implemented/integrated/tested/blocked. NT25 dùng task destination theo user,

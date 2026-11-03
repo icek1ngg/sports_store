@@ -395,7 +395,7 @@ void main() {
       expect(h.repo.commands.length, 1);
       expect(h.repo.commands.single.trimmedDescription, 'ghi chú');
       expect(
-        find.text('Giao thất bại. Chờ quản lý quyết định.'),
+        find.text('Chưa giao được lần 1. Đơn đã chuyển sang mục Giao lại.'),
         findsOneWidget,
       );
       expect(find.textContaining('Đã thu đủ'), findsNothing);

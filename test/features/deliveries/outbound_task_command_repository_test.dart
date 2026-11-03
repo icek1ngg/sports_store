@@ -90,6 +90,46 @@ void main() {
     },
   );
 
+  test('assigned accept-and-start selects one atomic RPC and validates in-transit ACK', () async {
+    final requests = <http.Request>[];
+    final access = await _access(
+      handler: (request) async {
+        requests.add(request);
+        if (request.url.path.endsWith('/profiles')) {
+          return jsonResponse(request, [
+            {'role': 'shipper'},
+          ]);
+        }
+        return jsonResponse(
+          request,
+          _ack(action: OutboundTaskAction.acceptAndStart),
+        );
+      },
+    );
+    try {
+      await _repository(access)
+          .execute(_command(action: OutboundTaskAction.acceptAndStart));
+      final rpc = requests.singleWhere(
+        (request) =>
+            request.url.path.endsWith('/rpc/accept_and_start_delivery_task'),
+      );
+      expect(jsonDecode(rpc.body), {
+        'p_task_id': _taskId,
+        'p_request_id': _requestId,
+      });
+      expect(
+        requests.where(
+          (request) =>
+              request.url.path.contains('/rpc/accept_delivery_task') ||
+              request.url.path.contains('/rpc/start_delivery_task'),
+        ),
+        isEmpty,
+      );
+    } finally {
+      await _dispose(access);
+    }
+  });
+
   test(
     'invalid command UUIDs fail before session/profile or RPC access',
     () async {
@@ -487,10 +527,15 @@ Map<String, dynamic> _ack({
   OutboundTaskAction action = OutboundTaskAction.acceptGoods,
 }) {
   final isAccept = action == OutboundTaskAction.acceptGoods;
+  final isAcceptAndStart = action == OutboundTaskAction.acceptAndStart;
   return {
     'task_id': _taskId,
     'order_id': _orderId,
-    'operation': isAccept ? 'accept' : 'start',
+    'operation': isAccept
+        ? 'accept'
+        : isAcceptAndStart
+        ? 'accept_and_start'
+        : 'start',
     'task_status': isAccept ? 'accepted' : 'in_transit',
     'order_status': isAccept ? 'awaiting_pickup' : 'delivering',
     'attempt_number': 1,

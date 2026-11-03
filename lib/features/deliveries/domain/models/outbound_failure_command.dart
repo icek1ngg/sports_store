@@ -20,8 +20,9 @@ enum OutboundFailureReason {
 
 /// The disposition returned by a failure transaction.
 ///
-/// A first failed attempt remains with the manager for a retry/return
-/// decision.  A second failed attempt remains pending store return.  The
+/// A first failed attempt exposes an explicit same-holder shipper retry while
+/// the manager retains the return decision. A second failed attempt remains
+/// pending store return. The
 /// server, rather than the client, chooses the disposition; the attempt
 /// mapping below is only a defensive check at the transport boundary.
 enum OutboundFailureDisposition {

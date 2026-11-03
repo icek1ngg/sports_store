@@ -48,7 +48,7 @@ final class _OfflineTransportFixture {
     requests.add(request);
     final path = request.url.path;
     if (path.endsWith('/profiles')) return _profile(request);
-    if (path.endsWith('/rpc/get_my_delivery_task')) {
+    if (path.endsWith('/rpc/get_my_delivery_task_history')) {
       return jsonResponse(request, _detailPayload());
     }
     if (path.endsWith('/rpc/list_my_delivery_tasks')) {
@@ -203,7 +203,9 @@ final class _OfflineTransportFixture {
 
   Map<String, dynamic> _detailPayload() {
     final task = delivered
-        ? maskedTaskDto(status: 'delivered', scope: 'history')
+        ? (currentTaskDto(status: 'delivered')
+            ..['snapshot_scope'] = 'history'
+            ..['completed_at'] = '2026-10-28T09:00:00Z')
         : currentTaskDto(
             status: 'in_transit',
             acceptedAt: '2026-10-28T08:30:00Z',
@@ -211,10 +213,20 @@ final class _OfflineTransportFixture {
           );
     return <String, dynamic>{
       'task': task,
-      'items': delivered ? <Object>[] : [outboundItemDto()],
+      'items': [outboundItemDto()],
       'notes': null,
       'notes_source': 'unavailable_schema',
       'as_of': '2026-10-28T09:00:00Z',
+      'cod': {
+        'status': delivered ? 'collected' : 'uncollected',
+        'expected_amount_vnd': 550000,
+        'collected_amount_vnd': delivered ? 550000 : 0,
+        'received_amount_vnd': 0,
+        'collected_at': delivered ? '2026-10-28T08:55:00Z' : null,
+        'handed_over_at': null,
+        'received_at': null,
+      },
+      'capabilities': {'can_retry': false},
     };
   }
 

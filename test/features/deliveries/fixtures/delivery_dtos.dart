@@ -40,13 +40,14 @@ Map<String, dynamic> maskedTaskDto({
   String status = 'failed',
   String scope = 'restricted',
   String kind = 'outbound',
+  int attemptNumber = 1,
   String itemSource = 'unavailable',
 }) {
   return {
     'task_id': taskId,
     'kind': kind,
     'status': status,
-    'attempt_number': 1,
+    'attempt_number': attemptNumber,
     'snapshot_scope': scope,
     'order_id': null,
     'return_request_id': null,

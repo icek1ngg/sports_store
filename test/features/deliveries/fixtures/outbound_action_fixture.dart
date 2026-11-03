@@ -358,6 +358,9 @@ class FixtureOutboundActionViewModel
         OutboundTaskAction.acceptGoods =>
           details.task.status == DeliveryTaskStatus.assigned ||
               details.task.status == DeliveryTaskStatus.pendingAssignment,
+        OutboundTaskAction.acceptAndStart =>
+          details.task.status == DeliveryTaskStatus.assigned ||
+              details.task.status == DeliveryTaskStatus.pendingAssignment,
         OutboundTaskAction.startDelivery =>
           details.task.status == DeliveryTaskStatus.accepted ||
               details.task.status == DeliveryTaskStatus.assigned ||

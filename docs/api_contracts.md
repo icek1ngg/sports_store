@@ -1,5 +1,18 @@
 # Hợp đồng truy cập database
 
+Cập nhật 02/11/2026: MH11 đọc đầy đủ snapshot nhiệm vụ đã kết thúc của chính
+shipper qua API bổ sung; COD lấy từ ledger, quyền thao tác vẫn theo trạng thái.
+[Chi tiết hợp đồng](demos/shipper_history_details_20261102.md).
+
+Cập nhật 02/11/2026: nhận hàng outbound tự bắt đầu giao trong một giao dịch;
+MH10 tách nhóm giao lại lần một và thất bại lần hai.
+[Hành vi và hợp đồng mới](demos/shipper_accept_start_20261102.md).
+
+Cập nhật 01/11/2026: shipper được tự yêu cầu giao lần hai sau thất bại lần một
+bằng `retry_outbound_delivery_task(p_task_id, p_request_id)`, không chờ quản lý
+duyệt. Biên nhận failure cũ giữ nguyên. [Hợp đồng mới](demos/shipper_self_retry_20261101.md)
+thay yêu cầu manager-only cho quyết định retry; quyền hoàn sớm vẫn của quản lý.
+
 P10.3: [Inventory RPC hiện hữu và hướng dẫn bàn giao](handover/delivery_p103.md)
 liệt kê 28 delivery/COD/return primitives, phân biệt Dart interface, proposed
 names và test fixture. Reuse client/role authorization; không thêm RPC/grants.

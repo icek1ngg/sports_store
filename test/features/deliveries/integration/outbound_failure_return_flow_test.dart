@@ -50,6 +50,20 @@ class _TransportFixture {
     )..['attempt_number'] = attempt;
   }
 
+  Map<String, dynamic> detailRow(String id) {
+    final task = row(id);
+    if (task['status'] != 'failed') return task;
+    return currentTaskDto(
+        task: id,
+        status: 'failed',
+        amount: 550000,
+        itemSource: 'order_snapshot',
+      )
+      ..['snapshot_scope'] = 'history'
+      ..['attempt_number'] = task['attempt_number']
+      ..['completed_at'] = _stamp;
+  }
+
   Future<http.Response> handle(http.Request request) async {
     final name = request.url.pathSegments.last;
     if (name == 'profiles') {
@@ -60,14 +74,24 @@ class _TransportFixture {
     final p = request.body.isEmpty
         ? <String, dynamic>{}
         : jsonDecode(request.body) as Map<String, dynamic>;
-    if (name == 'get_my_delivery_task') {
+    if (name == 'get_my_delivery_task_history') {
       final id = p['p_task_id'] as String;
       return jsonResponse(request, {
-        'task': row(id),
-        'items': states[id] == 'failed' ? [] : [outboundItemDto()],
+        'task': detailRow(id),
+        'items': [outboundItemDto()],
         'notes': null,
         'notes_source': 'unavailable_schema',
         'as_of': _stamp,
+        'cod': {
+          'status': 'uncollected',
+          'expected_amount_vnd': 550000,
+          'collected_amount_vnd': 0,
+          'received_amount_vnd': 0,
+          'collected_at': null,
+          'handed_over_at': null,
+          'received_at': null,
+        },
+        'capabilities': {'can_retry': states[id] == 'failed' && id == taskId},
       });
     }
     if (name == 'list_my_delivery_tasks') {
@@ -390,7 +414,7 @@ void main() {
             .requireValue
             .task
             .destination,
-        isNull,
+        isNotNull,
       );
       expect(c.read(deliveryTaskListViewModelProvider).items, hasLength(2));
       expect(

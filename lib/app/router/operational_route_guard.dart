@@ -205,9 +205,11 @@ class OperationalRouteGuard extends ChangeNotifier {
     );
   }
 
-  Future<String?> redirect(GoRouterState state) async {
+  Future<String?> redirect(GoRouterState state) => redirectLocation(state.uri);
+
+  Future<String?> redirectLocation(Uri uri) async {
     final request = ++_sequence;
-    final target = OperationalRouteLocation.parse(state.uri);
+    final target = OperationalRouteLocation.parse(uri);
     if (!target.protected) {
       _decision = null;
       _resetAccountNavigation = false;
@@ -223,7 +225,7 @@ class OperationalRouteGuard extends ChangeNotifier {
     final session = access.currentSession;
     if (target.invalidId) {
       _decision = OperationalRouteDecision(
-        location: state.uri.toString(),
+        location: uri.toString(),
         session: session,
         invalidId: true,
       );
@@ -247,16 +249,16 @@ class OperationalRouteGuard extends ChangeNotifier {
             ? const {'customer'}
             : target.managerOnly
             ? const {'manager'}
-            : state.uri.path == '/shipper/tasks'
+            : uri.path == '/shipper/tasks'
             ? const {'shipper'}
-            : state.uri.path == '/cod'
+            : uri.path == '/cod'
             ? const {'shipper', 'manager'}
             : const {'customer', 'shipper', 'manager'};
         role = await access.run(
           roles: allowed,
           action: (identity) async => identity.role,
         );
-        if (state.uri.path == '/cod' && target.orderId != null) {
+        if (uri.path == '/cod' && target.orderId != null) {
           final rows = await cod.listCollections(orderId: target.orderId);
           if (rows.isEmpty) {
             throw const OperationalFailure(
@@ -271,7 +273,7 @@ class OperationalRouteGuard extends ChangeNotifier {
         return null;
       }
       _decision = OperationalRouteDecision(
-        location: state.uri.toString(),
+        location: uri.toString(),
         session: session,
         role: role,
       );
@@ -284,7 +286,7 @@ class OperationalRouteGuard extends ChangeNotifier {
       }
       final failure = mapOperationalFailure(error);
       _decision = OperationalRouteDecision(
-        location: state.uri.toString(),
+        location: uri.toString(),
         session: session,
         failure: failure,
       );

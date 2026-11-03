@@ -404,7 +404,8 @@ class OutboundFailureViewModel extends Notifier<OutboundFailureState> {
             task.attemptNumber != _acknowledgement?.attemptNumber ||
             task.completedAt == null ||
             (task.scope != DeliverySnapshotScope.restricted &&
-                task.scope != DeliverySnapshotScope.current)) {
+                task.scope != DeliverySnapshotScope.current &&
+                task.scope != DeliverySnapshotScope.history)) {
           throw const OutboundCommandFailure(
             OutboundCommandFailureCode.staleState,
           );

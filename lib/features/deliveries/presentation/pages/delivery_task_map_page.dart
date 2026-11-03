@@ -21,9 +21,19 @@ import '../widgets/delivery_call_action.dart';
 /// recipient snapshot again and the server-backed read gate decides whether
 /// it is still safe to display.
 class DeliveryTaskMapPage extends ConsumerStatefulWidget {
-  const DeliveryTaskMapPage({required this.taskId, super.key});
+  const DeliveryTaskMapPage({
+    required this.taskId,
+    this.showAppBar = true,
+    super.key,
+  });
 
   final String taskId;
+
+  /// The shipper shell supplies the page-level app bar when MH18 is opened
+  /// from the task detail route. Keeping this opt-in preserves the standalone
+  /// page behavior used by previews and direct links while avoiding a second
+  /// back button/title when the page is embedded in the shell.
+  final bool showAppBar;
 
   @override
   ConsumerState<DeliveryTaskMapPage> createState() =>
@@ -103,33 +113,55 @@ class _DeliveryTaskMapPageState extends ConsumerState<DeliveryTaskMapPage>
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(deliveryTaskMapViewModelProvider(widget.taskId));
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('BẢN ĐỒ GIAO NHẬN'),
-        actions: [
-          IconButton(
-            key: const ValueKey('mh18-refresh'),
-            tooltip: 'Tải lại',
-            onPressed: state.isLoading ? null : _refresh,
-            icon: const Icon(Icons.refresh),
+    final body = _protected
+        ? (_resumeError != null && _foreground
+              ? _MapError(error: _resumeError!, onRetry: _verifyAccess)
+              : const Center(
+                  child: Text(
+                    'Đang bảo vệ thông tin điểm đến…',
+                    key: ValueKey('mh18-protected'),
+                  ),
+                ))
+        : state.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (error, stackTrace) =>
+                _MapError(error: error, onRetry: _refresh),
+            data: (details) => _buildData(context, details),
+          );
+
+    if (widget.showAppBar) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('BẢN ĐỒ GIAO NHẬN'),
+          actions: [_refreshButton(state)],
+        ),
+        body: body,
+      );
+    }
+
+    // When the route is hosted by ShipperShell there is already one app bar.
+    // Keep a small, in-content refresh affordance so this page does not lose
+    // its explicit reload action when the duplicate app bar is suppressed.
+    return Column(
+      children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: Padding(
+            padding: const EdgeInsets.only(right: 8, top: 2),
+            child: _refreshButton(state),
           ),
-        ],
-      ),
-      body: _protected
-          ? (_resumeError != null && _foreground
-                ? _MapError(error: _resumeError!, onRetry: _verifyAccess)
-                : const Center(
-                    child: Text(
-                      'Đang bảo vệ thông tin điểm đến…',
-                      key: ValueKey('mh18-protected'),
-                    ),
-                  ))
-          : state.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, stackTrace) =>
-                  _MapError(error: error, onRetry: _refresh),
-              data: (details) => _buildData(context, details),
-            ),
+        ),
+        Expanded(child: body),
+      ],
+    );
+  }
+
+  Widget _refreshButton(AsyncValue<DeliveryTaskDetails> state) {
+    return IconButton(
+      key: const ValueKey('mh18-refresh'),
+      tooltip: 'Tải lại',
+      onPressed: state.isLoading ? null : _refresh,
+      icon: const Icon(Icons.refresh),
     );
   }
 

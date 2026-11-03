@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -55,6 +56,7 @@ void main() {
       var detailReads = 0;
       final row = currentTaskDto()
         ..['destination_name'] = 'Người nhận fixture MH11';
+      var historyRow = row;
       final client = (await tester.runAsync(
         () => fixtureClient((request) async {
           if (request.url.path.endsWith('/profiles')) {
@@ -66,8 +68,33 @@ void main() {
             taskReads++;
             return jsonResponse(request, assigned ? [row] : []);
           }
-          if (request.url.path.endsWith('/get_my_delivery_task')) {
+          if (request.url.path.endsWith('/list_my_delivery_tasks')) {
+            return jsonResponse(request, {
+              'items': [row],
+              'next_cursor': null,
+              'filtered_total': 1,
+              'counts': {
+                'waiting': 1,
+                'in_transit': 0,
+                'completed': 0,
+                'ungrouped': 0,
+              },
+              'as_of': '2026-10-24T03:00:00Z',
+            });
+          }
+          if (request.url.path.endsWith('/get_my_delivery_task_history')) {
             detailReads++;
+            return jsonResponse(request, {
+              'task': historyRow,
+              'items': historyRow['snapshot_scope'] == 'current'
+                  ? [outboundItemDto()]
+                  : <Object>[],
+              'notes': null,
+              'notes_source': 'unavailable_schema',
+              'as_of': '2026-10-24T03:00:00Z',
+            });
+          }
+          if (request.url.path.endsWith('/get_my_delivery_task')) {
             return jsonResponse(request, {
               'task': row,
               'items': row['snapshot_scope'] == 'current'
@@ -99,7 +126,13 @@ void main() {
         tester.element(find.byType(SportsStoreApp)),
       );
       final router = container.read(appRouterProvider);
-      router.go('/shipper/tasks/$taskId');
+      router.go('/shipper/tasks');
+      await _until(
+        tester,
+        () => find.byKey(const ValueKey('mh10-outlet')).evaluate().isNotEmpty,
+      );
+      expect(find.text(shipperA), findsOneWidget);
+      unawaited(router.push('/shipper/tasks/$taskId'));
       await _until(
         tester,
         () => find.text('Người nhận fixture MH11').evaluate().isNotEmpty,
@@ -142,25 +175,38 @@ void main() {
         expect(find.text('Người nhận fixture MH11'), findsNothing);
         expect(find.byKey(const ValueKey('mh18-outlet')), findsNothing);
       } else {
+        expect(find.text('Bản đồ'), findsOneWidget);
+        expect(find.byType(BackButton), findsOneWidget);
         // A cancelled task is still a permitted historical task, so the
         // route guard alone cannot clear an old current-detail projection.
         final beforeReturn = detailReads;
         row
           ..clear()
           ..addAll(maskedTaskDto(status: 'cancelled', scope: 'history'));
+        historyRow = currentTaskDto(status: 'cancelled')
+          ..['snapshot_scope'] = 'history'
+          ..['destination_name'] = 'Người nhận fixture MH11'
+          ..['completed_at'] = '2026-10-24T04:00:00Z';
         router.pop();
         await _until(
           tester,
           () =>
               detailReads > beforeReturn &&
+              find.text('Người nhận fixture MH11').evaluate().isNotEmpty &&
               find
-                  .text('Thông tin người nhận và địa chỉ đã được giới hạn.')
+                  .text(
+                    'Thông tin lần giao này được lưu để xem lại. Nếu đủ điều kiện, bạn có thể tạo lần giao tiếp theo ở mục Giao lại đơn hàng.',
+                  )
                   .evaluate()
                   .isNotEmpty,
         );
         expect(router.state.uri.path, '/shipper/tasks/$taskId');
-        expect(find.text('Người nhận fixture MH11'), findsNothing);
-        expect(find.text('0900000000'), findsNothing);
+        expect(find.text('Người nhận fixture MH11'), findsOneWidget);
+        expect(find.text('0900000000'), findsOneWidget);
+        expect(
+          find.text('Thông tin người nhận và địa chỉ đã được giới hạn.'),
+          findsNothing,
+        );
         expect(find.byKey(const ValueKey('task-detail-map')), findsNothing);
       }
     });

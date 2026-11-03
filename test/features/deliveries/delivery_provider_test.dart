@@ -177,7 +177,7 @@ void main() {
   );
 
   test(
-    'detail provider exposes masked history without inventing current PII',
+    'detail provider exposes owned history snapshots without live reads',
     () async {
       final client = await fixtureClient((request) async {
         if (request.url.path.endsWith('/profiles')) {
@@ -185,9 +185,11 @@ void main() {
             {'role': 'shipper'},
           ]);
         }
-        expect(request.url.path, endsWith('/get_my_delivery_task'));
+        expect(request.url.path, endsWith('/get_my_delivery_task_history'));
         return jsonResponse(request, {
-          'task': maskedTaskDto(status: 'cancelled', scope: 'history'),
+          'task': currentTaskDto(status: 'cancelled')
+            ..['snapshot_scope'] = 'history'
+            ..['completed_at'] = '2026-10-24T03:00:00Z',
           'items': <Object>[],
           'notes': null,
           'notes_source': 'unavailable_schema',
@@ -211,8 +213,8 @@ void main() {
       await settleUntil(container, () => container.read(provider).hasValue);
       final details = container.read(provider).requireValue;
       expect(details.task.scope, DeliverySnapshotScope.history);
-      expect(details.task.destination, isNull);
-      expect(details.itemsAvailable, isFalse);
+      expect(details.task.destination, isNotNull);
+      expect(details.itemsAvailable, isTrue);
       expect(details.notes, isNull);
       expect(details.asOf, DateTime.utc(2026, 10, 24, 3));
     },

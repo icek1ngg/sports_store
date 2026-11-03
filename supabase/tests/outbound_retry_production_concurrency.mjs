@@ -42,6 +42,10 @@ export async function testOutboundRetryProductionConcurrency(Client, options, ad
       'select public.decide_outbound_retry($1::uuid,$2::uuid,$3::text,$4::uuid,$5::uuid) as result',
       [order, request, decision, failedTask, retryTask],
     ).then(r => r.rows[0].result);
+  const selfRetry = (client, task, request) => client.query(
+    'select public.retry_outbound_delivery_task($1::uuid,$2::uuid) as result',
+    [task, request],
+  ).then(r => r.rows[0].result);
 
   // Execute one complete RPC transaction and return its ACK. Calls are kept
   // in explicit transactions so the race helper can hold the order lock after
@@ -140,12 +144,14 @@ export async function testOutboundRetryProductionConcurrency(Client, options, ad
       );
     }
 
-    // Two managers decide the same failed order concurrently. Exactly one
-    // creates task 2; the loser observes the committed CAS conflict.
+    // The assigned shipper requests retry while a manager attempts an early
+    // return concurrently. Exactly one creates task 2; the loser observes the
+    // committed CAS conflict. This exercises the shipper wrapper's locks and
+    // the nested manager-capable decision RPC.
     const failedRaceTask = await prepareFailed(orders[0], 400);
     const cas = await heldRace(
-      managerA,
-      c => decide(c, orders[0], id(410), 'retry', failedRaceTask, null),
+      shipperA,
+      c => selfRetry(c, failedRaceTask, id(410)),
       managerB,
       c => decide(c, orders[0], id(411), 'return_to_store', failedRaceTask, null),
     );
@@ -157,8 +163,8 @@ export async function testOutboundRetryProductionConcurrency(Client, options, ad
     )).rows[0].count;
     assert.equal(raceTaskCount, 2, 'CAS loser must not create another retry task');
 
-    await begin(a, managerA);
-    const replayed = await decide(a, orders[0], id(410), 'retry', failedRaceTask, null);
+    await begin(a, shipperA);
+    const replayed = await selfRetry(a, failedRaceTask, id(410));
     await a.query('commit');
     assert.deepEqual(replayed, cas.first.value, 'same manager/key must replay the exact result');
 
@@ -213,7 +219,7 @@ export async function testOutboundRetryProductionConcurrency(Client, options, ad
     assert.equal(startedState.order_status, 'delivering');
     assert.equal(Number(startedState.delivery_attempt_count), 2);
 
-    console.log('outbound_retry_production_concurrency: PASS (manager CAS, accepted-cancel/start lock races, trusted cancel permit, custody/history retention)');
+    console.log('outbound_retry_production_concurrency: PASS (shipper wrapper CAS, accepted-cancel/start lock races, trusted cancel permit, custody/history retention)');
   } finally {
     await Promise.allSettled(connected.map(client => client.query('rollback')));
     await Promise.allSettled(connected.map(client => client.end()));

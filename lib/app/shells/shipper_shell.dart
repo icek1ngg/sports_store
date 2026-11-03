@@ -12,10 +12,12 @@ class ShipperShell extends ConsumerWidget {
     required this.role,
     required this.location,
     required this.child,
+    this.shipperId,
   });
   final String role;
   final Uri location;
   final Widget child;
+  final String? shipperId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -32,6 +34,11 @@ class ShipperShell extends ConsumerWidget {
     }
     final cod = location.path == '/cod';
     final notifications = location.path == '/notifications';
+    final map =
+        location.pathSegments.length == 4 &&
+        location.pathSegments[0] == 'shipper' &&
+        location.pathSegments[1] == 'tasks' &&
+        location.pathSegments[3] == 'map';
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -39,7 +46,13 @@ class ShipperShell extends ConsumerWidget {
               ? 'Thông báo'
               : cod
               ? 'Đối soát tiền thu hộ'
+              : map
+              ? 'Bản đồ'
+              : location.path == '/shipper/tasks' && shipperId != null
+              ? shipperId!
               : 'Nhiệm vụ',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
         leading: role == 'manager' && cod
             ? IconButton(

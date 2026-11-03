@@ -160,6 +160,12 @@ class OutboundTaskActionsViewModel extends Notifier<OutboundTaskActionsState> {
       scheduleMicrotask(() {
         if (_disposed) return;
         _visible = true;
+        // Riverpod lifecycle callbacks do not rebuild widgets. A detail page
+        // can remain mounted underneath the map route, so its action button
+        // may have rendered while this controller was paused and still hold
+        // the disabled callback after returning. Publish a fresh state as
+        // soon as the controller becomes visible again.
+        state = state.copyWith();
         _listenToDetails();
         _resumeVisibleWork();
       });
@@ -594,6 +600,17 @@ class OutboundTaskActionsViewModel extends Notifier<OutboundTaskActionsState> {
         if ((task.status != DeliveryTaskStatus.accepted &&
                 task.status != DeliveryTaskStatus.inTransit) ||
             task.acceptedAt == null) {
+          throw const OutboundCommandFailure(
+            OutboundCommandFailureCode.staleState,
+          );
+        }
+      case OutboundTaskAction.acceptAndStart:
+        // The combined RPC records both custody and departure atomically. A
+        // current read must therefore show the same in-transit state as a
+        // normal start, including both timestamps.
+        if (task.status != DeliveryTaskStatus.inTransit ||
+            task.acceptedAt == null ||
+            task.startedAt == null) {
           throw const OutboundCommandFailure(
             OutboundCommandFailureCode.staleState,
           );

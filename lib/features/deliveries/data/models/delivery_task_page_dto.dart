@@ -39,7 +39,7 @@ final class DeliveryTaskPageDto {
         );
       }
       if (query?.stateGroup != null &&
-          !_matchesGroup(item.status, query!.stateGroup!)) {
+          !_matchesGroup(item, query!.stateGroup!)) {
         throw DeliveryDtoReaders.invalid(
           'items',
           'tasks matching the requested state group',
@@ -151,6 +151,8 @@ final class DeliveryTaskPageDto {
         DeliveryTaskStateGroup.waiting => counts.waiting,
         DeliveryTaskStateGroup.inTransit => counts.inTransit,
         DeliveryTaskStateGroup.completed => counts.completed,
+        DeliveryTaskStateGroup.retry => counts.retry,
+        DeliveryTaskStateGroup.failed => counts.failed,
       };
       if (filteredTotal != expected) {
         throw DeliveryDtoReaders.invalid(
@@ -193,6 +195,11 @@ final class DeliveryTaskPageDto {
       inTransit: _readCount(map, 'in_transit'),
       completed: _readCount(map, 'completed'),
       ungrouped: _readCount(map, 'ungrouped'),
+      retry: _readOptionalCount(map, 'retry'),
+      // P02.1 deployments before the failed-task filter did not expose a
+      // dedicated count. Keep their unfiltered receipt readable while the
+      // new server includes the field for the failed tab.
+      failed: _readOptionalCount(map, 'failed'),
     );
   }
 
@@ -204,10 +211,16 @@ final class DeliveryTaskPageDto {
     return value;
   }
 
+  static int _readOptionalCount(Map<String, dynamic> map, String key) {
+    if (!map.containsKey(key)) return 0;
+    return _readCount(map, key);
+  }
+
   static bool _matchesGroup(
-    DeliveryTaskStatus status,
+    DeliveryTaskDto item,
     DeliveryTaskStateGroup group,
   ) {
+    final status = item.status;
     return switch (group) {
       DeliveryTaskStateGroup.waiting =>
         status == DeliveryTaskStatus.assigned ||
@@ -217,6 +230,14 @@ final class DeliveryTaskPageDto {
       DeliveryTaskStateGroup.completed =>
         status == DeliveryTaskStatus.delivered ||
             status == DeliveryTaskStatus.returnedToStore,
+      DeliveryTaskStateGroup.retry =>
+        item.kind == DeliveryTaskKind.outbound &&
+            item.attemptNumber == 1 &&
+            status == DeliveryTaskStatus.failed,
+      DeliveryTaskStateGroup.failed =>
+        status == DeliveryTaskStatus.failed &&
+            !(item.kind == DeliveryTaskKind.outbound &&
+                item.attemptNumber == 1),
     };
   }
 }

@@ -152,7 +152,7 @@ select
   ('61000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid,
   '11000000-0000-0000-0000-000000000001'::uuid,
   ('a6000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid,
-  case when n in (3, 8) then 'awaiting_redelivery'::public.order_status
+  case when n in (3, 5, 8) then 'awaiting_redelivery'::public.order_status
        else 'delivered'::public.order_status end,
   case when n = 1 then 'Detail Recipient' else format('Recipient %s', n) end,
   format('09000004%02s', n),
@@ -217,6 +217,12 @@ values
     '91000000-0000-0000-0000-000000000002'::uuid,
     '61000000-0000-0000-0000-000000000002'::uuid,
     'Returned shorts', 1, 0
+  ),
+  (
+    '92000000-0000-0000-0000-000000000003'::uuid,
+    '91000000-0000-0000-0000-000000000003'::uuid,
+    '61000000-0000-0000-0000-000000000003'::uuid,
+    'Redelivery jersey', 1, 0
   );
 
 -- Sensitive evidence/refund fields exist in the merged return-request schema
@@ -332,6 +338,41 @@ values
     now() - interval '6 minutes', null, null, null,
     now() - interval '6 minutes', now() - interval '6 minutes'
   );
+
+insert into public.cod_collections (
+  order_id, shipper_id, status, expected_amount_vnd,
+  collected_amount_vnd, received_amount_vnd, collected_at,
+  handed_over_at, received_at
+)
+values
+  (
+    '61000000-0000-0000-0000-000000000001'::uuid,
+    '11000000-0000-0000-0000-000000000004'::uuid,
+    'received', 560000, 560000, 560000,
+    now() - interval '7 minutes', now() - interval '6 minutes',
+    now() - interval '5 minutes'
+  ),
+  (
+    '61000000-0000-0000-0000-000000000005'::uuid,
+    '11000000-0000-0000-0000-000000000004'::uuid,
+    'uncollected', 560000, 0, 0, null, null, null
+  );
+
+-- The redelivery plan is immutable per task and remains readable to its
+-- assigned shipper even after the task becomes terminal.
+insert into private.redelivery_task_items (
+  task_id, return_request_id, order_id, return_item_id, actual_item_name,
+  variant_id, variant_label, attributes, quantity
+)
+values (
+  '81000000-0000-0000-0000-000000000003'::uuid,
+  '91000000-0000-0000-0000-000000000003'::uuid,
+  '61000000-0000-0000-0000-000000000003'::uuid,
+  '92000000-0000-0000-0000-000000000003'::uuid,
+  'Redelivery jersey',
+  '41000000-0000-0000-0000-000000000003'::uuid,
+  'Variant 3', jsonb_build_object('size', 'M'), 1
+);
 
 -- Current outbound projection: exact P01.1 task shape, authoritative COD,
 -- optional lifecycle values, and all 1001 item rows in item_id order.
@@ -461,10 +502,11 @@ begin
     and l_items -> 0 ->> 'item_id' = '51000000-0000-0000-0000-000000000001'
     and l_items -> 1000 ->> 'item_id' = '51000000-0000-0000-0000-000000001001');
   perform pg_temp.assert_detail('item shape and snapshot values are exact',
-    (select count(*) from jsonb_object_keys(l_items -> 0)) = 9
+    (select count(*) from jsonb_object_keys(l_items -> 0)) = 10
     and (l_items -> 0) ?& array[
       'item_id', 'item_source', 'product_name', 'variant_label', 'attributes',
-      'quantity', 'quantity_collected', 'unit_price_vnd', 'line_total_vnd'
+      'quantity', 'quantity_collected', 'unit_price_vnd', 'line_total_vnd',
+      'image_url'
     ]
     and l_items -> 0 ->> 'item_source' = 'order_snapshot'
     and l_items -> 0 ->> 'product_name' = 'Snapshot item 1'
@@ -499,10 +541,14 @@ begin
   l_detail := public.get_my_delivery_task(
     '81000000-0000-0000-0000-000000000003'::uuid
   );
-  perform pg_temp.assert_detail('redelivery preserves unavailable plan and []',
+  perform pg_temp.assert_detail('redelivery preserves its immutable return plan',
     l_detail -> 'task' ->> 'kind' = 'redelivery'
-    and l_detail -> 'task' ->> 'item_source' = 'unavailable_redelivery_plan'
-    and jsonb_array_length(l_detail -> 'items') = 0);
+    and l_detail -> 'task' ->> 'item_source' = 'return_plan'
+    and jsonb_array_length(l_detail -> 'items') = 1
+    and l_detail -> 'items' -> 0 ->> 'item_source' = 'return_plan'
+    and l_detail -> 'items' -> 0 ->> 'product_name' = 'Redelivery jersey'
+    and (l_detail -> 'items' -> 0 ->> 'quantity')::int = 1
+    and (l_detail -> 'items' -> 0 ->> 'quantity_collected')::int = 1);
 end;
 $$;
 
@@ -534,6 +580,302 @@ begin
     and l_detail::text !~* '(video|bank|refund|storage|private|evidence|account)');
 end;
 $$;
+
+-- P03.2 additive history projection.  The endpoint is explicit and opt-in;
+-- its `history` scope is full while the legacy history DTO remains masked.
+reset role;
+update public.delivery_tasks
+set status = 'failed', completed_at = clock_timestamp(), updated_at = clock_timestamp()
+where id = '81000000-0000-0000-0000-000000000003'::uuid;
+-- Hosted Supabase does not grant application-owned roles USAGE on `auth`.
+-- Revoke the local fixture's bootstrap grant so this endpoint is proven
+-- through the existing postgres-owned identity bridge instead.
+reset role;
+revoke usage on schema auth from sports_store_delivery_reader;
+set local role authenticated;
+select pg_temp.set_detail_claims(
+  '11000000-0000-0000-0000-000000000004'::uuid
+);
+
+do $$
+declare
+  l_function oid := 'public.get_my_delivery_task_history(uuid)'::regprocedure;
+  l_owner text;
+  l_security_definer boolean;
+  l_volatility "char";
+  l_config text[];
+  l_detail jsonb;
+  l_task jsonb;
+  l_cod jsonb;
+begin
+  select p.proowner::regrole::text, p.prosecdef, p.provolatile, p.proconfig
+    into l_owner, l_security_definer, l_volatility, l_config
+    from pg_proc p
+   where p.oid = l_function;
+
+  perform pg_temp.assert_detail('history function exists', l_owner is not null);
+  perform pg_temp.assert_detail(
+    'history function keeps the locked reader owner and definer contract',
+    l_owner = 'sports_store_delivery_reader'
+    and l_security_definer
+    and l_volatility = 's'
+    and l_config = array['search_path=""']
+  );
+  perform pg_temp.assert_detail(
+    'history function is callable only by authenticated clients',
+    has_function_privilege('authenticated', l_function, 'EXECUTE')
+    and not has_function_privilege('anon', l_function, 'EXECUTE')
+    and not has_function_privilege('service_role', l_function, 'EXECUTE')
+    and not exists (
+      select 1
+      from aclexplode((select p.proacl from pg_proc p where p.oid = l_function)) a
+      where a.grantee = 0 and a.privilege_type = 'EXECUTE'
+    )
+  );
+  perform pg_temp.assert_detail(
+    'history RPC and policies use the hosted identity bridge',
+    not has_schema_privilege(
+      'sports_store_delivery_reader', 'auth', 'USAGE'
+    )
+    and has_function_privilege(
+      'sports_store_delivery_reader',
+      'private.delivery_request_user_id()',
+      'EXECUTE'
+    )
+    and position(
+      'auth.uid()' in pg_catalog.pg_get_functiondef(l_function)
+    ) = 0
+    and position(
+      'private.delivery_request_user_id()'
+      in pg_catalog.pg_get_functiondef(l_function)
+    ) > 0
+    and (
+      select count(*) = 4
+        and bool_and(
+          position(
+            'auth.uid()' in coalesce(
+              pg_catalog.pg_get_expr(p.polqual, p.polrelid), ''
+            )
+            || coalesce(
+              pg_catalog.pg_get_expr(p.polwithcheck, p.polrelid), ''
+            )
+          ) = 0
+          and position(
+            'private.delivery_request_user_id()' in coalesce(
+              pg_catalog.pg_get_expr(p.polqual, p.polrelid), ''
+            )
+            || coalesce(
+              pg_catalog.pg_get_expr(p.polwithcheck, p.polrelid), ''
+            )
+          ) > 0
+        )
+      from pg_catalog.pg_policy p
+      join pg_catalog.pg_class c on c.oid = p.polrelid
+      join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = any (array['public', 'private'])
+        and p.polname = any (array[
+          'delivery_reader_cod_history_read',
+          'delivery_reader_order_items',
+          'delivery_reader_return_items',
+          'redelivery_task_items_reader_read'
+        ])
+    )
+  );
+
+  l_detail := public.get_my_delivery_task_history(
+    '81000000-0000-0000-0000-000000000004'::uuid
+  );
+  l_task := l_detail -> 'task';
+  l_cod := l_detail -> 'cod';
+  perform pg_temp.assert_detail('own delivered task is readable history',
+    l_task ->> 'snapshot_scope' = 'history'
+    and l_task ->> 'status' = 'delivered'
+    and l_task ->> 'destination_name' = 'History Recipient'
+    and l_task ->> 'destination_address' = 'History address, Ha Noi'
+    and l_task ->> 'order_id' = '61000000-0000-0000-0000-000000000001'
+    and l_task ->> 'item_source' = 'order_snapshot'
+  );
+  perform pg_temp.assert_detail('history result has the additive read-only keys',
+    (select count(*) from jsonb_object_keys(l_detail)) = 7
+    and l_detail ?& array[
+      'task', 'items', 'cod', 'capabilities', 'notes', 'notes_source', 'as_of'
+    ]
+    and jsonb_typeof(l_detail -> 'items') = 'array'
+    and jsonb_typeof(l_detail -> 'capabilities') = 'object'
+  );
+  perform pg_temp.assert_detail('own delivered item snapshot is retained',
+    jsonb_array_length(l_detail -> 'items') = 1001
+    and l_detail -> 'items' -> 0 ->> 'item_id' =
+      '51000000-0000-0000-0000-000000000001'
+    and l_detail -> 'items' -> 0 ->> 'item_source' = 'order_snapshot'
+    and l_detail -> 'items' -> 0 ->> 'product_name' = 'Snapshot item 1'
+  );
+  perform pg_temp.assert_detail('COD history comes from the actual ledger',
+    l_cod ->> 'status' = 'received'
+    and (l_cod ->> 'expected_amount_vnd')::int = 560000
+    and (l_cod ->> 'collected_amount_vnd')::int = 560000
+    and (l_cod ->> 'received_amount_vnd')::int = 560000
+    and (l_cod ->> 'collected_at') is not null
+    and (l_cod ->> 'handed_over_at') is not null
+    and (l_cod ->> 'received_at') is not null
+    and not (l_cod ?| array['collected_by', 'received_by']));
+  perform pg_temp.assert_detail('terminal history remains read-only',
+    not (l_detail ?| array['failure_reason', 'cancel_reason', 'write_token'])
+    and l_detail -> 'capabilities' ->> 'can_retry' = 'false'
+  );
+
+  l_detail := public.get_my_delivery_task_history(
+    '81000000-0000-0000-0000-000000000005'::uuid
+  );
+  perform pg_temp.assert_detail('own failed task keeps its recipient snapshot',
+    l_detail -> 'task' ->> 'snapshot_scope' = 'history'
+    and l_detail -> 'task' ->> 'status' = 'failed'
+    and l_detail -> 'task' ->> 'destination_name' = 'Restricted Recipient'
+    and l_detail -> 'task' ->> 'destination_phone' = '0900000405'
+    and l_detail -> 'task' ->> 'item_source' = 'order_snapshot'
+    and jsonb_array_length(l_detail -> 'items') = 0
+  );
+  perform pg_temp.assert_detail('failed task COD is not inferred from task state',
+    l_detail -> 'cod' ->> 'status' = 'uncollected'
+    and (l_detail -> 'cod' ->> 'expected_amount_vnd')::int = 560000
+    and (l_detail -> 'cod' ->> 'collected_amount_vnd')::int = 0
+    and (l_detail -> 'cod' ->> 'received_amount_vnd')::int = 0
+    and l_detail -> 'cod' ->> 'collected_at' is null
+    and l_detail -> 'capabilities' ->> 'can_retry' = 'true'
+  );
+
+  l_detail := public.get_my_delivery_task_history(
+    '81000000-0000-0000-0000-000000000003'::uuid
+  );
+  perform pg_temp.assert_detail('terminal redelivery keeps its immutable plan',
+    l_detail -> 'task' ->> 'kind' = 'redelivery'
+    and l_detail -> 'task' ->> 'snapshot_scope' = 'history'
+    and l_detail -> 'task' ->> 'item_source' = 'return_plan'
+    and jsonb_array_length(l_detail -> 'items') = 1
+    and l_detail -> 'items' -> 0 ->> 'item_source' = 'return_plan'
+    and l_detail -> 'items' -> 0 ->> 'product_name' = 'Redelivery jersey'
+    and l_detail -> 'items' -> 0 ->> 'variant_label' = 'Variant 3'
+    and l_detail -> 'items' -> 0 -> 'attributes' = '{"size":"M"}'::jsonb
+    and (l_detail -> 'items' -> 0 ->> 'quantity')::int = 1
+    and l_detail -> 'items' -> 0 ->> 'quantity_collected' is null
+  );
+  perform pg_temp.assert_detail('non-outbound history never exposes COD',
+    l_detail -> 'task' ->> 'kind' = 'redelivery'
+    and l_detail -> 'cod' = 'null'::jsonb
+  );
+end;
+$$;
+
+-- A manager early-return decision also removes the retry capability even
+-- though the attempt-1 task remains in the shipper's readable history.
+reset role;
+update public.orders
+set status = 'delivered'::public.order_status
+where id = '61000000-0000-0000-0000-000000000005'::uuid;
+set local role authenticated;
+select pg_temp.set_detail_claims(
+  '11000000-0000-0000-0000-000000000004'::uuid
+);
+do $$
+declare l_detail jsonb;
+begin
+  l_detail := public.get_my_delivery_task_history(
+    '81000000-0000-0000-0000-000000000005'::uuid
+  );
+  perform pg_temp.assert_detail('retry is disabled after early return',
+    l_detail -> 'capabilities' ->> 'can_retry' = 'false'
+  );
+end;
+$$;
+reset role;
+update public.orders
+set status = 'awaiting_redelivery'::public.order_status
+where id = '61000000-0000-0000-0000-000000000005'::uuid;
+set local role authenticated;
+select pg_temp.set_detail_claims(
+  '11000000-0000-0000-0000-000000000004'::uuid
+);
+
+-- Once an attempt-2 successor exists, the immutable attempt-1 history row
+-- remains readable but can no longer offer a retry action.
+reset role;
+insert into public.delivery_tasks (
+  id, order_id, return_request_id, kind, assigned_shipper_id, assigned_by,
+  status, attempt_number, destination_name, destination_phone,
+  destination_address, destination_latitude, destination_longitude,
+  amount_to_collect_vnd, assigned_at, created_at, updated_at
+) values (
+  '81000000-0000-0000-0000-000000000009'::uuid,
+  '61000000-0000-0000-0000-000000000005'::uuid,
+  null, 'outbound',
+  '11000000-0000-0000-0000-000000000004'::uuid,
+  '11000000-0000-0000-0000-000000000003'::uuid,
+  'assigned', 2, 'Retry successor', '0900000409',
+  'Retry successor address, Ha Noi', 21.039000, 105.809000, 560000,
+  now() - interval '1 minute', now() - interval '1 minute', now()
+);
+set local role authenticated;
+select pg_temp.set_detail_claims(
+  '11000000-0000-0000-0000-000000000004'::uuid
+);
+do $$
+declare l_detail jsonb;
+begin
+  l_detail := public.get_my_delivery_task_history(
+    '81000000-0000-0000-0000-000000000005'::uuid
+  );
+  perform pg_temp.assert_detail('retry is disabled once attempt two exists',
+    l_detail -> 'capabilities' ->> 'can_retry' = 'false'
+  );
+end;
+$$;
+
+-- Assignment is the complete history authorization boundary; another shipper
+-- cannot probe a terminal or current task by UUID.
+select pg_temp.assert_detail_error(
+  'history foreign task is not distinguishable',
+  'select public.get_my_delivery_task_history(''81000000-0000-0000-0000-000000000007''::uuid)',
+  'P0002',
+  'NOT_FOUND_OR_FORBIDDEN'
+);
+select pg_temp.assert_detail_error(
+  'history nonexistent task is not distinguishable',
+  'select public.get_my_delivery_task_history(''ffffffff-ffff-ffff-ffff-ffffffffffff''::uuid)',
+  'P0002',
+  'NOT_FOUND_OR_FORBIDDEN'
+);
+select pg_temp.assert_detail_error(
+  'history null task id is invalid',
+  'select public.get_my_delivery_task_history(null::uuid)',
+  '22023',
+  'INVALID_ARGUMENT'
+);
+
+-- An assignment placeholder is not yet a readable current/history task.
+reset role;
+update public.delivery_tasks
+set assigned_shipper_id = '11000000-0000-0000-0000-000000000004'::uuid,
+    status = 'pending_assignment', updated_at = clock_timestamp()
+where id = '81000000-0000-0000-0000-000000000007'::uuid;
+set local role authenticated;
+select pg_temp.set_detail_claims(
+  '11000000-0000-0000-0000-000000000004'::uuid
+);
+select pg_temp.assert_detail_error(
+  'pending assignment history is denied',
+  'select public.get_my_delivery_task_history(''81000000-0000-0000-0000-000000000007''::uuid)',
+  'P0002',
+  'NOT_FOUND_OR_FORBIDDEN'
+);
+reset role;
+update public.delivery_tasks
+set assigned_shipper_id = '11000000-0000-0000-0000-000000000005'::uuid,
+    status = 'assigned', updated_at = clock_timestamp()
+where id = '81000000-0000-0000-0000-000000000007'::uuid;
+set local role authenticated;
+select pg_temp.set_detail_claims(
+  '11000000-0000-0000-0000-000000000004'::uuid
+);
 
 -- The same safe error covers nonexistent, foreign and reassigned tasks.
 select pg_temp.assert_detail_error(

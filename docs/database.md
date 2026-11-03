@@ -1,5 +1,18 @@
 # Database Sports Store
 
+Cập nhật 02/11/2026: API lịch sử nhiệm vụ và các trường COD tối thiểu cho
+shipper được phân công; không mở quyền ghi hoặc quyền xem nhiệm vụ người khác.
+[Hợp đồng](demos/shipper_history_details_20261102.md).
+
+Cập nhật 02/11/2026: thêm giao dịch nhận-và-bắt-đầu outbound, phân nhóm retry
+và failed theo lần giao mà không đổi enum/lịch sử task.
+[Hợp đồng và kiểm chứng](demos/shipper_accept_start_20261102.md).
+
+Cập nhật 01/11/2026: migration `20261101095549_shipper_retry_outbound_failure.sql`
+bổ sung RPC giao lại theo task cho shipper đang giữ hàng và mở đúng nhánh retry
+của giao dịch hiện hữu. Không đổi lịch sử task/attempt, ledger tồn hay COD.
+[Hợp đồng và kiểm chứng](demos/shipper_self_retry_20261101.md).
+
 P10.3: [Migration order 22 files, fixture/demo/cleanup và setup](handover/delivery_p103.md).
 Catalog mới chỉ local guarded BEGIN/ROLLBACK, có manager/2shipper/2customer,
 3kind, COD collected/received và denied cases. Không migration/schema/RLS mới,
