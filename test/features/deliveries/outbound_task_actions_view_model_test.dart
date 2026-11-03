@@ -247,6 +247,50 @@ void main() {
     expect(state.confirmedAction, OutboundTaskAction.acceptGoods);
   });
 
+  test(
+    'accept-and-start allows assigned task without accepted timestamp',
+    () async {
+      var remote = _details();
+      final h = _harness(
+        repository: _CommandRepository()
+          ..handler = (_) async {
+            remote = _details(
+              status: 'in_transit',
+              acceptedAt: '2026-11-02T09:00:00Z',
+              startedAt: '2026-11-02T09:00:01Z',
+            );
+          },
+        read: (_) async => remote,
+        reloadDetails: (_) async => remote,
+      );
+      addTearDown(() async {
+        h.container.dispose();
+        await h.sessions.close();
+      });
+      final vm = await _ready(h);
+      final expected = remote.task;
+      expect(
+        vm.canExecute(OutboundTaskAction.acceptAndStart, expected),
+        isTrue,
+      );
+      await vm.submit(
+        OutboundTaskAction.acceptAndStart,
+        expectedTask: expected,
+        sessionRevision: vm.sessionRevisionForConfirmation,
+      );
+      expect(
+        h.repository.commands.single.action,
+        OutboundTaskAction.acceptAndStart,
+      );
+      expect(
+        h.container
+            .read(outboundTaskActionsViewModelProvider(_taskId))
+            .confirmedAction,
+        OutboundTaskAction.acceptAndStart,
+      );
+    },
+  );
+
   test('busy gate ignores duplicate confirmation', () async {
     final gate = Completer<void>();
     final h = _harness(

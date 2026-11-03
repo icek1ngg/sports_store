@@ -1,5 +1,14 @@
 # Ánh xạ màn hình Sports Store
 
+Cập nhật 02/11/2026: MH11 giữ người nhận, hàng hóa và COD khi xem lại nhiệm vụ
+đã giao/thất bại của chính shipper. Quyền xem độc lập với quyền thao tác.
+[Chi tiết](demos/shipper_history_details_20261102.md).
+
+Cập nhật 02/11/2026: MH11 nhận hàng là bắt đầu giao ngay; MH10 có **Giao lại**
+cho lần đầu không thành công và **Thất bại** cho lần hai. Quy tắc này thay
+cách phân nhóm ngày 01/11 bên dưới.
+[Chi tiết](demos/shipper_accept_start_20261102.md).
+
 Cập nhật 01/11/2026: MH11 cho shipper chọn **Giao lại lần 2** từ outbound
 thất bại lần đầu, không cần chờ quản lý duyệt. Mở task mới do server trả về,
 xác nhận tiếp tục giữ hàng rồi bắt đầu lần hai. MH10 có nhóm thất bại để tìm
@@ -130,6 +139,34 @@ biến thể và bộ chọn vị trí trong màn đặt hàng là thành phần
 | MH18 | Bản đồ điểm đến nhiệm vụ | Shipper | Minh Đức | Xem điểm đến đã lưu của nhiệm vụ được phân công; không bắt buộc pin cửa hàng |
 | MH19 | Danh sách hội thoại | Khách, Manager | Dung An | Khách mở hội thoại; manager xem danh sách và tin chưa đọc |
 | MH20 | Chi tiết hội thoại | Khách, Manager | Sơn | Đọc lịch sử, gửi/nhận tin văn bản và cập nhật đã đọc |
+
+### Trạng thái MH13 (01/11/2026)
+
+- Route `/customer/orders/:orderId/return` (chỉ customer; UUID sai bị chặn ở
+  guard) → `ReturnRequestFlowPage`. Bước 1 `CreateReturnPage` (lý do), bước 2
+  `ReturnRequestDetailsPage` (mô tả, video mở kiện, tài khoản nhận hoàn tiền,
+  nút "Gửi yêu cầu trả hàng"). Bước 2 được push lên trên bước 1; dữ liệu nhập
+  nằm trong `returnRequestFlowProvider(orderId)` nên quay lại không mất.
+- Dữ liệu thật: `get_return_request_context` + upload Storage `return-videos`
+  + `submit_return_request` (xem `api_contracts.md`, mục MH13).
+- Chưa có nút mở MH13 từ MH07: `CustomerOrdersPage.onCreateReturn` đã có sẵn
+  nhưng MH07 chưa được gắn route. Mã đơn hiển thị là UUID đầy đủ vì `orders`
+  không có cột mã đơn riêng.
+- Lý do trả dùng `ReturnReason` có wire value đúng enum `public.return_reason`:
+  `defective`, `wrong_item`, `missing_items`.
+- Preview DEMO riêng (390 × 884, không đăng nhập, repository DEMO, không gọi
+  Supabase): `flutter run -d edge -t tool/ui_preview/mh13_main.dart`.
+
+### Trạng thái MH14 (01/11/2026)
+
+- Route `/customer/returns/:returnId` (chỉ customer) → `ReturnTrackingPage`,
+  dữ liệu thật qua `get_my_return_request`; MH13 gửi xong mở thẳng màn này.
+- Tự cập nhật khi đang mở bằng `ForegroundRefresh` dùng chung; nút tải lại và
+  kéo để tải lại cũng đọc trạng thái mới nhất.
+- Chưa có: yêu cầu bổ sung từ manager và lịch hẹn lấy hàng (schema chưa có,
+  phụ thuộc MH15); các lệnh duyệt/phân công/kiểm tra/hoàn tiền thuộc MH15.
+- Preview DEMO riêng (11 tình huống, không gọi Supabase):
+  `flutter run -d edge -t tool/ui_preview/mh14_main.dart`.
 
 ## Điều hướng chính
 
@@ -655,6 +692,33 @@ chưa có production endpoint. Không notification D7 chưa chốt hoặc UI P04
 [Contract, schema, kiểm thử và trạng thái deploy P04.1 production](demos/p041_production_accept_start.md).
 Implementation repository không đồng nghĩa đã deploy/Auth/PostgREST/cloud;
 không tự đánh dấu toàn bộ MH11 hoặc luồng giao→COD hoàn tất.
+### Trạng thái MH15 — Quản lý yêu cầu trả hàng (02/11/2026, giai đoạn 1)
+
+- Tên hiển thị: "Quản lý yêu cầu trả hàng" (không hiện mã màn hình). Route
+  `/manager/returns` (danh sách) và `/manager/returns/:returnId` (chi tiết),
+  guard `managerOnly` + UUID; mục "Trả hàng" trên thanh điều hướng manager.
+- Danh sách: tìm theo mã yêu cầu, mã đơn (UUID đầy đủ hoặc ≥ 4 ký tự hex, chấp
+  nhận tiền tố TH/DH, dấu #/-) hoặc tên khách; lọc theo trạng thái, số đếm theo
+  từng trạng thái. Mở chi tiết không đổi trạng thái.
+- Chi tiết: khách/SĐT, sản phẩm đơn + tiền hàng/phí giao/tổng COD, lý do + mô
+  tả, video (signed URL 10 phút, mở tab mới), thông tin nhận hoàn (chỉ
+  manager), nhiệm vụ thu hồi, quyết định.
+- Thao tác theo trạng thái: `pending_review` → "Duyệt lấy hàng" (chọn sản
+  phẩm/số lượng + shipper, một giao dịch) hoặc "Từ chối" (lý do + xác nhận).
+  Trạng thái khác chưa có thao tác ở giai đoạn 1 (hiện ghi chú bước tiếp theo).
+- Preview DEMO: `flutter run -d edge --web-port 7415 -t tool/ui_preview/mh15_main.dart`.
+- Giai đoạn 2 (02/11/2026): thao tác theo trạng thái —
+  `pending_review`: duyệt lấy hàng / từ chối / yêu cầu bổ sung;
+  `returning_to_store`: "Xác nhận đã nhận hàng" (chỉ khi shipper đã báo bàn
+  giao); `under_inspection`: chấp nhận (chia bán được/lỗi, nhập kho một lần) /
+  từ chối sau kiểm tra (bắt buộc bằng chứng) / yêu cầu bổ sung — khóa khi đang
+  chờ khách phản hồi; `awaiting_refund`: ghi nhận hoàn tiền (đúng tiền hàng +
+  phí giao ban đầu, thời điểm chuyển thực tế, chứng từ); `awaiting_redelivery`:
+  phân công giao lại miễn phí. MH14 hiển thị và trả lời yêu cầu bổ sung (mô tả +
+  video tùy chọn).
+- Chưa có thao tác riêng cho `manager_action_required` (thu hồi/giao lại thất
+  bại): màn hiện hướng dẫn liên hệ và yêu cầu không tự đóng.
+
 ### P04.1 — Kết quả deploy cloud 26/10/2026
 
 Sau khi người dùng duyệt project `bqoyfytmrtvjwrpshuhh` và đăng nhập CLI,
@@ -706,3 +770,22 @@ Route /shipper/tasks/:taskId giữ nguyên. Outbound current in_transit lần1/2
 ## P07.4 — MH11 backend reporting (27/10/2026)
 
 Chỉ bổ sung RPC báo bàn giao/sự cố outbound, không thêm dialog hoặc đổi router/theme/shell trong P07.4. MH11 UI reporting và luồng receipt/inspection MH09 của Bảo chưa được giả lập hoàn tất. Report bàn giao không hiển thị như cửa hàng đã nhận/nhập tồn; incident không hiển thị như khách từ chối nhận hoặc đã tính bồi thường. Notification chủ cửa hàng dùng UUID task, MH17 renderer vẫn thuộc Bảo. Pickup/redelivery bị chặn đến khi có custody contract Sơn. [Scope/manifest/kiểm tra/deploy](demos/p074_production_delivery_reporting.md).
+
+### Trạng thái MH20 — Chi tiết hội thoại (03/11/2026)
+
+- Route `/chat/:conversationId` (mở từ MH19); không còn bọc shell MH19, có
+  header riêng "Quay lại". Shipper bị chặn ở route và ở server.
+- Header: "Cửa hàng Sports Store" (khách) hoặc tên khách (quản lý); không hứa
+  thời gian phản hồi; schema không có ngữ cảnh đơn/trả hàng nên không hiển thị.
+- Lịch sử: thứ tự thời gian máy chủ, dải phân cách theo ngày Hà Nội, giờ Hà
+  Nội, tên người gửi phía bên kia, "Đã gửi"/"Đã xem" cho tin mới nhất của mình
+  (từ mốc đã đọc của bên kia).
+- Làm mới: chính sách dùng chung 3 s khi màn đang hiển thị và app ở foreground
+  (trước đây 20 s, dừng hẳn khi có lỗi). Lượt kiểm tra chỉ đọc tin cuối + mốc đã
+  đọc; chỉ tải trang mới nhất (có ghi đã đọc) khi người nhận đang xem đáy hội
+  thoại, nếu đang kéo lên thì hiện "Có tin nhắn mới".
+- Gửi: chỉ văn bản 1–4.000 ký tự (cắt khoảng trắng); ô nhập không khóa khi đang
+  gửi và chỉ xóa phần đã gửi; lỗi giữ bản nháp, "Gửi lại" dùng cùng
+  `client_message_id`.
+- MH19 chuyển từ hẹn giờ 20 s sang cùng chính sách 3 s và tải lại khi quay về từ
+  MH20.

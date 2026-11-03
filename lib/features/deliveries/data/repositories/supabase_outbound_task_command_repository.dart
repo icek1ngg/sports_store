@@ -108,6 +108,7 @@ final class SupabaseOutboundTaskCommandRepository
 
   static String _rpcName(OutboundTaskAction action) => switch (action) {
     OutboundTaskAction.acceptGoods => 'accept_delivery_task',
+    OutboundTaskAction.acceptAndStart => 'accept_and_start_delivery_task',
     OutboundTaskAction.startDelivery => 'start_delivery_task',
   };
 

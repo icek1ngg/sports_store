@@ -258,7 +258,7 @@ class _FailureDialogState extends ConsumerState<_FailureDialog> {
 String _confirmedFailureText(OutboundFailureState state) {
   final attempt = state.details.asData?.value.task.attemptNumber;
   if (attempt == 1) {
-    return 'Đã ghi nhận giao thất bại lần 1. Bạn có thể chọn giao lại lần 2, không cần chờ quản lý duyệt.';
+    return 'Chưa giao được lần 1. Đơn đã chuyển sang mục Giao lại.';
   }
   return 'Giao thất bại lần hai. Chờ hoàn về cửa hàng.';
 }

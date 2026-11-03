@@ -264,7 +264,7 @@ DateTime parseUtcTimestamp(String value, {String path = 'timestamp'}) {
   final minute = int.parse(match.group(5)!);
   final second = int.parse(match.group(6)!);
   final fraction = match.group(7);
-  final microsecond = fraction == null
+  final fractionMicros = fraction == null
       ? 0
       : int.parse(fraction.padRight(6, '0'));
   final offset = match.group(8)!;
@@ -284,7 +284,8 @@ DateTime parseUtcTimestamp(String value, {String path = 'timestamp'}) {
     hour,
     minute,
     second,
-    microsecond,
+    fractionMicros ~/ 1000,
+    fractionMicros % 1000,
   );
   if (local.year != year ||
       local.month != month ||
@@ -292,7 +293,7 @@ DateTime parseUtcTimestamp(String value, {String path = 'timestamp'}) {
       local.hour != hour ||
       local.minute != minute ||
       local.second != second ||
-      local.microsecond != microsecond) {
+      local.millisecond != fractionMicros ~/ 1000) {
     throw UnsupportedDataException.invalid(
       path: path,
       rawValue: value,

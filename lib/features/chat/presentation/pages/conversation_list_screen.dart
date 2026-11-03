@@ -1,9 +1,8 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/supabase/supabase_providers.dart';
+import '../../../../shared/widgets/foreground_refresh.dart';
 import '../../../../shared/widgets/prm_preview_widgets.dart';
 import '../../domain/models/chat_models.dart';
 import '../view_models/chat_providers.dart';
@@ -26,22 +25,9 @@ class _ConversationListScreenState
   final _search = TextEditingController();
   String _filter = 'Tất cả';
   bool _starting = false;
-  Timer? _timer;
-  @override
-  void initState() {
-    super.initState();
-    _timer = Timer.periodic(const Duration(seconds: 20), (_) {
-      if (mounted &&
-          ModalRoute.of(context)?.isCurrent == true &&
-          !ref.read(chatInboxProvider).isLoading) {
-        ref.invalidate(chatInboxProvider);
-      }
-    });
-  }
 
   @override
   void dispose() {
-    _timer?.cancel();
     _search.dispose();
     super.dispose();
   }
@@ -64,6 +50,18 @@ class _ConversationListScreenState
   Widget build(BuildContext context) {
     final inbox = ref.watch(chatInboxProvider);
     final userId = ref.watch(supabaseClientProvider).auth.currentUser?.id;
+    return ForegroundRefresh(
+      canRefresh: () => !ref.read(chatInboxProvider).isLoading,
+      onRefresh: () => ref.invalidate(chatInboxProvider),
+      child: _content(context, inbox, userId),
+    );
+  }
+
+  Widget _content(
+    BuildContext context,
+    AsyncValue<List<ChatConversation>> inbox,
+    String? userId,
+  ) {
     return Column(
       children: [
         Padding(

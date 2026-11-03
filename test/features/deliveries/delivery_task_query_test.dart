@@ -24,6 +24,7 @@ Map<String, dynamic> _pagePayload({
   int inTransit = 1,
   int completed = 0,
   int ungrouped = 1,
+  int retry = 0,
   int failed = 0,
 }) {
   return {
@@ -35,6 +36,7 @@ Map<String, dynamic> _pagePayload({
       'in_transit': inTransit,
       'completed': completed,
       'ungrouped': ungrouped,
+      'retry': retry,
       'failed': failed,
     },
     'as_of': '2026-10-23T03:00:00Z',
@@ -106,14 +108,15 @@ void main() {
     });
 
     test('keeps failed count as a subset of ungrouped for compatibility', () {
-      final failed = maskedTaskDto();
+      final retryTask = maskedTaskDto();
       final payload = _pagePayload(
-        items: [failed],
+        items: [retryTask],
         filteredTotal: 5,
         waiting: 2,
         inTransit: 1,
         completed: 0,
         ungrouped: 2,
+        retry: 1,
         failed: 1,
       );
       final all = DeliveryTaskPageDto.fromJson(payload).toDomain();
@@ -121,20 +124,38 @@ void main() {
       expect(all.counts.ungrouped, 2);
       expect(all.counts.total, 5);
 
-      final failedOnly = DeliveryTaskPageDto.fromJson(
+      final retryOnly = DeliveryTaskPageDto.fromJson(
         _pagePayload(
-          items: [failed],
+          items: [retryTask],
           filteredTotal: 1,
           waiting: 2,
           inTransit: 1,
           completed: 0,
           ungrouped: 2,
+          retry: 1,
+          failed: 0,
+        ),
+        query: DeliveryTaskQuery(stateGroup: DeliveryTaskStateGroup.retry),
+      ).toDomain();
+      expect(retryOnly.filteredTotal, 1);
+      expect(retryOnly.items.single.status, DeliveryTaskStatus.failed);
+
+      final terminalTask = maskedTaskDto(attemptNumber: 2);
+      final failedOnly = DeliveryTaskPageDto.fromJson(
+        _pagePayload(
+          items: [terminalTask],
+          filteredTotal: 1,
+          waiting: 2,
+          inTransit: 1,
+          completed: 0,
+          ungrouped: 2,
+          retry: 1,
           failed: 1,
         ),
         query: DeliveryTaskQuery(stateGroup: DeliveryTaskStateGroup.failed),
       ).toDomain();
       expect(failedOnly.filteredTotal, 1);
-      expect(failedOnly.items.single.status, DeliveryTaskStatus.failed);
+      expect(failedOnly.items.single.attemptNumber, 2);
     });
 
     test('requires first-page size and cursor to agree with the total', () {

@@ -118,7 +118,13 @@ void main() {
             {'role': 'shipper'},
           ]);
         }
-        expect(request.url.path, endsWith('/get_my_delivery_task'));
+        expect(
+          request.url.path,
+          anyOf(
+            endsWith('/get_my_delivery_task'),
+            endsWith('/get_my_delivery_task_history'),
+          ),
+        );
         detailCalls++;
         return jsonResponse(request, _detailPayload(task));
       });

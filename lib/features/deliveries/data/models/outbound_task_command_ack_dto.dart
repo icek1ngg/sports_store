@@ -69,6 +69,9 @@ final class OutboundTaskCommandAckDto {
 
     final expectedOperation = switch (command.action) {
       OutboundTaskAction.acceptGoods => 'accept',
+      // The server uses `accept_and_start` for the atomic accept + start
+      // transition. Keep the old operation names strict for legacy commands.
+      OutboundTaskAction.acceptAndStart => 'accept_and_start',
       OutboundTaskAction.startDelivery => 'start',
     };
     final operation = DeliveryDtoReaders.readRequiredString(

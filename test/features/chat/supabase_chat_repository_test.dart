@@ -225,4 +225,45 @@ void main() {
     gate.complete(Harness.json([]));
     await expectLater(pending, throwsA(isA<ChatFailure>()));
   });
+  test('activity probe reads latest message and read markers only', () async {
+    await h.signIn();
+    h.handler = (request) async {
+      expect(request.method, 'GET', reason: 'probe must never write');
+      if (request.url.path.endsWith('/conversations')) {
+        return Harness.json({
+          'id': conversationId,
+          'customer_id': userId,
+          'read_at_by_user': {otherId: '2026-11-03T02:05:00.123456+00:00'},
+        });
+      }
+      return Harness.json([
+        {
+          'id': messageId,
+          'sender_id': userId,
+          'created_at': '2026-11-03T02:04:00.98+00:00',
+        },
+      ]);
+    };
+    final activity = await h.repository.getActivity(conversationId);
+    expect(activity.latestMessageId, messageId);
+    expect(activity.otherSideReadAt(userId)!.millisecond, 123);
+    expect(activity.latestMessageAt!.millisecond, 980);
+    expect(h.requests.every((r) => r.method == 'GET'), isTrue);
+  });
+  test('activity on a hidden conversation is access denied', () async {
+    await h.signIn();
+    h.handler = (request) async => request.url.path.endsWith('/conversations')
+        ? Harness.json(<Object?>[])
+        : Harness.json(<Object?>[]);
+    await expectLater(
+      h.repository.getActivity(conversationId),
+      throwsA(
+        isA<ChatFailure>().having(
+          (f) => f.accessDenied,
+          'accessDenied',
+          isTrue,
+        ),
+      ),
+    );
+  });
 }

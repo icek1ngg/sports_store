@@ -119,13 +119,15 @@ class SupabaseDeliveryRepository
   Future<DeliveryTaskDetails> _readTaskDetails(
     String taskId,
     ReadIdentity identity, {
+    required String rpcName,
     required bool allowMissingDestinationCoordinates,
+    required bool allowReadableHistory,
   }) async {
     identity.ensureCurrent();
     dynamic response;
     try {
       response = await access.client
-          .rpc('get_my_delivery_task', params: {'p_task_id': taskId})
+          .rpc(rpcName, params: {'p_task_id': taskId})
           .retry(enabled: false);
     } on PostgrestException catch (error) {
       // The detail RPC uses NOT_FOUND_OR_FORBIDDEN (P0002) for a task
@@ -141,6 +143,7 @@ class SupabaseDeliveryRepository
       _object(response),
       requestedTaskId: taskId,
       allowMissingDestinationCoordinates: allowMissingDestinationCoordinates,
+      allowReadableHistory: allowReadableHistory,
     ).toDomain();
   }
 
@@ -152,7 +155,9 @@ class SupabaseDeliveryRepository
       action: (identity) => _readTaskDetails(
         taskId,
         identity,
+        rpcName: 'get_my_delivery_task_history',
         allowMissingDestinationCoordinates: false,
+        allowReadableHistory: true,
       ),
     );
   }
@@ -165,7 +170,9 @@ class SupabaseDeliveryRepository
       action: (identity) => _readTaskDetails(
         taskId,
         identity,
+        rpcName: 'get_my_delivery_task',
         allowMissingDestinationCoordinates: true,
+        allowReadableHistory: false,
       ),
     );
   }

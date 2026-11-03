@@ -1,5 +1,13 @@
 # Hợp đồng truy cập database
 
+Cập nhật 02/11/2026: MH11 đọc đầy đủ snapshot nhiệm vụ đã kết thúc của chính
+shipper qua API bổ sung; COD lấy từ ledger, quyền thao tác vẫn theo trạng thái.
+[Chi tiết hợp đồng](demos/shipper_history_details_20261102.md).
+
+Cập nhật 02/11/2026: nhận hàng outbound tự bắt đầu giao trong một giao dịch;
+MH10 tách nhóm giao lại lần một và thất bại lần hai.
+[Hành vi và hợp đồng mới](demos/shipper_accept_start_20261102.md).
+
 Cập nhật 01/11/2026: shipper được tự yêu cầu giao lần hai sau thất bại lần một
 bằng `retry_outbound_delivery_task(p_task_id, p_request_id)`, không chờ quản lý
 duyệt. Biên nhận failure cũ giữ nguyên. [Hợp đồng mới](demos/shipper_self_retry_20261101.md)
@@ -1823,3 +1831,169 @@ shipper. Quyền caller/task vẫn theo projection hiện có; nhiệm vụ khô
 gọn khi ảnh thiếu/tải lỗi. Bản này hỗ trợ ảnh HTTPS; object path private và hàng
 lấy trả/giao lại chưa có ảnh xác minh nên trả null, không lấy ảnh hàng đặt để
 giả làm ảnh hàng khách thực nhận.
+
+## MH13 — Tạo yêu cầu trả hàng (Sơn, 01/11/2026)
+
+Migration `20261101080125_submit_return_request.sql` (tạo bằng
+`npx --yes supabase@2.119.0 migration new submit_return_request`). **Chưa áp
+dụng lên cloud**; mới kiểm thử trên fixture PostgreSQL 17 cục bộ.
+
+`get_return_request_context(p_order_id uuid) → jsonb` — SECURITY INVOKER,
+chỉ role `customer`, đọc qua RLS của chính khách. Trả `order_id`,
+`order_status`, `delivered_at`, `subtotal_vnd`, `delivery_fee_vnd`,
+`total_paid_vnd`, `items[]` (`order_item_id`, `product_name`, `variant_label`,
+`quantity`, `unit_price_vnd`, `line_total_vnd`, `product_image_url`),
+`server_now`, `return_deadline` (= `delivered_at + 7 ngày`),
+`can_submit_return`, `eligibility_reason` (`null` | `not_delivered` |
+`active_return_exists` | `return_window_expired`), `active_return`.
+Đơn không thuộc khách → `PT404 ORDER_NOT_FOUND`; không phải customer →
+`42501 PERMISSION_DENIED`.
+
+`submit_return_request(p_order_id, p_request_id, p_reason, p_description,
+p_video_object_path, p_bank_name, p_account_number, p_account_holder) → jsonb`
+— SECURITY DEFINER, owner `sports_store_return_request_writer` (NOLOGIN,
+NOINHERIT, NOBYPASSRLS), danh tính qua `private.delivery_request_user_id()`.
+
+- Quyền: chỉ customer sở hữu đơn (`orders.customer_id`). Manager/shipper →
+  `42501 PERMISSION_DENIED`; chưa đăng nhập → `42501 AUTH_REQUIRED`.
+- Đơn phải `delivered` có `delivered_at` (`PT409 ORDER_NOT_DELIVERED`). Hạn
+  7 ngày đo bằng `clock_timestamp()` của server lúc gửi, sau khi khóa đơn
+  (`PT409 RETURN_WINDOW_EXPIRED`).
+- Video bắt buộc: path `<customer UUID>/<order UUID>/<tên file>`, object có
+  trong bucket private `return-videos`, `owner_id` = khách, `metadata.mimetype`
+  `video/*`, kích thước 1 byte – 100 MB (`PT422 VIDEO_REQUIRED`). Không dùng lại
+  video của yêu cầu cũ (`PT409 VIDEO_ALREADY_USED`). Kiểm tra qua helper
+  `private.return_video_object_ready` (owner postgres, chỉ trả boolean).
+- Input: lý do ∈ `defective|wrong_item|missing_items`; mô tả 10–1000 ký tự sau
+  khi gộp khoảng trắng; ngân hàng/chủ tài khoản 2–100 ký tự; số tài khoản 6–20
+  chữ số (bỏ khoảng trắng); chủ tài khoản lưu chữ in hoa (`22023
+  INVALID_ARGUMENT`).
+- Mỗi đơn chỉ một yêu cầu đang mở (`PT409 ACTIVE_RETURN_EXISTS`, kèm unique
+  index `return_requests_one_active_per_order_idx` làm chốt chặn cuối).
+- Chống gửi trùng: khóa `(customer_id, request_id)`. Gửi lại cùng key + cùng
+  nội dung (sau chuẩn hóa) trả lại đúng kết quả cũ với `replayed: true`; cùng
+  key khác nội dung → `PT409 IDEMPOTENCY_CONFLICT`. Advisory lock theo
+  request rồi theo đơn.
+- Ghi trong một transaction: `return_requests` (`pending_review`, kèm tài
+  khoản hoàn tiền), một `business_events` (`return_request`, `to_state =
+  pending_review`) và một thông báo cho mỗi manager. Không tạo `return_items`
+  (kế hoạch lấy hàng do manager quyết ở MH15), không đổi đơn/COD/tồn kho/hoàn
+  tiền.
+- ACK: `return_request_id`, `order_id`, `request_id`, `status`, `reason`,
+  `submitted_at`, `replayed`.
+
+Flutter: `ReturnRequestRepository` (`lib/features/returns/domain`), adapter
+`SupabaseReturnRequestRepository`. Upload video trước
+(`uploadBinary`, `upsert: false`, path dùng `request_id` làm tên file; 409
+Duplicate khi thử lại cùng key được coi là đã tải). Lỗi mạng/không rõ giữ
+nguyên `request_id` và path để gửi lại; lỗi nghiệp vụ hoặc sửa nội dung thì
+tạo `request_id` mới.
+
+## MH14 — Theo dõi yêu cầu trả của khách (Sơn, 01/11/2026)
+
+Migration `20261101090627_get_my_return_request.sql` (tạo bằng
+`npx --yes supabase@2.119.0 migration new get_my_return_request`). Chỉ đọc,
+không đổi bảng. **Chưa áp dụng lên cloud**; phụ thuộc migration MH13
+`20261101080125_submit_return_request.sql` (áp trước).
+
+`get_my_return_request(p_return_id uuid) → jsonb` — SECURITY DEFINER, owner
+`sports_store_return_tracking_reader` (NOLOGIN, NOINHERIT, NOBYPASSRLS, chỉ
+SELECT theo cột, policy chỉ cho đúng khách sở hữu).
+
+- Chỉ role `customer`; yêu cầu của khách khác hoặc id không tồn tại →
+  `PT404 RETURN_NOT_FOUND` (không phân biệt hai trường hợp). Manager/shipper
+  → `42501 PERMISSION_DENIED`; chưa đăng nhập → `42501 AUTH_REQUIRED`.
+- Trả: `return_id`, `order_id`, `status`, `reason`, `submitted_at`,
+  `decision_reason`, `decision_at`, `received_at_store`
+  (= `inspection_started_at`), `inspected_at`, `closed_at`,
+  `merchandise_vnd`, `delivery_fee_vnd`, `pickup_address`, `items[]` (hàng đã
+  duyệt thu hồi: `name`, `variant_label`, `quantity`), `pickup` và
+  `redelivery` (`status`, `assigned_at`, `collected_at`/`completed_at`,
+  `person` = tên + SĐT chỉ khi nhiệm vụ đang `assigned|accepted|in_transit`),
+  `refund` (chỉ khi đủ `refund_amount_vnd`, `refunded_at`,
+  `transfer_evidence_path`; không trả path), `refund_bank_name`,
+  `refund_account_masked` (`••••` + 4 số cuối), `server_now`.
+- Không có lịch hẹn, tuyến đường, vị trí hay yêu cầu bổ sung trong schema nên
+  không trả. "Yêu cầu bổ sung" cần schema + lệnh ghi phía MH15.
+
+Flutter: `ReturnTrackingRepository` → `SupabaseReturnTrackingRepository`;
+route `/customer/returns/:returnId` (guard customer, UUID). MH13 gửi thành
+công → `context.go('/customer/returns/<return_request_id>')`; đơn đã có yêu
+cầu đang mở → nút "Xem yêu cầu đang xử lý". Cập nhật khi đang mở màn dùng
+`ForegroundRefresh` dùng chung (3 s khi foreground + màn hiện tại, tải lại khi
+quay lại màn/app), dừng ở trạng thái kết thúc; không dùng Realtime (dự án chưa
+có publication). Mất kết nối giữ dữ liệu xác nhận gần nhất có nhãn + "Thử
+lại"; mất quyền/đổi tài khoản/`RETURN_NOT_FOUND` xóa dữ liệu đang hiển thị.
+
+
+## MH15 — Quản lý yêu cầu trả hàng, giai đoạn 1 (kiểm thử cục bộ 02/11/2026)
+
+Migration `20261102050041_manager_return_management.sql` (tạo bằng CLI 2.122.0).
+**Chưa áp dụng lên Supabase chung.** Mọi RPC kiểm tra `profiles.role = manager`
+ở server qua `private.require_manager()`; anon không có EXECUTE.
+
+| RPC | Quyền / tiền điều kiện | Kết quả |
+| --- | --- | --- |
+| `list_manager_return_requests(p_status text default null, p_query text default null) → jsonb` | SECURITY INVOKER; RLS manager | `items[]` (`return_id`, `order_id`, `status`, `reason`, `submitted_at`, `customer_name`, `total_vnd`, `line_count`, `first_item_name`), `counts{status:n}` theo tìm kiếm (không theo bộ lọc), `server_now`. Status lạ / query > 100 ký tự → `22023 INVALID_ARGUMENT`. |
+| `get_manager_return_request(p_return_request_id uuid) → jsonb` | SECURITY INVOKER | Chi tiết + `customer`, `recipient`, tiền, `order_items[]`, `return_items[]`, `video_paths[]` (gốc + bổ sung), `bank` (đầy đủ, chỉ manager), `pickup_task` mới nhất, `shippers[]`, `server_now`. Không có → `PT404 RETURN_NOT_FOUND`. |
+| `approve_return_collection(p_return_request_id uuid, p_request_id uuid, p_items jsonb, p_shipper_id uuid) → jsonb` | SECURITY DEFINER, owner `sports_store_return_management_writer` (NOLOGIN/NOINHERIT/NOBYPASSRLS); `pending_review`, chưa có return_items | Một giao dịch: tạo `return_items` từ `[{order_item_id, quantity}]` (≤ SL đã đặt, cùng đơn), gọi `approve_return_pickup_plan` + `assign_return_pickup_task` (request id con suy ra cố định từ `p_request_id`), thông báo khách + shipper. ACK: `operation`, `return_request_id`, `order_id`, `return_status=awaiting_return_pickup`, `task_id`, `shipper_id`, `approved_at`, `request_id`. Không đổi COD, tồn kho, hoàn tiền, đơn. |
+| `reject_return_request(p_return_request_id uuid, p_request_id uuid, p_reason text) → jsonb` | Như trên; `pending_review`; lý do 5–500 ký tự | `initially_rejected`, `decision_reason/decision_at/decided_by/closed_at`, event `return_initially_rejected`, thông báo khách. Không tạo thu hồi/hoàn tiền. |
+
+Lỗi: `42501 AUTH_REQUIRED | PERMISSION_DENIED | NOT_FOUND_OR_FORBIDDEN`,
+`22023 INVALID_ARGUMENT`, `PT409 STATE_CONFLICT | ITEMS_MISMATCH | INVALID_SHIPPER | IDEMPOTENCY_CONFLICT`.
+Idempotency: sổ `private.return_management_requests (actor_id, request_id)`;
+cùng khóa + cùng payload trả lại ACK cũ, khác payload → `IDEMPOTENCY_CONFLICT`,
+khóa mới sau khi đã quyết định → `STATE_CONFLICT`.
+
+Flutter: `ManagerReturnRepository` → `SupabaseManagerReturnRepository`;
+`managerReturnListProvider`, `managerReturnDetailProvider(returnId)`; giữ khóa
+khi kết quả chưa rõ (mạng/timeout), chặn bấm đúp, `STATE_CONFLICT` tải lại.
+
+Kiểm thử: `node supabase/tests/run_return_management.mjs` (SQL rollback +
+đồng thời: 6 lần bấm cùng khóa → 1 duyệt; 2 khóa khác nhau → 1 duyệt + 1
+`STATE_CONFLICT`). Bộ MH13/MH14, thu hồi, giao lại vẫn PASS với migration mới.
+
+## MH15 — Quản lý yêu cầu trả hàng, giai đoạn 2 (kiểm thử cục bộ 02/11/2026)
+
+Migration `20261102092824_return_management_resolution.sql` (CLI 2.122.0),
+áp sau giai đoạn 1. **Chưa áp dụng lên Supabase chung.** Không sửa RPC
+production của nhóm; nhận hàng và giao lại dùng nguyên
+`receive_customer_return`, `reject_return_after_inspection` (bên trong
+wrapper), `assign_redelivery_task`.
+
+| RPC | Quyền / tiền điều kiện | Kết quả |
+| --- | --- | --- |
+| `request_return_info(p_return_request_id, p_request_id, p_message)` | Manager; `pending_review` hoặc `under_inspection`; chưa có yêu cầu mở | Lưu `private.return_info_requests`, event `return_info_requested`, thông báo khách. Không đổi trạng thái. |
+| `get_my_return_info_request(p_return_id) → {info_request}` | Khách sở hữu (`PT404` nếu không) | Yêu cầu mới nhất: `message`, `requested_at`, `responded_at`. |
+| `respond_return_info(p_return_id, p_request_id, p_description, p_video_object_path default null)` | Khách sở hữu; có yêu cầu mở | Lưu phản hồi (10–1000 ký tự), video (đúng chủ, chưa dùng) nối vào `additional_video_paths`; thông báo manager. |
+| `accept_inspected_return(p_return_request_id, p_request_id, p_items [{return_item_id, sellable_quantity, damaged_quantity}], p_evidence_paths text[] default '{}')` | Manager; `under_inspection`; không có yêu cầu mở; phủ đủ mọi dòng, bán được + lỗi = thực nhận | `awaiting_refund`, `inspected_at/by`; `on_hand += bán được`, `damaged += lỗi`, một `inventory_movements` `return_received` mỗi biến thể; thông báo khách. |
+| `record_return_refund(p_return_request_id, p_request_id, p_amount_vnd, p_transferred_at, p_evidence_path)` | Manager; `awaiting_refund`; số tiền = `orders.total_cod_vnd`; thời điểm ≥ `inspected_at`, ≤ hiện tại + 5 phút; chứng từ có trong `refund-evidence` | `refunded`, gói hoàn tiền đầy đủ, `refund_request_id = p_request_id`, `closed_at`; thông báo khách. Không đổi COD. |
+| `reject_inspected_return(p_return_request_id, p_request_id, p_reason, p_evidence_paths text[])` | Manager; `under_inspection`; ≥ 1 bằng chứng có trong `inspection-evidence` | Lưu `inspection_evidence_paths` rồi gọi `reject_return_after_inspection` → `awaiting_redelivery`. |
+
+`get_manager_return_request` bổ sung: `inspection_started_at`, `inspected_at`,
+`inspection_evidence_paths`, `refund`, `info_requests[]`, `redelivery_task`,
+`pickup_task.handover_reported`. Lỗi mới: `PT409 AMOUNT_MISMATCH`,
+`PT422 EVIDENCE_REQUIRED`, `22023 INVALID_TRANSFER_TIME`. Chứng từ upload vào
+`<returnId>/<khóa lệnh>-<n>.<ext>` (policy Storage có sẵn); thử lại cùng khóa
+dùng lại đúng object.
+
+Kiểm thử: `node supabase/tests/run_return_management.mjs` chạy thêm
+`return_management_resolution.sql` (chuỗi thật: MH13 → yêu cầu bổ sung ↔
+phản hồi → duyệt → shipper lấy/bàn giao → nhận → chấp nhận + nhập kho → hoàn
+tiền; và từ chối sau kiểm tra → giao lại; quyền, lặp lại, xung đột, rollback).
+
+## MH20 — Chi tiết hội thoại (03/11/2026)
+
+Không migration mới. Dùng nguyên `get_chat_messages` (trang mới nhất ghi mốc
+đã đọc của người gọi), `send_chat_message` (idempotent theo
+`(sender_id, client_message_id)`), `list_chat_conversations`.
+`ChatRepository.getActivity(conversationId)` là phép đọc thuần qua RLS hiện có:
+`conversations(id, customer_id, read_at_by_user)` + tin cuối
+`messages(id, sender_id, created_at)`; không ghi gì, không đánh dấu đã đọc.
+Không thấy hội thoại (RLS) → `ChatFailure(accessDenied)`, xóa lịch sử đang hiện.
+
+Đo 03/11/2026 tới project chung (mạng hiện tại, mỗi request median/p90):
+`get_chat_messages` ≈ 680/770 ms, `conversations` ≈ 590/750 ms,
+`messages` ≈ 470/680 ms. Độ trễ hiển thị tin mới: cũ 0–20 s chờ + ≈ 0,7 s
+(trung bình ≈ 10,7 s, tệ nhất ≈ 21 s, ngừng hẳn khi có lỗi); mới 0–3 s chờ +
+≈ 0,75 s kiểm tra song song + ≈ 0,7 s tải (trung bình ≈ 3 s, tệ nhất ≈ 4,5 s).

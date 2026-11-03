@@ -213,6 +213,7 @@ void main() {
     expect(find.byKey(const ValueKey('task-search-input')), findsOneWidget);
     expect(find.byKey(const ValueKey('task-group-all')), findsOneWidget);
     expect(find.byKey(const ValueKey('task-group-waiting')), findsOneWidget);
+    expect(find.byKey(const ValueKey('task-group-retry')), findsOneWidget);
     expect(find.byKey(const ValueKey('task-kind-outbound')), findsOneWidget);
     expect(
       find.byKey(
@@ -225,7 +226,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Thông tin COD được giới hạn'), findsOneWidget);
-    expect(find.text('Giao thất bại'), findsOneWidget);
+    expect(find.text('Lần 1 chưa giao được'), findsOneWidget);
     expect(find.text('0 đ'), findsNothing);
   });
 

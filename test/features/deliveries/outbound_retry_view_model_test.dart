@@ -23,6 +23,12 @@ const _retryTaskId = '55555555-5555-4555-8555-555555555555';
 const _requestId = '66666666-6666-4666-8666-666666666666';
 
 final _failedTask = DeliveryTaskDto.fromJson(maskedTaskDto()).toDomain();
+final _historyFailedTask = DeliveryTaskDto.fromJson(
+  currentTaskDto(status: 'failed')
+    ..['snapshot_scope'] = 'history'
+    ..['completed_at'] = '2026-10-23T04:00:00Z',
+  allowReadableHistory: true,
+).toDomain();
 
 DeliveryTaskDetails _retryDetails() {
   final json = currentTaskDto(
@@ -217,7 +223,8 @@ void main() {
             theme: AppTheme.light,
             home: Scaffold(
               body: OutboundRetryAction(
-                task: _failedTask,
+                task: _historyFailedTask,
+                canRetry: true,
                 onCreated: (retryTaskId) async => created.add(retryTaskId),
               ),
             ),

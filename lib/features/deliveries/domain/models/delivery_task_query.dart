@@ -9,6 +9,7 @@ enum DeliveryTaskStateGroup {
   waiting('waiting'),
   inTransit('in_transit'),
   completed('completed'),
+  retry('retry'),
   failed('failed');
 
   const DeliveryTaskStateGroup(this.value);
@@ -155,6 +156,7 @@ final class DeliveryTaskCounts {
     required this.inTransit,
     required this.completed,
     required this.ungrouped,
+    this.retry = 0,
     this.failed = 0,
   });
 
@@ -162,6 +164,10 @@ final class DeliveryTaskCounts {
   final int inTransit;
   final int completed;
   final int ungrouped;
+
+  /// Outbound attempt-one failures that can be explicitly retried by the
+  /// assigned shipper. These rows remain included in [ungrouped].
+  final int retry;
 
   /// Failed tasks are exposed as a dedicated tab count while remaining part
   /// of [ungrouped]. This preserves the original ungrouped total for clients
@@ -178,13 +184,14 @@ final class DeliveryTaskCounts {
         waiting == other.waiting &&
         inTransit == other.inTransit &&
         completed == other.completed &&
+        retry == other.retry &&
         failed == other.failed &&
         ungrouped == other.ungrouped;
   }
 
   @override
   int get hashCode =>
-      Object.hash(waiting, inTransit, completed, failed, ungrouped);
+      Object.hash(waiting, inTransit, completed, retry, failed, ungrouped);
 }
 
 /// One immutable page returned by the task-list read contract.

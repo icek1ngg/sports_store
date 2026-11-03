@@ -310,6 +310,7 @@ class _GroupTabs extends StatelessWidget {
       null,
       DeliveryTaskStateGroup.waiting,
       DeliveryTaskStateGroup.inTransit,
+      DeliveryTaskStateGroup.retry,
       DeliveryTaskStateGroup.failed,
       DeliveryTaskStateGroup.completed,
     ];
@@ -628,6 +629,7 @@ String _groupLabel(DeliveryTaskStateGroup? group) => switch (group) {
   null => 'Tất cả',
   DeliveryTaskStateGroup.waiting => 'Chờ',
   DeliveryTaskStateGroup.inTransit => 'Đang giao',
+  DeliveryTaskStateGroup.retry => 'Giao lại',
   DeliveryTaskStateGroup.failed => 'Thất bại',
   DeliveryTaskStateGroup.completed => 'Hoàn tất',
 };
@@ -638,6 +640,7 @@ int? _groupCount(DeliveryTaskCounts? counts, DeliveryTaskStateGroup? group) {
     null => counts.total,
     DeliveryTaskStateGroup.waiting => counts.waiting,
     DeliveryTaskStateGroup.inTransit => counts.inTransit,
+    DeliveryTaskStateGroup.retry => counts.retry,
     DeliveryTaskStateGroup.failed => counts.failed,
     DeliveryTaskStateGroup.completed => counts.completed,
   };

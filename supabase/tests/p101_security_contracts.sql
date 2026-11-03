@@ -10,6 +10,7 @@ declare
     'complete_outbound_delivery','fail_delivery_task','decide_outbound_retry',
     'confirm_cod_received','list_cod_collections','read_my_delivery_tasks',
     'read_my_delivery_task_items','list_my_delivery_tasks','get_my_delivery_task',
+    'get_my_delivery_task_history',
     'get_my_delivery_reporting_context','report_store_handover','report_delivery_incident',
     'assign_return_pickup_task','collect_return_items','fail_return_pickup_task',
     'get_my_return_pickup_handover','report_return_pickup_handover',

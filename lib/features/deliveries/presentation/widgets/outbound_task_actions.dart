@@ -48,7 +48,10 @@ class _OutboundTaskActionsState extends ConsumerState<OutboundTaskActions> {
     final task = widget.task;
     if (!vm.canExecute(action, task)) return;
     final revision = vm.sessionRevisionForConfirmation;
-    final accept = action == OutboundTaskAction.acceptGoods;
+    final accept =
+        action == OutboundTaskAction.acceptGoods ||
+        action == OutboundTaskAction.acceptAndStart;
+    final acceptAndStart = action == OutboundTaskAction.acceptAndStart;
     var checked = false;
     var decided = false;
     _deciding = true;
@@ -66,16 +69,24 @@ class _OutboundTaskActionsState extends ConsumerState<OutboundTaskActions> {
           }
           return StatefulBuilder(
             builder: (context, setDialogState) => AlertDialog(
-              title: Text(accept ? 'Xác nhận nhận hàng' : 'Bắt đầu giao hàng'),
+              title: Text(
+                acceptAndStart
+                    ? 'Xác nhận nhận hàng và bắt đầu giao'
+                    : accept
+                    ? 'Xác nhận nhận hàng'
+                    : 'Bắt đầu giao hàng',
+              ),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      accept
-                          ? 'Chỉ xác nhận khi bạn đã thực nhận đầy đủ hàng. Server sẽ kiểm tra và ghi nhận xuất kho/custody.'
-                          : 'Chỉ bắt đầu khi bạn đang giữ đủ hàng và sẵn sàng vận chuyển. Server sẽ ghi nhận lần giao.',
+                      acceptAndStart
+                          ? 'Chỉ xác nhận khi bạn đã nhận đủ hàng. Nhiệm vụ sẽ chuyển sang đang giao ngay.'
+                          : accept
+                          ? 'Chỉ xác nhận khi bạn đã nhận đủ hàng.'
+                          : 'Chỉ bắt đầu khi bạn đang giữ đủ hàng và sẵn sàng vận chuyển.',
                     ),
                     const SizedBox(height: 12),
                     CheckboxListTile(
@@ -88,13 +99,15 @@ class _OutboundTaskActionsState extends ConsumerState<OutboundTaskActions> {
                           : (value) =>
                                 setDialogState(() => checked = value ?? false),
                       title: Text(
-                        accept
+                        acceptAndStart
+                            ? 'Tôi đã nhận đủ hàng và sẵn sàng giao ngay'
+                            : accept
                             ? 'Tôi đã thực nhận đủ hàng'
                             : 'Tôi đang giữ đủ hàng và bắt đầu giao',
                       ),
                     ),
                     const Text(
-                      'Thao tác này không xác nhận giao thành công hoặc thu COD.',
+                      'Thao tác này bắt đầu chuyến giao và không xác nhận giao thành công hoặc thu COD.',
                     ),
                   ],
                 ),
@@ -119,7 +132,13 @@ class _OutboundTaskActionsState extends ConsumerState<OutboundTaskActions> {
                           decided = true;
                           Navigator.of(dialogContext).pop(true);
                         },
-                  child: Text(accept ? 'Xác nhận nhận hàng' : 'Bắt đầu giao'),
+                  child: Text(
+                    acceptAndStart
+                        ? 'Nhận hàng'
+                        : accept
+                        ? 'Xác nhận nhận hàng'
+                        : 'Bắt đầu giao',
+                  ),
                 ),
               ],
             ),
@@ -149,7 +168,7 @@ class _OutboundTaskActionsState extends ConsumerState<OutboundTaskActions> {
     final state = ref.watch(provider);
     final vm = ref.read(provider.notifier);
     final action = switch (widget.task.status) {
-      DeliveryTaskStatus.assigned => OutboundTaskAction.acceptGoods,
+      DeliveryTaskStatus.assigned => OutboundTaskAction.acceptAndStart,
       DeliveryTaskStatus.accepted => OutboundTaskAction.startDelivery,
       _ => null,
     };
@@ -173,7 +192,8 @@ class _OutboundTaskActionsState extends ConsumerState<OutboundTaskActions> {
             canExecuteOutboundAction(widget.task, action))
           OutlinedButton(
             key: ValueKey(
-              action == OutboundTaskAction.acceptGoods
+              action == OutboundTaskAction.acceptGoods ||
+                      action == OutboundTaskAction.acceptAndStart
                   ? 'outbound-accept-goods'
                   : 'outbound-start-delivery',
             ),
@@ -181,7 +201,8 @@ class _OutboundTaskActionsState extends ConsumerState<OutboundTaskActions> {
                 ? () => _confirm(action)
                 : null,
             child: Text(
-              action == OutboundTaskAction.acceptGoods
+              action == OutboundTaskAction.acceptGoods ||
+                      action == OutboundTaskAction.acceptAndStart
                   ? 'Nhận hàng'
                   : 'Bắt đầu giao hàng',
             ),

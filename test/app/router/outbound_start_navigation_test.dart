@@ -64,8 +64,11 @@ void main() {
           if (path.endsWith('/read_my_delivery_tasks')) {
             return jsonResponse(request, [task]);
           }
-          if (path.endsWith('/get_my_delivery_task')) {
+          if (path.endsWith('/get_my_delivery_task_history')) {
             detailReads++;
+            return jsonResponse(request, _detail(task));
+          }
+          if (path.endsWith('/get_my_delivery_task')) {
             return jsonResponse(request, _detail(task));
           }
           if (path.endsWith('/list_my_delivery_tasks')) {

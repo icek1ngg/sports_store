@@ -8,7 +8,19 @@ class SupabaseChatRepository implements ChatRepository {
   SupabaseChatRepository(this.client);
   final SupabaseClient client;
 
-  Future<Object?> _rpc(String name, [Map<String, dynamic>? params]) async {
+  Future<Object?> _rpc(String name, [Map<String, dynamic>? params]) => _execute(
+    (token) => client
+        .rpc(name, params: params)
+        .setHeader('Authorization', 'Bearer $token')
+        .retry(enabled: false, requestTimeout: const Duration(seconds: 15)),
+  );
+
+  /// Runs one request with the current session token and maps every failure
+  /// to a safe [ChatFailure]; a response that arrives after an account
+  /// change is discarded.
+  Future<Object?> _execute(
+    Future<Object?> Function(String accessToken) request,
+  ) async {
     final session = client.auth.currentSession;
     if (session == null || session.isExpired) {
       throw const ChatFailure(
@@ -17,10 +29,7 @@ class SupabaseChatRepository implements ChatRepository {
       );
     }
     try {
-      final result = await client
-          .rpc(name, params: params)
-          .setHeader('Authorization', 'Bearer ${session.accessToken}')
-          .retry(enabled: false, requestTimeout: const Duration(seconds: 15));
+      final result = await request(session.accessToken);
       if (!identical(client.auth.currentSession, session)) {
         throw const ChatFailure(
           'Tài khoản đã thay đổi. Vui lòng tải lại.',
@@ -68,7 +77,7 @@ class SupabaseChatRepository implements ChatRepository {
       senderId: requiredUuid(row, 'sender_id'),
       body: requiredString(row, 'body', nonBlank: true),
       clientMessageId: requiredUuid(row, 'client_message_id'),
-      createdAt: DateTime.parse(requiredString(row, 'created_at')).toUtc(),
+      createdAt: requiredUtcTimestamp(row, 'created_at'),
     );
   }
 
@@ -134,6 +143,75 @@ class SupabaseChatRepository implements ChatRepository {
     return ChatMessagePage(
       messages: messages,
       hasMore: row['has_more'] as bool,
+    );
+  }
+
+  @override
+  Future<ChatActivity> getActivity(String conversationId) async {
+    // Both reads are independent: run them together (one round trip).
+    final conversationRead = _execute(
+      (token) => client
+          .from('conversations')
+          .select('id,customer_id,read_at_by_user')
+          .eq('id', conversationId)
+          .setHeader('Authorization', 'Bearer $token')
+          .maybeSingle()
+          .timeout(const Duration(seconds: 15)),
+    );
+    final latestRead = _execute(
+      (token) => client
+          .from('messages')
+          .select('id,sender_id,created_at')
+          .eq('conversation_id', conversationId)
+          .order('created_at', ascending: false)
+          .order('id', ascending: false)
+          .limit(1)
+          .setHeader('Authorization', 'Bearer $token')
+          .timeout(const Duration(seconds: 15)),
+    );
+    final [conversation, latest] = await Future.wait([
+      conversationRead,
+      latestRead,
+    ]);
+    if (conversation == null) {
+      // RLS hides other customers' conversations and every shipper.
+      throw const ChatFailure(
+        'Bạn không có quyền truy cập hội thoại này.',
+        accessDenied: true,
+      );
+    }
+    final row = _object(conversation);
+    if (row['id'] != conversationId) {
+      throw const ChatFailure('Dữ liệu hội thoại không khớp.');
+    }
+    if (latest is! List) {
+      throw const ChatFailure('Dữ liệu hội thoại không hợp lệ.');
+    }
+    final head = latest.isEmpty ? null : _object(latest.single);
+    final rawReads = row['read_at_by_user'];
+    final reads = <String, DateTime>{};
+    if (rawReads is Map) {
+      for (final entry in rawReads.entries) {
+        final value = entry.value;
+        if (entry.key is String && value is String) {
+          reads[entry.key as String] = parseUtcTimestamp(
+            value,
+            path: 'read_at_by_user',
+          );
+        }
+      }
+    } else if (rawReads != null) {
+      throw const ChatFailure('Dữ liệu đã đọc không hợp lệ.');
+    }
+    return ChatActivity(
+      conversationId: conversationId,
+      customerId: requiredUuid(row, 'customer_id'),
+      readAtByUser: Map.unmodifiable(reads),
+      latestMessageId: head == null ? null : requiredUuid(head, 'id'),
+      latestSenderId: head == null ? null : requiredUuid(head, 'sender_id'),
+      latestMessageAt: head == null
+          ? null
+          : requiredUtcTimestamp(head, 'created_at'),
     );
   }
 
