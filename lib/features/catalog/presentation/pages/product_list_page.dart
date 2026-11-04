@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../app/theme/storefront_theme.dart';
+import '../../../auth/presentation/widgets/logout_button.dart';
 import '../../domain/models/catalog_page.dart';
 import '../../domain/models/catalog_query.dart';
 import '../../domain/models/product.dart';
@@ -87,69 +89,72 @@ class _ProductListPageState extends ConsumerState<ProductListPage> {
       );
     }
 
-    return Scaffold(
-      key: const ValueKey('catalog-product-list'),
-      appBar: AppBar(
-        title: const Text('Sản phẩm'),
-        actions: [
-          IconButton(
-            key: const ValueKey('catalog-open-cart'),
-            onPressed: () => context.push('/customer/cart'),
-            tooltip: 'Giỏ hàng',
-            icon: const Icon(Icons.shopping_bag_outlined),
-          ),
-          const SizedBox(width: 4),
-        ],
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-              child: TextField(
-                key: const ValueKey('catalog-search-field'),
-                controller: _searchController,
-                textInputAction: TextInputAction.search,
-                onChanged: (_) => setState(() {}),
-                onSubmitted: _submitSearch,
-                decoration: InputDecoration(
-                  hintText: 'Tìm sản phẩm thể thao',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: _searchController.text.isEmpty
-                      ? null
-                      : IconButton(
-                          key: const ValueKey('catalog-search-clear'),
-                          tooltip: 'Xóa tìm kiếm',
-                          onPressed: _clearSearch,
-                          icon: const Icon(Icons.clear),
-                        ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(18),
+    return StorefrontTheme(
+      child: Scaffold(
+        key: const ValueKey('catalog-product-list'),
+        appBar: AppBar(
+          title: const Text('STRIDE  /  SẢN PHẨM'),
+          actions: [
+            IconButton(
+              key: const ValueKey('catalog-open-cart'),
+              onPressed: () => context.push('/customer/cart'),
+              tooltip: 'Giỏ hàng',
+              icon: const Icon(Icons.shopping_bag_outlined),
+            ),
+            const LogoutButton(),
+            const SizedBox(width: 4),
+          ],
+        ),
+        body: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+                child: TextField(
+                  key: const ValueKey('catalog-search-field'),
+                  controller: _searchController,
+                  textInputAction: TextInputAction.search,
+                  onChanged: (_) => setState(() {}),
+                  onSubmitted: _submitSearch,
+                  decoration: InputDecoration(
+                    hintText: 'Tìm sản phẩm thể thao',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _searchController.text.isEmpty
+                        ? null
+                        : IconButton(
+                            key: const ValueKey('catalog-search-clear'),
+                            tooltip: 'Xóa tìm kiếm',
+                            onPressed: _clearSearch,
+                            icon: const Icon(Icons.clear),
+                          ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    filled: true,
                   ),
-                  filled: true,
                 ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(left: 16, right: 16, bottom: 4),
-              child: CategoryFilterChips(
-                categories: categories,
-                selectedCategoryId: query.categoryId,
-                onSelected: (categoryId) => ref
-                    .read(catalogQueryProvider.notifier)
-                    .setCategory(categoryId),
-                onRetry: _retryCategories,
+              Padding(
+                padding: const EdgeInsets.only(left: 16, right: 16, bottom: 4),
+                child: CategoryFilterChips(
+                  categories: categories,
+                  selectedCategoryId: query.categoryId,
+                  onSelected: (categoryId) => ref
+                      .read(catalogQueryProvider.notifier)
+                      .setCategory(categoryId),
+                  onRetry: _retryCategories,
+                ),
               ),
-            ),
-            Expanded(
-              child: _CatalogResults(
-                page: page,
-                query: query,
-                onRefresh: _refreshCatalog,
-                onRetry: _retryProducts,
+              Expanded(
+                child: _CatalogResults(
+                  page: page,
+                  query: query,
+                  onRefresh: _refreshCatalog,
+                  onRetry: _retryProducts,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -208,6 +213,26 @@ class _CatalogResults extends ConsumerWidget {
         key: const ValueKey('catalog-products-scroll'),
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Wrap(
+                crossAxisAlignment: WrapCrossAlignment.end,
+                spacing: 12,
+                runSpacing: 4,
+                children: [
+                  Text(
+                    'BỘ SƯU TẬP',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  Text(
+                    '${data.products.length} sản phẩm trên trang',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          ),
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             sliver: SliverLayoutBuilder(

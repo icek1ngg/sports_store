@@ -1997,3 +1997,11 @@ Không thấy hội thoại (RLS) → `ChatFailure(accessDenied)`, xóa lịch s
 `messages` ≈ 470/680 ms. Độ trễ hiển thị tin mới: cũ 0–20 s chờ + ≈ 0,7 s
 (trung bình ≈ 10,7 s, tệ nhất ≈ 21 s, ngừng hẳn khi có lỗi); mới 0–3 s chờ +
 ≈ 0,75 s kiểm tra song song + ≈ 0,7 s tải (trung bình ≈ 3 s, tệ nhất ≈ 4,5 s).
+
+## Giỏ hàng sau khi đặt đơn tại MH16
+
+`place_order` trừ số lượng đã mua khỏi từng biến thể trong giỏ của khách trong
+cùng giao dịch tạo đơn. Dòng hết số lượng được xóa. Món ngoài đơn và số lượng
+thêm dư vẫn ở trong giỏ. Đơn thất bại giữ nguyên giỏ. Gửi lại cùng yêu cầu
+trả về đơn cũ và chỉ trừ giỏ một lần. Khi nhận hoặc khôi phục biên nhận,
+ứng dụng tải lại giỏ từ máy chủ.

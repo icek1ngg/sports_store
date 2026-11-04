@@ -24,6 +24,7 @@ Future<({GoRouter router, ProviderContainer container})> _openStore(
   final client = (await tester.runAsync(
     () => fixtureClient((request) async {
       final path = request.url.path;
+      if (path.endsWith('/logout')) return jsonResponse(request, null);
       if (path.endsWith('/profiles')) {
         return jsonResponse(request, [
           {
@@ -124,6 +125,31 @@ Future<void> _tap(WidgetTester tester, String key) async {
 }
 
 void main() {
+  testWidgets('customer can sign out from the catalog toolbar', (tester) async {
+    final app = await _openStore(tester);
+    await tester.tap(find.byTooltip('Đăng xuất'));
+    await tester.pumpAndSettle();
+    expect(
+      app.container.read(supabaseClientProvider).auth.currentSession,
+      isNull,
+    );
+    expect(find.text('Đăng nhập'), findsWidgets);
+    expect(find.byKey(const ValueKey('catalog-product-list')), findsNothing);
+  });
+
+  testWidgets('direct cart entry has a back button that opens the catalog', (
+    tester,
+  ) async {
+    final app = await _openStore(tester);
+    app.router.go('/customer/cart');
+    await _until(tester, 'cart-checkout');
+    expect(app.router.canPop(), isFalse);
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    await _until(tester, 'catalog-product-$productId');
+    expect(app.router.state.uri.path, '/customer/products');
+  });
+
   testWidgets('details back stays on catalog while initial cart load failed', (
     tester,
   ) async {

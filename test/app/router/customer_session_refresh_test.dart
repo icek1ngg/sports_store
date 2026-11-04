@@ -74,7 +74,7 @@ class _CustomerFixture {
       final after = request.url.queryParameters['variant_id'];
       return jsonResponse(
         request,
-        after?.startsWith('gt.') == true
+        after?.startsWith('gt.') == true || placements.isNotEmpty
             ? []
             : [
                 {
@@ -280,6 +280,10 @@ void main() {
       expect(payload['p_items'], [
         {'variant_id': variantId, 'quantity': 2},
       ]);
+      final backToCart = find.text('Quay lại giỏ hàng');
+      await tester.ensureVisible(backToCart);
+      await tester.tap(backToCart);
+      await _until(tester, () => _visible('cart-empty'));
       expect(tester.takeException(), isNull);
     },
   );

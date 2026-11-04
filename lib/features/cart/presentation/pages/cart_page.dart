@@ -29,6 +29,15 @@ class CartPage extends ConsumerWidget {
     return Scaffold(
       key: const ValueKey('cart-page'),
       appBar: AppBar(
+        leading: BackButton(
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/customer/products');
+            }
+          },
+        ),
         title: const Text('Giỏ hàng'),
         actions: [
           IconButton(

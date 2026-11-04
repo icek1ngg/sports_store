@@ -172,6 +172,12 @@ set name = excluded.name,
 
 -- Execute grants are narrow and the function itself enforces the current
 -- server-managed customer role.
+insert into public.cart_items (customer_id, variant_id, quantity) values
+  ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001', 1),
+  ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000002', 3),
+  ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000003', 1),
+  ('10000000-0000-0000-0000-000000000003', '40000000-0000-0000-0000-000000000001', 1);
+
 select pg_temp.assert_rows(
   'authenticated may execute placement',
   $$select 1 where has_function_privilege(
@@ -315,6 +321,14 @@ select pg_temp.set_test_claims(
 
 -- A retry with sorted-equivalent items, trimmed recipient fields and numeric
 -- coordinate formatting replays the original snapshot without new effects.
+select pg_temp.assert_rows('fully purchased line removed',
+  $$select 1 from public.cart_items where variant_id = '40000000-0000-0000-0000-000000000001'$$, 0);
+select pg_temp.assert_rows('additional quantity and unpurchased line retained',
+  $$select 1 from public.cart_items where
+    (variant_id = '40000000-0000-0000-0000-000000000002' and quantity = 2)
+    or (variant_id = '40000000-0000-0000-0000-000000000003' and quantity = 1)$$, 2);
+insert into public.cart_items (customer_id, variant_id, quantity)
+values (auth.uid(), '40000000-0000-0000-0000-000000000001', 1);
 insert into checkout_test_results (name, result)
 values (
   'replay',
@@ -357,6 +371,8 @@ select pg_temp.assert_rows(
   current_setting('checkout_test.event_id')),
   3
 );
+select pg_temp.assert_rows('replay keeps re-added item and other customer cart',
+  $$select 1 from public.cart_items where variant_id = '40000000-0000-0000-0000-000000000001' and quantity = 1$$, 2);
 
 -- Catalog changes do not rewrite a committed order snapshot used by replay.
 reset role;
@@ -509,6 +525,9 @@ select pg_temp.assert_code(
   ),
   'outside_service_area'
 );
+
+select pg_temp.assert_rows('failed placement preserves remaining quantity',
+  $$select 1 from public.cart_items where variant_id = '40000000-0000-0000-0000-000000000002' and quantity = 1$$, 1);
 
 -- MultiPolygon accepts a point in any valid polygon, but must still validate
 -- every polygon in the collection (a malformed later polygon fails closed).

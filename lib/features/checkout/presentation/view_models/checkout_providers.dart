@@ -2,7 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../cart/domain/models/cart_failure.dart';
+import '../../../cart/domain/models/cart_item.dart';
 import '../../../cart/presentation/view_models/cart_providers.dart';
+import '../../../cart/presentation/view_models/cart_state.dart';
 import '../../../deliveries/data/repositories/operational_providers.dart';
 import '../../../deliveries/domain/models/operational_failure.dart';
 import '../../data/repositories/pending_placement_store.dart';
@@ -41,6 +43,7 @@ class CheckoutViewModel extends AsyncNotifier<CheckoutState> {
   bool _running = false;
   String? _userId;
   PlacementRequest? _pending;
+  ProviderSubscription<Future<CartState>>? _cartChanges;
 
   @override
   Future<CheckoutState> build() async {
@@ -60,7 +63,11 @@ class CheckoutViewModel extends AsyncNotifier<CheckoutState> {
     final userId = session.userId!;
     _userId = userId;
 
-    final cart = await ref.watch(cartProvider.future);
+    _cartChanges = ref.listen(
+      cartProvider.future,
+      (_, _) => ref.invalidateSelf(),
+    );
+    final cart = await ref.read(cartProvider.future);
     final items = cart.items;
     if (!_current(epoch)) throw const _SupersededCheckout();
 
@@ -88,14 +95,13 @@ class CheckoutViewModel extends AsyncNotifier<CheckoutState> {
         if (result == null) {
           throw const CheckoutFailure(CheckoutFailureCode.invalidData);
         }
-        try {
-          result.validateAgainst(pending.request, customerId: userId);
-        } on FormatException {
-          throw const CheckoutFailure(CheckoutFailureCode.invalidData);
-        }
-        _pending = null;
-        await _clearPendingQuietly(userId, epoch);
-        return CheckoutState(items: items, result: result, userId: userId);
+        return await _completePlacement(
+          items,
+          result,
+          pending.request,
+          userId,
+          epoch,
+        );
       }
       return CheckoutState(
         items: items,
@@ -145,6 +151,7 @@ class CheckoutViewModel extends AsyncNotifier<CheckoutState> {
     }
 
     final epoch = _epoch;
+    final submission = ref.keepAlive();
     _running = true;
     try {
       final request = PlacementRequest.fromCart(
@@ -183,20 +190,15 @@ class CheckoutViewModel extends AsyncNotifier<CheckoutState> {
           .read(checkoutRepositoryProvider)
           .placeOrder(request);
       if (!_current(epoch)) return false;
-      _verifyReceipt(result, request, userId);
-      _pending = null;
-      await _clearPendingQuietly(userId, epoch);
-      if (!_current(epoch)) return false;
-      state = AsyncData(
-        current.copyWith(
-          result: result,
-          clearPendingRequest: true,
-          isSubmitting: false,
-          isRecovering: false,
-          recoveryNotFound: false,
-          clearFailure: true,
-        ),
+      final completed = await _completePlacement(
+        current.items,
+        result,
+        request,
+        userId,
+        epoch,
       );
+      if (!_current(epoch)) return false;
+      state = AsyncData(completed);
       return true;
     } on _SupersededCheckout {
       return false;
@@ -231,6 +233,7 @@ class CheckoutViewModel extends AsyncNotifier<CheckoutState> {
       );
     } finally {
       if (_current(epoch)) _running = false;
+      submission.close();
     }
   }
 
@@ -258,6 +261,7 @@ class CheckoutViewModel extends AsyncNotifier<CheckoutState> {
     final userId = _userId;
     if (current == null || request == null || userId == null) return false;
     final epoch = _epoch;
+    final submission = ref.keepAlive();
     _running = true;
     _pending = request;
     state = AsyncData(
@@ -274,46 +278,22 @@ class CheckoutViewModel extends AsyncNotifier<CheckoutState> {
           .read(checkoutRepositoryProvider)
           .lookupPlacementResult(request.requestId);
       if (!_current(epoch)) return false;
-      if (lookup.isCommitted) {
-        final result = lookup.result;
-        if (result == null) {
-          throw const CheckoutFailure(CheckoutFailureCode.invalidData);
-        }
-        try {
-          result.validateAgainst(request, customerId: userId);
-        } on FormatException {
-          throw const CheckoutFailure(CheckoutFailureCode.invalidData);
-        }
-        _pending = null;
-        await _clearPendingQuietly(userId, epoch);
-        if (!_current(epoch)) return false;
-        state = AsyncData(
-          current.copyWith(
-            result: result,
-            clearPendingRequest: true,
-            isSubmitting: false,
-            isRecovering: false,
-          ),
-        );
-        return true;
+      final result = lookup.isCommitted
+          ? lookup.result
+          : await ref.read(checkoutRepositoryProvider).placeOrder(request);
+      if (!_current(epoch)) return false;
+      if (result == null) {
+        throw const CheckoutFailure(CheckoutFailureCode.invalidData);
       }
-      final result = await ref
-          .read(checkoutRepositoryProvider)
-          .placeOrder(request);
-      if (!_current(epoch)) return false;
-      _verifyReceipt(result, request, userId);
-      _pending = null;
-      await _clearPendingQuietly(userId, epoch);
-      if (!_current(epoch)) return false;
-      state = AsyncData(
-        current.copyWith(
-          result: result,
-          clearPendingRequest: true,
-          isSubmitting: false,
-          isRecovering: false,
-          recoveryNotFound: false,
-        ),
+      final completed = await _completePlacement(
+        current.items,
+        result,
+        request,
+        userId,
+        epoch,
       );
+      if (!_current(epoch)) return false;
+      state = AsyncData(completed);
       return true;
     } on CheckoutFailure catch (failure, stack) {
       return _finishFailure(failure, stack, epoch, userId, current);
@@ -327,6 +307,7 @@ class CheckoutViewModel extends AsyncNotifier<CheckoutState> {
       );
     } finally {
       if (_current(epoch)) _running = false;
+      submission.close();
     }
   }
 
@@ -377,16 +358,25 @@ class CheckoutViewModel extends AsyncNotifier<CheckoutState> {
 
   bool _current(int epoch) => ref.mounted && epoch == _epoch;
 
-  void _verifyReceipt(
+  Future<CheckoutState> _completePlacement(
+    List<CartItem> items,
     PlacementResult result,
     PlacementRequest request,
     String userId,
-  ) {
+    int epoch,
+  ) async {
     try {
       result.validateAgainst(request, customerId: userId);
     } on FormatException {
       throw const CheckoutFailure(CheckoutFailureCode.invalidData);
     }
+    // The receipt must stay visible when the cart refreshes after commit.
+    _cartChanges?.close();
+    ref.invalidate(cartProvider);
+    _pending = null;
+    await _clearPendingQuietly(userId, epoch);
+    if (!_current(epoch)) throw const _SupersededCheckout();
+    return CheckoutState(items: items, result: result, userId: userId);
   }
 
   static String _newRequestId() {
