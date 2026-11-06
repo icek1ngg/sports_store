@@ -226,7 +226,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.byType(ManagerOrderDetailsPage), findsOneWidget);
         expect(environment.manager.managerDetailReads.last, firstId);
-        expect(find.text('Đơn hàng $firstId'), findsOneWidget);
+        expect(find.text(firstId), findsOneWidget);
         final headAfterDetail = environment.manager.managerReads
             .where((query) => query.cursor == null)
             .length;
@@ -234,7 +234,7 @@ void main() {
             .where((query) => query.cursor != null)
             .length;
 
-        await tester.pageBack();
+        await tester.tap(find.byTooltip('Quay lại'));
         await tester.pumpAndSettle();
         expect(find.byType(ManagerOrdersPage), findsOneWidget);
         final headAfter = environment.manager.managerReads

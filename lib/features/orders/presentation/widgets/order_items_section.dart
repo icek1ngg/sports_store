@@ -25,7 +25,7 @@ class OrderItemsSection extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: Theme.of(context).textTheme.titleMedium),
+            Text(title, style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 12),
             if (items.isEmpty)
               const Text('Không có dòng sản phẩm')
@@ -67,11 +67,11 @@ class _OrderItemRow extends StatelessWidget {
           excludeSemantics: true,
           label: 'Không có ảnh sản phẩm',
           child: Container(
-            width: 48,
-            height: 48,
+            width: 64,
+            height: 64,
             decoration: BoxDecoration(
               color: colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(16),
             ),
             child: Icon(
               Icons.image_not_supported_outlined,

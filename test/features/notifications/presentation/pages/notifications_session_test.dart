@@ -71,13 +71,17 @@ Future<void> _settle(WidgetTester tester) async {
   await tester.pump();
 }
 
-Future<void> _show(WidgetTester tester, ProviderContainer container) async {
+Future<void> _show(
+  WidgetTester tester,
+  ProviderContainer container, {
+  bool enablePolling = false,
+}) async {
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
       child: MaterialApp(
         theme: AppTheme.light,
-        home: const NotificationsPage(enablePolling: false),
+        home: NotificationsPage(enablePolling: enablePolling),
       ),
     ),
   );
@@ -85,6 +89,80 @@ Future<void> _show(WidgetTester tester, ProviderContainer container) async {
 }
 
 void main() {
+  testWidgets(
+    'inbox denial also hides an already open notification-only modal',
+    (tester) async {
+      final repository = _SessionNotifications()
+        ..pageHandler = ((_) async => _page(_scopeA, 'A'))
+        ..countHandler = () async => 41;
+      final container = ProviderContainer(
+        overrides: [
+          featureSessionScopeProvider.overrideWithValue(_scopeA),
+          notificationRepositoryProvider.overrideWithValue(repository),
+        ],
+      );
+      addTearDown(container.dispose);
+      await _show(tester, container);
+      await tester.tap(find.text('Thông báo riêng A'));
+      await tester.pumpAndSettle();
+      expect(find.text('Nội dung riêng A'), findsWidgets);
+      repository.countHandler = () async =>
+          throw const AppFailure(code: AppFailure.forbiddenOrUnavailable);
+      final refresh = container
+          .read(unreadCountFoundationProvider.notifier)
+          .refresh();
+      await _settle(tester);
+      await refresh;
+      await _settle(tester);
+      expect(find.text('Nội dung riêng A'), findsNothing);
+      expect(find.text('Thông báo riêng A'), findsNothing);
+      expect(find.text('41'), findsNothing);
+      expect(find.byType(SessionUnavailableState), findsWidgets);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
+  testWidgets(
+    'expiry during polling hides private state and drops the late poll',
+    (tester) async {
+      var scope = _scopeA;
+      final response = Completer<NotificationPage>();
+      final count = Completer<int>();
+      var polling = false;
+      final repository = _SessionNotifications()
+        ..pageHandler = ((_) =>
+            polling ? response.future : Future.value(_page(_scopeA, 'A')))
+        ..countHandler = () => polling ? count.future : Future.value(41);
+      final container = ProviderContainer(
+        overrides: [
+          featureSessionScopeProvider.overrideWith((ref) => scope),
+          notificationRepositoryProvider.overrideWithValue(repository),
+        ],
+      );
+      addTearDown(container.dispose);
+      await _show(tester, container, enablePolling: true);
+      expect(find.text('Thông báo riêng A'), findsOneWidget);
+      polling = true;
+      await tester.pump(const Duration(seconds: 3));
+      await _settle(tester);
+      expect(repository.pageCalls, 2);
+      scope = const SessionScope(userId: null, role: null, generation: 2);
+      container.invalidate(featureSessionScopeProvider);
+      await _settle(tester);
+      expect(find.text('Thông báo riêng A'), findsNothing);
+      expect(find.text('41'), findsNothing);
+      response.complete(_page(_scopeA, 'A'));
+      count.complete(42);
+      await _settle(tester);
+      await tester.pump(const Duration(seconds: 7));
+      expect(repository.pageCalls, 2);
+      expect(find.text('Thông báo riêng A'), findsNothing);
+      expect(find.text('42'), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
   testWidgets('account switch hides old rows and badge in the first frame', (
     tester,
   ) async {

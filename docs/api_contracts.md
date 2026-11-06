@@ -47,3 +47,19 @@ Mọi action thay đổi tồn/tiền/trạng thái phải kiểm tra identity, 
 ## Orders/Notifications owned design revision1.2 — chưa triển khai
 
 Owner Bảo đã ủy quyền chốt kỹ thuật phạm vi MH07/08/09/17. [Main Specification](technical_specification_mh07_mh08_mh09_mh17.md), [Data/API normative](technical_specification_mh07_mh08_mh09_mh17_data_api.md), [Final Decisions](Final_Technical_Decisions.md), [Cross Contracts](Cross_Module_Integration_Contracts.md) và [Readiness](Implementation_Readiness_v1.2.md). Owned shapes/RPC/receipt/metadata/query/UI design OWNER DECIDED — PROPOSED IMPLEMENTATION; không ghi tables/RPC mới là existing, không thay enum hay grants hiện tại. FullUUID/no humanordercode, snapshotplaceholder, safeCustomerprojection không mở rawtasks/events RLS; main4role routes proposed centralrouter. CIN01–09 external contractoffers NOT ACCEPTED/NOT IMPLEMENTED; recommendedtask2samecustody/inspection cần ownerDelivery/Inventory xác nhận. Businesslost/partialclosure/transferafterpickup/7dayedge chưa quyết. Nội dung baseline của module khác giữ nguyên; currentowned definitions ở revision1.2, schema/runtime baseline vẫn three existingmigrations.
+
+## I1 Auth/session bridge — implementation ngày 27/10/2026
+
+User đã giao triển khai phần Auth/session của I1. Section này cập nhật riêng client bridge; không coi toàn bộ CIN-01/protected command storage hoặc các external CIN khác là accepted/implemented. Audit 26/10/2026 giữ nguyên như historical snapshot.
+
+- AuthRepository thuộc features/auth: currentSession là SDK snapshot chưa xác minh; sessionChanges phát tín hiệu restore/auth changes; resolveRole(expected) xác minh exact session với Auth server rồi đọc profiles(id,role); signOut xóa session local trước khi đợi remote logout.
+- SupabaseAuthRepository dùng shared supabaseClientProvider; identity kiểm qua getUser(expected token), role chỉ lấy từ profiles.role theo ID đã kiểm. Không đọc user_metadata.role hoặc lấy JWT role làm business role; không fallback customer khi thiếu profile/quyền/role hợp lệ.
+- AuthSessionViewModel là publisher production duy nhất của SessionScope. main ProviderScope bind featureSessionScopeProvider vào VM; default unresolved và Preview overrides giữ nguyên. AuthSession token-free chỉ là identity/expiry cho request guards, không phải authority thứ hai.
+- Mỗi verification mới tăng generation, publish unresolved không đọc private data trước async work; success cùng generation. Logout/error/expiry đổi namespace và reject late result theo revision + mounted + exact SDK session identity. Same user/new token/session vẫn đổi generation. Counter tăng trong process kể cả provider recreation; restart process không phục hồi private memory cache.
+- Auth event/resume và recheck 60 giây xác minh lại role; timeout tổng 10 giây, local expiry margin 10 giây. Overlapping checks cùng snapshot được coalesce. Không đảm bảo thu hồi role tức thời khi server không phát signal; backend RLS/current permissions vẫn bắt buộc ở mọi request.
+- Stream error fail-closed và có retry/recheck; stream kết thúc bất ngờ giữ denied đến khi provider được tạo lại với nguồn stream hợp lệ. Dispose hủy subscription/timers; read futures đã chạy có thể hoàn tất nhưng không được publish sau timeout/session change/dispose.
+- AuthSessionException không giữ/in lỗi transport, token, credentials hoặc PII. VM.signOut() trả bool để caller xử lý kết quả remote; remote failure không khôi phục quyền local.
+
+Source implementation + mocked SDK/provider/widget tests đã có; authenticated runtime, deployed profiles/RLS/session restore trên thiết bị **NOT VERIFIED** vì chưa có QA account/staging được phê duyệt. Không chạy migration, không tạo tài khoản; chưa MH01/MH02, I2 data repositories, I3 router hoặc durable pending command store.
+
+Chi tiết API, generation và verification: [I1 handoff](features/auth/I1_AUTH_SESSION_HANDOFF.md).

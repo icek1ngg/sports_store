@@ -6,13 +6,13 @@ import 'package:sports_store/app/theme/app_theme.dart';
 import 'package:sports_store/core/state/foundation_providers.dart';
 import 'package:sports_store/features/orders/domain/models/order_query.dart';
 import 'package:sports_store/features/orders/presentation/pages/customer_orders_page.dart';
-import 'package:sports_store/features/orders/presentation/pages/manager_order_details_page.dart';
 import 'package:sports_store/features/orders/presentation/pages/manager_orders_page.dart';
 import 'package:sports_store/features/orders/presentation/view_models/order_providers.dart';
 
 import 'mh08_manager_repository.dart';
 import 'mh08_preview_controls.dart';
 import 'mh08_preview_environment.dart';
+import 'mh09_preview_route.dart';
 
 class Mh08PreviewSurface extends ConsumerStatefulWidget {
   const Mh08PreviewSurface({
@@ -35,6 +35,22 @@ class _Mh08PreviewSurfaceState extends ConsumerState<Mh08PreviewSurface> {
   void initState() {
     super.initState();
     env.addListener(_changed);
+    env.mh09.addListener(_detailChanged);
+  }
+
+  void _detailChanged() {
+    final id = env.mh09.activeOrderId;
+    if (!env.mh09.refreshRequested ||
+        !mounted ||
+        id == null ||
+        env.scope.role != 'manager' ||
+        !env.scope.canReadPrivateData) {
+      return;
+    }
+    unawaited(
+      ref.read(orderListFoundationProvider(_canonicalQuery).notifier).refresh(),
+    );
+    unawaited(ref.read(orderDetailsFoundationProvider(id).notifier).refresh());
   }
 
   void _changed() {
@@ -54,6 +70,7 @@ class _Mh08PreviewSurfaceState extends ConsumerState<Mh08PreviewSurface> {
   @override
   void dispose() {
     env.removeListener(_changed);
+    env.mh09.removeListener(_detailChanged);
     _staleTimer?.cancel();
     super.dispose();
   }
@@ -65,15 +82,28 @@ class _Mh08PreviewSurfaceState extends ConsumerState<Mh08PreviewSurface> {
       OrderQuery();
 
   Future<void> _openOrder(String id) async {
-    if (!mounted || !env.managerActive) return;
+    if (!mounted ||
+        !env.managerActive ||
+        env.scope.role != 'manager' ||
+        !env.scope.canReadPrivateData) {
+      return;
+    }
     final scope = ref.read(featureSessionScopeProvider);
     final query = _canonicalQuery;
-    await _navigator.currentState!.push(
-      MaterialPageRoute<void>(
-        builder: (_) =>
-            ManagerOrderDetailsPage(orderId: id, enablePolling: false),
-      ),
-    );
+    env.mh09.open(id);
+    try {
+      await _navigator.currentState!.push(
+        MaterialPageRoute<void>(
+          builder: (_) => Mh09PreviewRoute(
+            environment: env,
+            orderId: id,
+            showControls: widget.showControls,
+          ),
+        ),
+      );
+    } finally {
+      env.mh09.reset();
+    }
     if (!mounted ||
         !env.managerActive ||
         scope != ref.read(featureSessionScopeProvider) ||

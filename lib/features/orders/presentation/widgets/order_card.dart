@@ -16,6 +16,7 @@ class OrderCard extends StatelessWidget {
     this.onTap,
     this.isStale = false,
     this.mutationInProgress = false,
+    this.actions,
     super.key,
   });
 
@@ -24,6 +25,7 @@ class OrderCard extends StatelessWidget {
   final VoidCallback? onTap;
   final bool isStale;
   final bool mutationInProgress;
+  final Widget? actions;
 
   @override
   Widget build(BuildContext context) {
@@ -43,6 +45,7 @@ class OrderCard extends StatelessWidget {
           ],
           const SizedBox(height: 12),
           _Footer(summary: summary),
+          if (actions != null) ...[const SizedBox(height: 16), actions!],
           if (isStale) ...[
             const SizedBox(height: 12),
             const _StaleCardNotice(),
@@ -52,6 +55,9 @@ class OrderCard extends StatelessWidget {
     );
 
     final card = Card(
+      color: Theme.of(context).colorScheme.surface,
+      elevation: 1,
+      shadowColor: Colors.black.withValues(alpha: .08),
       clipBehavior: Clip.antiAlias,
       child: effectiveOnTap == null
           ? body
@@ -77,6 +83,7 @@ class CustomerOrderCard extends OrderCard {
     super.onTap,
     super.isStale,
     super.mutationInProgress,
+    super.actions,
     super.key,
   }) : super(showManagerContext: false);
 }
@@ -87,6 +94,7 @@ class ManagerOrderCard extends OrderCard {
     super.onTap,
     super.isStale,
     super.mutationInProgress,
+    super.actions,
     super.key,
   }) : super(showManagerContext: true);
 }
@@ -103,34 +111,18 @@ class _Header extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        LayoutBuilder(
-          builder: (context, constraints) {
-            return Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              runAlignment: WrapAlignment.start,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 12,
-              runSpacing: 8,
-              children: [
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: constraints.maxWidth > 320
-                        ? constraints.maxWidth - 150
-                        : constraints.maxWidth,
-                  ),
-                  child: Text(
-                    'Đơn hàng ${formatFullUuid(order.id)}',
-                    softWrap: true,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                OrderStatusBadge(status: order.status),
-              ],
-            );
-          },
+        Text(
+          'Đơn hàng ${formatFullUuid(order.id)}',
+          softWrap: true,
+          style: Theme.of(context).textTheme.titleSmall,
         ),
+        const SizedBox(height: 8),
+        OrderStatusBadge(status: order.status),
         const SizedBox(height: 6),
-        Text('Đặt lúc ${formatHanoiDateTime(order.placedAt)}'),
+        Text(
+          'Đặt lúc ${formatHanoiDateTime(order.placedAt)}',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
         if (showManagerContext) ...[
           const SizedBox(height: 6),
           Text(
@@ -172,9 +164,36 @@ class _ItemsPreview extends StatelessWidget {
               .map(
                 (item) => Padding(
                   padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(
-                    '${item.productName} · ${item.variantLabel} × ${item.quantity}',
-                    softWrap: true,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Semantics(
+                        label: 'Không có ảnh sản phẩm',
+                        child: Container(
+                          width: 64,
+                          height: 64,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerLow,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: const Icon(
+                            Icons.image_not_supported_outlined,
+                            size: 24,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          '${item.productName} · ${item.variantLabel} × ${item.quantity}',
+                          softWrap: true,
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -249,17 +268,34 @@ class _Footer extends StatelessWidget {
   Widget build(BuildContext context) {
     final cod = summary.codSummary;
     final amount = summary.order.totalCodVnd;
-    return Wrap(
-      spacing: 16,
-      runSpacing: 8,
-      children: [
-        Text('COD: ${formatVnd(amount)}'),
-        Text(
-          cod == null
-              ? 'Chưa có dữ liệu COD'
-              : 'COD: ${codStatusLabel(cod.status)}',
-        ),
-      ],
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Thanh toán khi nhận hàng',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'COD: ${formatVnd(amount)}',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            cod == null
+                ? 'Chưa có dữ liệu COD'
+                : 'COD: ${codStatusLabel(cod.status)}',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
     );
   }
 }

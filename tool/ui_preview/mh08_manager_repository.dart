@@ -102,6 +102,11 @@ class Mh08ManagerRepository extends PreviewOrderRepository {
     _managerDetailReads.add(orderId);
     final read = await _beginRead();
     if (read.scenario == Mh08PreviewScenario.empty) _notAvailable();
+    return canonicalDetails(orderId);
+  }
+
+  /// Immutable debug seed lookup; transport/session behavior remains above.
+  OrderDetails canonicalDetails(String orderId) {
     final record = _managerRecords.cast<Mh08ManagerRecord?>().firstWhere(
       (candidate) => candidate!.order.id == orderId,
       orElse: () => null,

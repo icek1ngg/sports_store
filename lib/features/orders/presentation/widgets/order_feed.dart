@@ -298,36 +298,41 @@ class _OrderFeedItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final id = summary.order.id;
+    final actions = showManagerContext
+        ? _managerActions(context, id)
+        : _customerActions(context, id);
+    final actionArea = actions.isEmpty
+        ? null
+        : Wrap(spacing: 8, runSpacing: 8, children: actions);
     final card = showManagerContext
         ? ManagerOrderCard(
             summary: summary,
             isStale: isStale,
             mutationInProgress: mutationInProgress,
+            actions: actionArea,
             onTap: onOpenOrder == null ? null : () => onOpenOrder!(id),
           )
         : CustomerOrderCard(
             summary: summary,
             isStale: isStale,
             mutationInProgress: mutationInProgress,
+            actions: actionArea,
             onTap: onOpenOrder == null ? null : () => onOpenOrder!(id),
           );
 
-    final actions = showManagerContext
-        ? _managerActions(context, id)
-        : _customerActions(context, id);
-    if (actions.isEmpty) return card;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        card,
-        const SizedBox(height: 8),
-        Wrap(spacing: 8, runSpacing: 8, children: actions),
-      ],
-    );
+    return card;
   }
 
   List<Widget> _customerActions(BuildContext context, String id) {
     final actions = <Widget>[];
+    actions.add(
+      OutlinedButton(
+        onPressed: mutationInProgress || onOpenOrder == null
+            ? null
+            : () => onOpenOrder!(id),
+        child: const Text('Xem chi tiết'),
+      ),
+    );
     if (summary.order.status == OrderStatus.pendingConfirmation &&
         summary.capabilities.canCancelCustomer) {
       final enabled = _allowed(
@@ -406,6 +411,9 @@ class _OrderFeedItem extends StatelessWidget {
       actions.add(
         OutlinedButton.icon(
           onPressed: canReject && onReject != null ? () => onReject!(id) : null,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.error,
+          ),
           icon: const Icon(Icons.block_outlined),
           label: const Text('Từ chối'),
         ),
