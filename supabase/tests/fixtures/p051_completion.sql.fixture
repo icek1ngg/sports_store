@@ -1,0 +1,405 @@
+-- P05.1 TEST-ONLY isolated completion fixture.
+--
+-- This file is injected only into a new p011_* native fixture database while
+-- the P05.1 SQL suite is inside one transaction.  It is not a migration, a
+-- production RPC, a Supabase authorization policy, or an inventory source.
+-- The live P04.1 accept/start/custody/dispatch contract is not available yet;
+-- this fixture supplies only enough isolated state to test the completion
+-- transaction once a simulated custody proof is supplied by a fixture seed.
+do $$
+begin
+  if left(current_database(), 5) <> 'p011_'
+     or current_setting('sports_store.fixture_mode', true)
+          is distinct from 'p011_isolated' then
+    raise exception
+      'P05.1 completion fixture requires guarded p011_ isolated database';
+  end if;
+end;
+$$;
+
+create schema p051_fixture;
+
+create table p051_fixture.actors (
+  id uuid primary key,
+  role text not null check (role in ('customer', 'manager', 'shipper'))
+);
+
+create table p051_fixture.orders (
+  id uuid primary key,
+  customer_id uuid not null references p051_fixture.actors (id),
+  subtotal_vnd bigint not null check (subtotal_vnd >= 0),
+  delivery_fee_vnd bigint not null default 30000
+    check (delivery_fee_vnd = 30000),
+  total_cod_vnd bigint generated always as
+    (subtotal_vnd + delivery_fee_vnd) stored,
+  status text not null check (
+    status in ('awaiting_pickup', 'delivering', 'delivered', 'cancelled')
+  ),
+  attempt_count smallint not null default 0
+    check (attempt_count between 0 and 2),
+  delivered_at timestamptz
+);
+
+create table p051_fixture.tasks (
+  id uuid primary key,
+  order_id uuid not null references p051_fixture.orders (id),
+  shipper_id uuid references p051_fixture.actors (id),
+  kind text not null check (kind in ('outbound', 'return_pickup', 'redelivery')),
+  status text not null check (
+    status in ('assigned', 'accepted', 'in_transit', 'delivered',
+               'failed', 'cancelled')
+  ),
+  attempt_number smallint not null check (attempt_number between 1 and 2),
+  amount_to_collect_vnd bigint not null check (amount_to_collect_vnd >= 0),
+  accepted_at timestamptz,
+  started_at timestamptz,
+  completed_at timestamptz
+);
+
+create table p051_fixture.cod (
+  order_id uuid primary key references p051_fixture.orders (id),
+  shipper_id uuid references p051_fixture.actors (id),
+  status text not null check (status in ('uncollected', 'collected', 'received')),
+  expected_amount_vnd bigint not null check (expected_amount_vnd > 0),
+  collected_amount_vnd bigint not null default 0
+    check (collected_amount_vnd >= 0),
+  received_amount_vnd bigint not null default 0
+    check (received_amount_vnd >= 0),
+  collected_by uuid references p051_fixture.actors (id),
+  collected_at timestamptz,
+  handed_over_at timestamptz,
+  received_by uuid references p051_fixture.actors (id),
+  received_at timestamptz
+);
+
+create table p051_fixture.custody (
+  task_id uuid primary key references p051_fixture.tasks (id),
+  holder_id uuid not null references p051_fixture.actors (id),
+  dispatch_proof boolean not null default false
+);
+
+create table p051_fixture.attempts (
+  task_id uuid primary key references p051_fixture.tasks (id),
+  order_id uuid not null references p051_fixture.orders (id),
+  attempt_number smallint not null check (attempt_number between 1 and 2),
+  result text not null check (result in ('success', 'failed')),
+  shipper_id uuid not null references p051_fixture.actors (id),
+  occurred_at timestamptz not null default pg_catalog.clock_timestamp(),
+  unique (order_id, attempt_number)
+);
+
+-- This is an explicit, test-owned recipient set.  It is deliberately not a
+-- claim about D7 stakeholder approval or the production notification policy.
+create table p051_fixture.recipients (
+  order_id uuid not null references p051_fixture.orders (id),
+  recipient_id uuid not null references p051_fixture.actors (id),
+  primary key (order_id, recipient_id)
+);
+
+create table p051_fixture.events (
+  id uuid primary key,
+  task_id uuid not null unique references p051_fixture.tasks (id),
+  actor_id uuid not null references p051_fixture.actors (id),
+  event_type text not null,
+  created_at timestamptz not null
+);
+
+create table p051_fixture.notifications (
+  event_id uuid not null references p051_fixture.events (id),
+  recipient_id uuid not null references p051_fixture.actors (id),
+  primary key (event_id, recipient_id)
+);
+
+create table p051_fixture.requests (
+  actor_id uuid not null references p051_fixture.actors (id),
+  request_id uuid not null,
+  operation text not null,
+  task_id uuid not null references p051_fixture.tasks (id),
+  payload jsonb not null check (pg_catalog.jsonb_typeof(payload) = 'object'),
+  result jsonb not null check (pg_catalog.jsonb_typeof(result) = 'object'),
+  created_at timestamptz not null,
+  primary key (actor_id, request_id)
+);
+
+create or replace function p051_fixture.complete_outbound_delivery(
+  p_task_id uuid,
+  p_request_id uuid,
+  p_received_all_items boolean,
+  p_collected_amount_vnd bigint
+)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  l_actor_id uuid;
+  l_actor_role text;
+  l_task p051_fixture.tasks%rowtype;
+  l_order p051_fixture.orders%rowtype;
+  l_cod p051_fixture.cod%rowtype;
+  l_custody p051_fixture.custody%rowtype;
+  l_existing p051_fixture.requests%rowtype;
+  l_payload jsonb;
+  l_result jsonb;
+  l_event_id uuid;
+  l_now timestamptz;
+  l_recipient record;
+  l_recipient_ids uuid[] := array[]::uuid[];
+  l_has_customer boolean := false;
+  l_has_manager boolean := false;
+  l_invalid_recipient boolean := false;
+begin
+  if p_task_id is null or p_request_id is null then
+    raise exception using errcode = '22023', message = 'INVALID_ARGUMENT';
+  end if;
+
+  l_actor_id := (select auth.uid());
+  if l_actor_id is null then
+    raise exception using errcode = '42501', message = 'AUTH_REQUIRED';
+  end if;
+
+  select a.role
+    into l_actor_role
+    from p051_fixture.actors a
+   where a.id = l_actor_id;
+  if not found or l_actor_role <> 'shipper' then
+    raise exception using errcode = '42501', message = 'PERMISSION_DENIED';
+  end if;
+
+  -- The request key is serialized before business-row locks.  It is scoped
+  -- by the server-derived actor; callers cannot choose a different actor.
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(
+      'p051_fixture.complete_outbound_delivery:'
+      || l_actor_id::text || ':' || p_request_id::text,
+      0
+    )
+  );
+
+  -- Recheck the server-managed role after waiting for the request key.  A
+  -- concurrent role change must not authorize a replay or a new completion.
+  select a.role
+    into l_actor_role
+    from p051_fixture.actors a
+   where a.id = l_actor_id
+   for share;
+  if not found or l_actor_role <> 'shipper' then
+    raise exception using errcode = '42501', message = 'PERMISSION_DENIED';
+  end if;
+
+  -- A preliminary lookup is only used to find the order lock.  It returns a
+  -- non-enumerating authorization error for an unknown or other shipper task.
+  select t.*
+    into l_task
+    from p051_fixture.tasks t
+   where t.id = p_task_id;
+  if not found or l_task.shipper_id is distinct from l_actor_id then
+    raise exception using errcode = '42501', message = 'NOT_FOUND_OR_FORBIDDEN';
+  end if;
+
+  -- Every completion takes the same order -> task -> COD lock order used by
+  -- the future live workflow.  The fixture has no inventory writes.
+  select o.*
+    into l_order
+    from p051_fixture.orders o
+   where o.id = l_task.order_id
+   for update;
+  if not found then
+    raise exception using errcode = '42501', message = 'NOT_FOUND_OR_FORBIDDEN';
+  end if;
+
+  select t.*
+    into l_task
+    from p051_fixture.tasks t
+   where t.id = p_task_id
+   for update;
+  if not found
+     or l_task.order_id is distinct from l_order.id
+     or l_task.shipper_id is distinct from l_actor_id then
+    raise exception using errcode = '42501', message = 'NOT_FOUND_OR_FORBIDDEN';
+  end if;
+
+  -- Recheck assignment after the locks, including for a request replay.
+  select c.*
+    into l_cod
+    from p051_fixture.cod c
+   where c.order_id = l_order.id
+   for update;
+  if not found then
+    raise exception using errcode = 'P0001', message = 'STATE_CONFLICT';
+  end if;
+
+  l_payload := pg_catalog.jsonb_build_object(
+    'task_id', p_task_id,
+    'request_id', p_request_id,
+    'received_all_items', p_received_all_items,
+    'collected_amount_vnd', p_collected_amount_vnd
+  );
+
+  select r.*
+    into l_existing
+    from p051_fixture.requests r
+   where r.actor_id = l_actor_id
+     and r.request_id = p_request_id
+   for update;
+  if found then
+    if l_existing.operation <> 'complete_outbound_delivery'
+       or l_existing.task_id is distinct from p_task_id
+       or l_existing.payload is distinct from l_payload then
+      raise exception using errcode = 'P0001', message = 'IDEMPOTENCY_CONFLICT';
+    end if;
+    return l_existing.result;
+  end if;
+
+  if p_received_all_items is not true then
+    raise exception using errcode = 'P0001', message = 'ITEMS_MISMATCH';
+  end if;
+  if p_collected_amount_vnd is null or p_collected_amount_vnd <= 0 then
+    raise exception using errcode = 'P0001', message = 'AMOUNT_MISMATCH';
+  end if;
+
+  if l_task.kind <> 'outbound'
+     or l_task.status <> 'in_transit'
+     or l_order.status <> 'delivering'
+     or l_task.accepted_at is null
+     or l_task.started_at is null
+     or l_task.completed_at is not null
+     or l_task.attempt_number not between 1 and 2
+     or l_order.attempt_count not between 1 and 2
+     or l_task.attempt_number <> l_order.attempt_count then
+    raise exception using errcode = 'P0001', message = 'STATE_CONFLICT';
+  end if;
+
+  if exists (
+       select 1
+         from p051_fixture.attempts a
+        where a.task_id = l_task.id
+           or (a.order_id = l_order.id and a.attempt_number = l_task.attempt_number)
+     ) then
+    raise exception using errcode = 'P0001', message = 'STATE_CONFLICT';
+  end if;
+
+  -- Custody proof is locked before it is validated so a concurrent holder or
+  -- proof mutation cannot race the completion decision.
+  select c.*
+    into l_custody
+    from p051_fixture.custody c
+   where c.task_id = l_task.id
+   for share;
+  if not found
+     or l_custody.holder_id is distinct from l_actor_id
+     or l_custody.dispatch_proof is not true then
+    raise exception using errcode = 'P0001', message = 'CUSTODY_UNRESOLVED';
+  end if;
+
+  -- The client amount is only a claimed cash amount.  The expected amount is
+  -- always derived from the server-generated order total and cross-checked
+  -- against both snapshots before any row is written.
+  if l_order.total_cod_vnd <= 0
+     or l_task.amount_to_collect_vnd is distinct from l_order.total_cod_vnd
+     or l_cod.expected_amount_vnd is distinct from l_order.total_cod_vnd
+     or p_collected_amount_vnd is distinct from l_order.total_cod_vnd then
+    raise exception using errcode = 'P0001', message = 'AMOUNT_MISMATCH';
+  end if;
+
+  if l_cod.status <> 'uncollected'
+     or l_cod.collected_amount_vnd <> 0
+     or l_cod.received_amount_vnd <> 0
+     or l_cod.collected_by is not null
+     or l_cod.collected_at is not null
+     or l_cod.handed_over_at is not null
+     or l_cod.received_by is not null
+     or l_cod.received_at is not null
+     or l_cod.shipper_id is distinct from l_actor_id then
+    raise exception using errcode = 'P0001', message = 'STATE_CONFLICT';
+  end if;
+
+  -- The recipient set is explicit fixture input.  Do not infer a manager or
+  -- notify a shipper: D7 production recipients still require owner approval.
+  -- Lock and copy the validated recipient set before any notification write;
+  -- the insert below uses this stable array rather than re-reading mutable
+  -- recipient configuration after validation.
+  for l_recipient in
+    select r.recipient_id, a.id as actor_id, a.role
+      from p051_fixture.recipients r
+      join p051_fixture.actors a on a.id = r.recipient_id
+     where r.order_id = l_order.id
+     order by r.recipient_id
+     for share of r, a
+  loop
+    l_recipient_ids := l_recipient_ids || l_recipient.recipient_id;
+    if l_recipient.role = 'customer'
+       and l_recipient.actor_id = l_order.customer_id then
+      l_has_customer := true;
+    elsif l_recipient.role = 'manager' then
+      l_has_manager := true;
+    else
+      l_invalid_recipient := true;
+    end if;
+  end loop;
+
+  if not l_has_customer or not l_has_manager or l_invalid_recipient then
+    raise exception using errcode = 'P0001', message = 'DEPENDENCY_NOT_READY';
+  end if;
+
+  l_now := pg_catalog.clock_timestamp();
+  -- The isolated event ID is deterministic for this one-result-per-task
+  -- fixture.  Production event IDs and operation ledgers need S2/D7 review.
+  l_event_id := l_task.id;
+  l_result := pg_catalog.jsonb_build_object(
+    'request_id', p_request_id,
+    'task_id', l_task.id,
+    'order_id', l_order.id,
+    'event_id', l_event_id,
+    'attempt_number', l_task.attempt_number,
+    'status', 'delivered',
+    'order_status', 'delivered',
+    'collected_amount_vnd', l_order.total_cod_vnd,
+    'committed_at', l_now
+  );
+
+  insert into p051_fixture.attempts (
+    task_id, order_id, attempt_number, result, shipper_id, occurred_at
+  ) values (
+    l_task.id, l_order.id, l_task.attempt_number, 'success', l_actor_id, l_now
+  );
+
+  update p051_fixture.tasks
+     set status = 'delivered', completed_at = l_now
+   where id = l_task.id;
+
+  update p051_fixture.orders
+     set status = 'delivered', delivered_at = l_now
+   where id = l_order.id;
+
+  update p051_fixture.cod
+     set status = 'collected',
+         collected_amount_vnd = l_order.total_cod_vnd,
+         collected_by = l_actor_id,
+         collected_at = l_now
+   where order_id = l_order.id;
+
+  insert into p051_fixture.events (
+    id, task_id, actor_id, event_type, created_at
+  ) values (
+    l_event_id, l_task.id, l_actor_id, 'outbound_delivered', l_now
+  );
+
+  insert into p051_fixture.notifications (event_id, recipient_id)
+  select l_event_id, r.recipient_id
+    from pg_catalog.unnest(l_recipient_ids) as r(recipient_id);
+
+  insert into p051_fixture.requests (
+    actor_id, request_id, operation, task_id, payload, result, created_at
+  ) values (
+    l_actor_id, p_request_id, 'complete_outbound_delivery', l_task.id,
+    l_payload, l_result, l_now
+  );
+
+  return l_result;
+end;
+$$;
+
+comment on schema p051_fixture is
+  'P05.1 isolated completion fixture only; never a runtime API or D7 policy';

@@ -1,0 +1,885 @@
+-- P08.3 TEST-ONLY redelivery contract fixture.
+--
+-- NOT a production migration, production/auth/RLS acceptance, or a public RPC.
+-- This file is loaded only by the isolated p011_* runner inside a transaction
+-- which is rolled back.  It supplies a candidate D9 interface against the
+-- already-migrated public order/return/task tables.  The actual Sơn
+-- receive_customer_return/inspection contract is intentionally absent; the
+-- fixture seeds an immutable, manager-owned receipt/inspection/release proof
+-- as test input instead.
+--
+-- All functions below are SECURITY INVOKER and live in the private,
+-- transaction-only p083_fixture schema.  This file grants no privileges,
+-- does not add SECURITY DEFINER code, and does not loosen production RLS.
+
+do $$
+begin
+  if current_setting('sports_store.fixture_mode', true)
+       is distinct from 'p011_isolated'
+     or current_database() !~ '^p011_p083_'
+     or to_regnamespace('p083_fixture') is not null then
+    raise exception
+      'P08.3 fixture requires a fresh p011_ database with p011_isolated mode';
+  end if;
+end;
+$$;
+
+create schema p083_fixture;
+revoke all on schema p083_fixture from public, anon, authenticated, service_role;
+
+-- The case registry is fixture bookkeeping only.  The business rows remain
+-- in public.* so the candidate interface must prove the real order/request/
+-- task/item relationships and the existing server-managed actor profiles.
+create table p083_fixture.case_registry (
+  case_code text primary key
+    check (btrim(case_code) <> '' and length(case_code) <= 80),
+  proof_mode text not null
+    check (proof_mode in ('complete', 'missing', 'wrong_quantity')),
+  customer_id uuid not null references public.profiles (id),
+  manager_id uuid not null references public.profiles (id),
+  shipper_id uuid not null references public.profiles (id),
+  alternate_shipper_id uuid not null references public.profiles (id),
+  order_id uuid not null references public.orders (id),
+  return_request_id uuid not null references public.return_requests (id),
+  variant_a_id uuid not null references public.product_variants (id),
+  variant_b_id uuid not null references public.product_variants (id),
+  item_a_id uuid not null references public.return_items (id),
+  item_b_id uuid not null references public.return_items (id),
+  redelivery_task_id uuid references public.delivery_tasks (id),
+  created_at timestamptz not null default clock_timestamp()
+);
+
+-- Actor/request-scoped, append-only operation ledger.  It is deliberately
+-- private fixture state; production P08.3 has no deployed ledger or RPC.
+create table p083_fixture.request_ledger (
+  actor_id uuid not null references public.profiles (id),
+  request_id uuid not null,
+  operation text not null check (operation in (
+    'create_redelivery_task_fixture',
+    'seed_redelivery_physical_custody_fixture',
+    'complete_redelivery_fixture',
+    'fail_redelivery_fixture'
+  )),
+  target_order_id uuid references public.orders (id),
+  target_return_request_id uuid references public.return_requests (id),
+  target_task_id uuid references public.delivery_tasks (id),
+  payload jsonb not null check (jsonb_typeof(payload) = 'object'),
+  result jsonb not null check (jsonb_typeof(result) = 'object'),
+  created_at timestamptz not null default clock_timestamp(),
+  primary key (actor_id, request_id)
+);
+
+-- One immutable row per returned item.  The row represents proof supplied by
+-- the missing returns owner: receipt quantity plus inspection release
+-- quantity.  The redelivery fixture only consumes it; it never creates a
+-- production receipt/inspection endpoint or changes inventory.
+create table p083_fixture.redelivery_item_proofs (
+  return_request_id uuid not null references public.return_requests (id),
+  order_id uuid not null references public.orders (id),
+  return_item_id uuid not null references public.return_items (id),
+  quantity_received bigint not null check (quantity_received > 0),
+  quantity_released bigint not null check (
+    quantity_released >= 0 and quantity_released <= quantity_received
+  ),
+  receipt_proof_id uuid not null,
+  inspection_proof_id uuid not null,
+  manager_id uuid not null references public.profiles (id),
+  recorded_at timestamptz not null default clock_timestamp(),
+  primary key (return_request_id, return_item_id),
+  unique (receipt_proof_id),
+  unique (inspection_proof_id)
+);
+
+-- Custody is also fixture-only and append-only.  Seeding this row is an
+-- explicit physical-custody test helper, not a claim that production
+-- accept_delivery_task/start_delivery_task exists for redelivery.
+create table p083_fixture.redelivery_custody (
+  task_id uuid primary key references public.delivery_tasks (id),
+  order_id uuid not null references public.orders (id),
+  return_request_id uuid not null references public.return_requests (id),
+  shipper_id uuid not null references public.profiles (id),
+  accepted_at timestamptz not null,
+  started_at timestamptz not null,
+  item_receipts jsonb not null check (
+    jsonb_typeof(item_receipts) = 'array'
+    and jsonb_array_length(item_receipts) > 0
+  ),
+  created_at timestamptz not null default clock_timestamp(),
+  check (accepted_at = started_at)
+);
+
+create or replace function p083_fixture.reject_immutable_row_fixture()
+returns trigger
+language plpgsql
+security invoker
+set search_path = pg_catalog, p083_fixture
+as $$
+begin
+  raise exception using
+    errcode = 'P0001',
+    message = 'IMMUTABLE_FIXTURE_PROOF';
+end;
+$$;
+
+create trigger redelivery_item_proofs_immutable
+before update or delete on p083_fixture.redelivery_item_proofs
+for each row execute function p083_fixture.reject_immutable_row_fixture();
+
+create trigger redelivery_custody_immutable
+before update or delete on p083_fixture.redelivery_custody
+for each row execute function p083_fixture.reject_immutable_row_fixture();
+
+create trigger request_ledger_immutable
+before update or delete on p083_fixture.request_ledger
+for each row execute function p083_fixture.reject_immutable_row_fixture();
+
+create or replace function p083_fixture.case_json_fixture(
+  p_case_code text
+)
+returns jsonb
+language sql
+security invoker
+set search_path = pg_catalog, p083_fixture
+as $$
+  select jsonb_build_object(
+    'case_code', c.case_code,
+    'proof_mode', c.proof_mode,
+    'customer_id', c.customer_id,
+    'manager_id', c.manager_id,
+    'shipper_id', c.shipper_id,
+    'alternate_shipper_id', c.alternate_shipper_id,
+    'order_id', c.order_id,
+    'return_request_id', c.return_request_id,
+    'variant_a_id', c.variant_a_id,
+    'variant_b_id', c.variant_b_id,
+    'item_a_id', c.item_a_id,
+    'item_b_id', c.item_b_id,
+    'redelivery_task_id', c.redelivery_task_id
+  )
+  from p083_fixture.case_registry c
+  where c.case_code = p_case_code;
+$$;
+
+-- Build one delivered order with a request already at awaiting_redelivery and
+-- manager-provided proof.  `p_proof_mode` exists only to exercise missing and
+-- bad-quantity guards in the SQL contract; the default case is complete.
+create or replace function p083_fixture.seed_redelivery_case_fixture(
+  p_case_code text,
+  p_proof_mode text default 'complete'
+)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = pg_catalog, public, private, p083_fixture
+as $$
+declare
+  l_case p083_fixture.case_registry%rowtype;
+  l_customer uuid := '08350000-0000-0000-0000-000000000001';
+  l_manager uuid := '08350000-0000-0000-0000-000000000002';
+  l_shipper uuid := '08350000-0000-0000-0000-000000000003';
+  l_alt_shipper uuid := '08350000-0000-0000-0000-000000000004';
+  l_other_customer uuid := '08350000-0000-0000-0000-000000000005';
+  l_category uuid := '08350000-0000-0000-0000-000000000100';
+  l_product uuid := '08350000-0000-0000-0000-000000000101';
+  l_variant_a uuid := '08350000-0000-0000-0000-000000000111';
+  l_variant_b uuid := '08350000-0000-0000-0000-000000000112';
+  l_order uuid := gen_random_uuid();
+  l_order_item_a uuid := gen_random_uuid();
+  l_order_item_b uuid := gen_random_uuid();
+  l_return_request uuid := gen_random_uuid();
+  l_return_item_a uuid := gen_random_uuid();
+  l_return_item_b uuid := gen_random_uuid();
+  l_order_request uuid := gen_random_uuid();
+  l_return_request_key uuid := gen_random_uuid();
+  l_now timestamptz := clock_timestamp();
+begin
+  if p_case_code is null or btrim(p_case_code) = ''
+     or length(p_case_code) > 80 then
+    raise exception using errcode = '22023', message = 'INVALID_ARGUMENT';
+  end if;
+  if p_proof_mode is null
+     or p_proof_mode not in ('complete', 'missing', 'wrong_quantity') then
+    raise exception using errcode = '22023', message = 'INVALID_ARGUMENT';
+  end if;
+
+  select * into l_case
+  from p083_fixture.case_registry
+  where case_code = p_case_code;
+  if found then
+    if l_case.proof_mode is distinct from p_proof_mode then
+      raise exception using errcode = 'P0001', message = 'FIXTURE_CASE_CONFLICT';
+    end if;
+    return p083_fixture.case_json_fixture(p_case_code);
+  end if;
+
+  -- These profiles are provisioned through the existing Auth bridge/trigger;
+  -- role changes are server-managed fixture setup, never user metadata.
+  insert into auth.users (id, email)
+  values
+    (l_customer, 'p083-customer@example.invalid'),
+    (l_manager, 'p083-manager@example.invalid'),
+    (l_shipper, 'p083-shipper@example.invalid'),
+    (l_alt_shipper, 'p083-shipper-alt@example.invalid'),
+    (l_other_customer, 'p083-customer-other@example.invalid')
+  on conflict (id) do nothing;
+
+  update public.profiles
+  set role = case
+    when id = l_manager then 'manager'::public.user_role
+    when id in (l_shipper, l_alt_shipper) then 'shipper'::public.user_role
+    else 'customer'::public.user_role
+  end
+  where id in (l_customer, l_manager, l_shipper, l_alt_shipper,
+               l_other_customer);
+
+  insert into public.categories (id, code, name)
+  values (l_category, 'P083', 'P08.3 redelivery fixture')
+  on conflict (id) do nothing;
+  insert into public.products (id, category_id, name)
+  values (l_product, l_category, 'P08.3 redelivery fixture product')
+  on conflict (id) do nothing;
+  insert into public.product_variants
+    (id, product_id, sku, label, price_vnd, on_hand, reserved, damaged)
+  values
+    (l_variant_a, l_product, 'P083-A', 'P08.3 fixture A', 100000, 40, 5, 2),
+    (l_variant_b, l_product, 'P083-B', 'P08.3 fixture B', 80000, 30, 4, 1)
+  on conflict (id) do nothing;
+
+  insert into public.orders (
+    id, customer_id, request_id, status, recipient_name, recipient_phone,
+    address_detail, latitude, longitude, subtotal_vnd, delivery_fee_vnd,
+    delivery_attempt_count, placed_at, delivered_at
+  ) values (
+    l_order, l_customer, l_order_request, 'delivered',
+    'P08.3 fixture recipient', '0900008301', 'P08.3 fixture address, Ha Noi',
+    21.028511, 105.804817, 180000, 30000, 1, l_now - interval '2 days', l_now - interval '1 day'
+  );
+
+  insert into public.order_items (
+    id, order_id, product_id, variant_id, product_name, variant_label,
+    attributes, unit_price_vnd, quantity
+  ) values
+    (l_order_item_a, l_order, l_product, l_variant_a, 'P08.3 fixture product',
+     'Fixture A', '{}'::jsonb, 100000, 1),
+    (l_order_item_b, l_order, l_product, l_variant_b, 'P08.3 fixture product',
+     'Fixture B', '{}'::jsonb, 80000, 1);
+
+  -- This is an input state supplied by the missing returns owner.  No fixture
+  -- function below receives a customer return or performs an inspection.
+  insert into public.return_requests (
+    id, order_id, customer_id, request_id, status, reason, description,
+    video_object_path, submitted_at, decision_reason, decision_at, decided_by,
+    inspection_started_at, inspected_at, inspected_by, closed_at
+  ) values (
+    l_return_request, l_order, l_customer, l_return_request_key,
+    'awaiting_redelivery', 'defective', 'P08.3 fixture: rejected after inspection',
+    'p083/' || p_case_code || '/customer-video.mp4', l_now - interval '12 hours',
+    'P08.3 fixture: manager proof says full returned items released for redelivery',
+    l_now - interval '6 hours', l_manager, l_now - interval '7 hours',
+    l_now - interval '6 hours', l_manager, null
+  );
+
+  insert into public.return_items (
+    id, return_request_id, order_id, order_item_id, actual_item_name, variant_id,
+    quantity_to_collect, quantity_collected, sellable_quantity, damaged_quantity
+  ) values
+    (l_return_item_a, l_return_request, l_order, l_order_item_a,
+     'P08.3 fixture item A', l_variant_a, 1, 1, 0, 0),
+    (l_return_item_b, l_return_request, l_order, l_order_item_b,
+     'P08.3 fixture item B', l_variant_b, 1, 1, 0, 0);
+
+  insert into public.cod_collections (
+    order_id, shipper_id, status, expected_amount_vnd,
+    collected_amount_vnd, collected_at, collected_by
+  ) values (
+    l_order, l_shipper, 'collected', 210000, 210000,
+    l_now - interval '12 hours', l_shipper
+  );
+
+  insert into p083_fixture.case_registry (
+    case_code, proof_mode, customer_id, manager_id, shipper_id,
+    alternate_shipper_id, order_id, return_request_id, variant_a_id,
+    variant_b_id, item_a_id, item_b_id
+  ) values (
+    p_case_code, p_proof_mode, l_customer, l_manager, l_shipper,
+    l_alt_shipper, l_order, l_return_request, l_variant_a, l_variant_b,
+    l_return_item_a, l_return_item_b
+  );
+
+  insert into p083_fixture.redelivery_item_proofs (
+    return_request_id, order_id, return_item_id, quantity_received,
+    quantity_released, receipt_proof_id, inspection_proof_id, manager_id,
+    recorded_at
+  )
+  select l_return_request, l_order, i.id, 1,
+    case when p_proof_mode = 'wrong_quantity' and i.id = l_return_item_b
+      then 0 else 1 end,
+    gen_random_uuid(), gen_random_uuid(), l_manager, l_now
+  from public.return_items i
+  where i.id in (l_return_item_a, l_return_item_b)
+    and (p_proof_mode <> 'missing' or i.id = l_return_item_a);
+
+  return p083_fixture.case_json_fixture(p_case_code);
+end;
+$$;
+
+-- Manager-only candidate interface: create one assigned redelivery task from
+-- the already-proven awaiting_redelivery request.  The operation is a
+-- fixture candidate, not a deployed create_delivery_task RPC.
+create or replace function p083_fixture.create_redelivery_task_fixture(
+  p_order_id uuid,
+  p_return_request_id uuid,
+  p_shipper_id uuid,
+  p_request_id uuid
+)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = pg_catalog, public, private, p083_fixture
+as $$
+declare
+  l_actor uuid := private.delivery_request_user_id();
+  l_role text;
+  l_request public.return_requests%rowtype;
+  l_shipper_role text;
+  l_task public.delivery_tasks%rowtype;
+  l_existing p083_fixture.request_ledger%rowtype;
+  l_payload jsonb;
+  l_result jsonb;
+  l_now timestamptz;
+  l_proof_count bigint;
+  l_complete_count bigint;
+  l_order_customer uuid;
+  l_order_status public.order_status;
+begin
+  if p_order_id is null or p_return_request_id is null
+     or p_shipper_id is null or p_request_id is null then
+    raise exception using errcode = '22023', message = 'INVALID_ARGUMENT';
+  end if;
+  if l_actor is null then
+    raise exception using errcode = '42501', message = 'AUTH_REQUIRED';
+  end if;
+
+  select role::text into l_role from public.profiles
+  where id = l_actor;
+  if l_role is distinct from 'manager' then
+    raise exception using errcode = '42501', message = 'PERMISSION_DENIED';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtextextended(
+    'p083_fixture.create_redelivery_task:' || l_actor::text || ':'
+      || p_request_id::text, 0));
+
+  l_payload := jsonb_build_object(
+    'order_id', p_order_id,
+    'return_request_id', p_return_request_id,
+    'shipper_id', p_shipper_id
+  );
+  select * into l_existing
+  from p083_fixture.request_ledger
+  where actor_id = l_actor and request_id = p_request_id
+  for update;
+  if found then
+    if l_existing.operation <> 'create_redelivery_task_fixture'
+       or l_existing.target_order_id is distinct from p_order_id
+       or l_existing.target_return_request_id is distinct from p_return_request_id
+       or l_existing.payload is distinct from l_payload then
+      raise exception using errcode = 'P0001', message = 'IDEMPOTENCY_CONFLICT';
+    end if;
+    return l_existing.result;
+  end if;
+
+  select * into l_request
+  from public.return_requests
+  where id = p_return_request_id
+    and order_id = p_order_id
+  for update;
+  if not found then
+    raise exception using errcode = '42501', message = 'NOT_FOUND_OR_FORBIDDEN';
+  end if;
+  select o.customer_id, o.status
+    into l_order_customer, l_order_status
+  from public.orders o
+  where o.id = p_order_id
+  for share;
+  if not found or l_request.customer_id is distinct from l_order_customer then
+    raise exception using errcode = '42501', message = 'NOT_FOUND_OR_FORBIDDEN';
+  end if;
+  if l_order_status is distinct from 'delivered' then
+    raise exception using errcode = 'P0001', message = 'STATE_CONFLICT';
+  end if;
+  if l_request.status <> 'awaiting_redelivery' then
+    raise exception using errcode = 'P0001', message = 'STATE_CONFLICT';
+  end if;
+
+  select role::text into l_shipper_role from public.profiles
+  where id = p_shipper_id;
+  if l_shipper_role is distinct from 'shipper' then
+    raise exception using errcode = 'P0001', message = 'INVALID_SHIPPER';
+  end if;
+
+  select count(*), count(*) filter (where p.quantity_received = i.quantity_collected
+    and p.quantity_received = i.quantity_to_collect
+    and p.quantity_released = i.quantity_to_collect
+    and p.order_id = p_order_id)
+  into l_proof_count, l_complete_count
+  from public.return_items i
+  left join p083_fixture.redelivery_item_proofs p
+    on p.return_request_id = i.return_request_id and p.return_item_id = i.id
+  where i.return_request_id = p_return_request_id
+    and i.order_id = p_order_id;
+  if l_proof_count = 0 or l_proof_count <> l_complete_count
+     or l_proof_count <> (select count(*) from public.return_items
+                          where return_request_id = p_return_request_id
+                            and order_id = p_order_id) then
+    raise exception using errcode = 'P0001', message = 'PROOF_MISSING_OR_INVALID';
+  end if;
+
+  if exists (
+    select 1 from public.delivery_tasks
+    where return_request_id = p_return_request_id
+      and kind = 'redelivery'
+      and status in ('pending_assignment', 'assigned', 'accepted', 'in_transit',
+                     'manager_action_required')
+  ) then
+    raise exception using errcode = 'P0001', message = 'TASK_CONFLICT';
+  end if;
+
+  l_now := clock_timestamp();
+  insert into public.delivery_tasks (
+    order_id, return_request_id, kind, assigned_shipper_id, assigned_by,
+    status, attempt_number, destination_name, destination_phone,
+    destination_address, destination_latitude, destination_longitude,
+    amount_to_collect_vnd, assigned_at
+  )
+  select p_order_id, p_return_request_id, 'redelivery', p_shipper_id, l_actor,
+    'assigned', 1, o.recipient_name, o.recipient_phone, o.address_detail,
+    o.latitude, o.longitude, 0, l_now
+  from public.orders o
+  where o.id = p_order_id
+  returning * into l_task;
+  if not found then
+    raise exception using errcode = '42501', message = 'NOT_FOUND_OR_FORBIDDEN';
+  end if;
+
+  l_result := jsonb_build_object(
+    'operation', 'create_redelivery_task_fixture',
+    'order_id', p_order_id,
+    'return_request_id', p_return_request_id,
+    'task_id', l_task.id,
+    'assigned_shipper_id', p_shipper_id,
+    'task_status', l_task.status,
+    'return_status', l_request.status,
+    'attempt_number', l_task.attempt_number,
+    'amount_to_collect_vnd', l_task.amount_to_collect_vnd
+  );
+  insert into p083_fixture.request_ledger (
+    actor_id, request_id, operation, target_order_id, target_return_request_id,
+    target_task_id, payload, result
+  ) values (
+    l_actor, p_request_id, 'create_redelivery_task_fixture', p_order_id,
+    p_return_request_id, l_task.id, l_payload, l_result
+  );
+  update p083_fixture.case_registry
+  set redelivery_task_id = l_task.id
+  where order_id = p_order_id and return_request_id = p_return_request_id;
+  return l_result;
+end;
+$$;
+
+-- Explicit test helper for physical custody.  It is intentionally not named
+-- accept/start and cannot be mistaken for a production action.  It validates
+-- the same actor/assignment/relation/proof inputs before installing the
+-- immutable fixture custody row and moving the task to in_transit.
+create or replace function p083_fixture.seed_redelivery_physical_custody_fixture(
+  p_order_id uuid,
+  p_return_request_id uuid,
+  p_task_id uuid,
+  p_request_id uuid
+)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = pg_catalog, public, private, p083_fixture
+as $$
+declare
+  l_actor uuid := private.delivery_request_user_id();
+  l_role text;
+  l_task public.delivery_tasks%rowtype;
+  l_request public.return_requests%rowtype;
+  l_existing p083_fixture.request_ledger%rowtype;
+  l_payload jsonb;
+  l_result jsonb;
+  l_now timestamptz;
+  l_items jsonb;
+begin
+  if p_order_id is null or p_return_request_id is null
+     or p_task_id is null or p_request_id is null then
+    raise exception using errcode = '22023', message = 'INVALID_ARGUMENT';
+  end if;
+  if l_actor is null then
+    raise exception using errcode = '42501', message = 'AUTH_REQUIRED';
+  end if;
+  select role::text into l_role from public.profiles where id = l_actor;
+  if l_role is distinct from 'shipper' then
+    raise exception using errcode = '42501', message = 'PERMISSION_DENIED';
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended(
+    'p083_fixture.seed_redelivery_physical_custody:' || l_actor::text || ':'
+      || p_request_id::text, 0));
+  l_payload := jsonb_build_object(
+    'order_id', p_order_id, 'return_request_id', p_return_request_id,
+    'task_id', p_task_id
+  );
+  select * into l_existing
+  from p083_fixture.request_ledger
+  where actor_id = l_actor and request_id = p_request_id
+  for update;
+  if found then
+    if l_existing.operation <> 'seed_redelivery_physical_custody_fixture'
+       or l_existing.target_order_id is distinct from p_order_id
+       or l_existing.target_return_request_id is distinct from p_return_request_id
+       or l_existing.target_task_id is distinct from p_task_id
+       or l_existing.payload is distinct from l_payload then
+      raise exception using errcode = 'P0001', message = 'IDEMPOTENCY_CONFLICT';
+    end if;
+    return l_existing.result;
+  end if;
+
+  select * into l_task
+  from public.delivery_tasks
+  where id = p_task_id
+    and order_id = p_order_id
+    and return_request_id = p_return_request_id
+    and kind = 'redelivery'
+    and assigned_shipper_id = l_actor
+  for update;
+  if not found then
+    raise exception using errcode = '42501', message = 'NOT_FOUND_OR_FORBIDDEN';
+  end if;
+  if l_task.status <> 'assigned' then
+    raise exception using errcode = 'P0001', message = 'STATE_CONFLICT';
+  end if;
+  select * into l_request from public.return_requests
+  where id = p_return_request_id and order_id = p_order_id
+  for share;
+  if not found or l_request.status <> 'awaiting_redelivery' then
+    raise exception using errcode = 'P0001', message = 'STATE_CONFLICT';
+  end if;
+  if exists (select 1 from p083_fixture.redelivery_custody where task_id = p_task_id) then
+    raise exception using errcode = 'P0001', message = 'CUSTODY_CONFLICT';
+  end if;
+
+  select jsonb_agg(jsonb_build_object(
+      'return_item_id', p.return_item_id,
+      'quantity_received', p.quantity_received,
+      'quantity_released', p.quantity_released
+    ) order by p.return_item_id)
+  into l_items
+  from p083_fixture.redelivery_item_proofs p
+  where p.return_request_id = p_return_request_id and p.order_id = p_order_id;
+  if l_items is null or l_items = '[]'::jsonb then
+    raise exception using errcode = 'P0001', message = 'PROOF_MISSING_OR_INVALID';
+  end if;
+
+  l_now := clock_timestamp();
+  insert into p083_fixture.redelivery_custody (
+    task_id, order_id, return_request_id, shipper_id, accepted_at, started_at,
+    item_receipts
+  ) values (
+    p_task_id, p_order_id, p_return_request_id, l_actor, l_now, l_now, l_items
+  );
+  update public.delivery_tasks
+  set status = 'in_transit', accepted_at = l_now, started_at = l_now
+  where id = p_task_id;
+
+  l_result := jsonb_build_object(
+    'operation', 'seed_redelivery_physical_custody_fixture',
+    'order_id', p_order_id, 'return_request_id', p_return_request_id,
+    'task_id', p_task_id, 'task_status', 'in_transit',
+    'return_status', l_request.status, 'occurred_at', l_now
+  );
+  insert into p083_fixture.request_ledger (
+    actor_id, request_id, operation, target_order_id, target_return_request_id,
+    target_task_id, payload, result
+  ) values (
+    l_actor, p_request_id, 'seed_redelivery_physical_custody_fixture',
+    p_order_id, p_return_request_id, p_task_id, l_payload, l_result
+  );
+  return l_result;
+end;
+$$;
+
+create or replace function p083_fixture.complete_redelivery_fixture(
+  p_order_id uuid,
+  p_return_request_id uuid,
+  p_task_id uuid,
+  p_request_id uuid,
+  p_received_all_items boolean
+)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = pg_catalog, public, private, p083_fixture
+as $$
+declare
+  l_actor uuid := private.delivery_request_user_id();
+  l_role text;
+  l_task public.delivery_tasks%rowtype;
+  l_request public.return_requests%rowtype;
+  l_existing p083_fixture.request_ledger%rowtype;
+  l_payload jsonb;
+  l_result jsonb;
+  l_proof_count bigint;
+  l_valid_count bigint;
+  l_custody p083_fixture.redelivery_custody%rowtype;
+  l_now timestamptz;
+begin
+  if p_order_id is null or p_return_request_id is null
+     or p_task_id is null or p_request_id is null
+     or p_received_all_items is null then
+    raise exception using errcode = '22023', message = 'INVALID_ARGUMENT';
+  end if;
+  if l_actor is null then
+    raise exception using errcode = '42501', message = 'AUTH_REQUIRED';
+  end if;
+  select role::text into l_role from public.profiles where id = l_actor;
+  if l_role is distinct from 'shipper' then
+    raise exception using errcode = '42501', message = 'PERMISSION_DENIED';
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended(
+    'p083_fixture.redelivery_outcome:' || l_actor::text || ':'
+      || p_request_id::text, 0));
+  l_payload := jsonb_build_object(
+    'order_id', p_order_id, 'return_request_id', p_return_request_id,
+    'task_id', p_task_id, 'received_all_items', p_received_all_items
+  );
+
+  select * into l_task
+  from public.delivery_tasks
+  where id = p_task_id and order_id = p_order_id
+    and return_request_id = p_return_request_id
+    and kind = 'redelivery' and assigned_shipper_id = l_actor
+  for update;
+  if not found then
+    raise exception using errcode = '42501', message = 'NOT_FOUND_OR_FORBIDDEN';
+  end if;
+  select * into l_request from public.return_requests
+  where id = p_return_request_id and order_id = p_order_id
+  for update;
+  if not found then
+    raise exception using errcode = '42501', message = 'NOT_FOUND_OR_FORBIDDEN';
+  end if;
+
+  select * into l_existing
+  from p083_fixture.request_ledger
+  where actor_id = l_actor and request_id = p_request_id
+  for update;
+  if found then
+    if l_existing.operation <> 'complete_redelivery_fixture'
+       or l_existing.target_order_id is distinct from p_order_id
+       or l_existing.target_return_request_id is distinct from p_return_request_id
+       or l_existing.target_task_id is distinct from p_task_id
+       or l_existing.payload is distinct from l_payload then
+      raise exception using errcode = 'P0001', message = 'IDEMPOTENCY_CONFLICT';
+    end if;
+    return l_existing.result;
+  end if;
+  if p_received_all_items is not true then
+    raise exception using errcode = 'P0001', message = 'ITEMS_MISMATCH';
+  end if;
+  if l_task.status <> 'in_transit' or l_request.status <> 'awaiting_redelivery' then
+    raise exception using errcode = 'P0001', message = 'STATE_CONFLICT';
+  end if;
+  select * into l_custody from p083_fixture.redelivery_custody
+  where task_id = p_task_id;
+  if not found or l_custody.order_id is distinct from p_order_id
+     or l_custody.return_request_id is distinct from p_return_request_id
+     or l_custody.shipper_id is distinct from l_actor
+     or l_custody.accepted_at is distinct from l_task.accepted_at
+     or l_custody.started_at is distinct from l_task.started_at
+     or l_custody.accepted_at is distinct from l_custody.started_at then
+    raise exception using errcode = 'P0001', message = 'CUSTODY_UNRESOLVED';
+  end if;
+  select count(*), count(*) filter (where p.quantity_received = i.quantity_collected
+    and p.quantity_received = i.quantity_to_collect
+    and p.quantity_released = i.quantity_to_collect
+    and p.order_id = p_order_id)
+  into l_proof_count, l_valid_count
+  from public.return_items i
+  left join p083_fixture.redelivery_item_proofs p
+    on p.return_request_id = i.return_request_id and p.return_item_id = i.id
+  where i.return_request_id = p_return_request_id and i.order_id = p_order_id;
+  if l_proof_count = 0 or l_proof_count <> l_valid_count
+     or l_proof_count <> (select count(*) from public.return_items
+                          where return_request_id = p_return_request_id
+                            and order_id = p_order_id)
+     or l_custody.item_receipts is distinct from (
+       select jsonb_agg(jsonb_build_object(
+         'return_item_id', p.return_item_id,
+         'quantity_received', p.quantity_received,
+         'quantity_released', p.quantity_released
+       ) order by p.return_item_id)
+       from p083_fixture.redelivery_item_proofs p
+       where p.return_request_id = p_return_request_id and p.order_id = p_order_id
+     ) then
+    raise exception using errcode = 'P0001', message = 'ITEMS_MISMATCH';
+  end if;
+
+  l_now := clock_timestamp();
+  update public.delivery_tasks
+  set status = 'delivered', completed_at = l_now
+  where id = p_task_id;
+  update public.return_requests
+  set status = 'rejected_after_inspection', closed_at = l_now
+  where id = p_return_request_id;
+  l_result := jsonb_build_object(
+    'operation', 'complete_redelivery_fixture', 'order_id', p_order_id,
+    'return_request_id', p_return_request_id, 'task_id', p_task_id,
+    'task_status', 'delivered', 'return_status', 'rejected_after_inspection',
+    'closed_at', l_now, 'amount_to_collect_vnd', 0
+  );
+  insert into p083_fixture.request_ledger (
+    actor_id, request_id, operation, target_order_id, target_return_request_id,
+    target_task_id, payload, result
+  ) values (
+    l_actor, p_request_id, 'complete_redelivery_fixture', p_order_id,
+    p_return_request_id, p_task_id, l_payload, l_result
+  );
+  return l_result;
+end;
+$$;
+
+create or replace function p083_fixture.fail_redelivery_fixture(
+  p_order_id uuid,
+  p_return_request_id uuid,
+  p_task_id uuid,
+  p_request_id uuid,
+  p_reason_code text,
+  p_description text default null
+)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = pg_catalog, public, private, p083_fixture
+as $$
+declare
+  l_actor uuid := private.delivery_request_user_id();
+  l_role text;
+  l_task public.delivery_tasks%rowtype;
+  l_request public.return_requests%rowtype;
+  l_existing p083_fixture.request_ledger%rowtype;
+  l_custody p083_fixture.redelivery_custody%rowtype;
+  l_payload jsonb;
+  l_result jsonb;
+  l_now timestamptz;
+  l_description text;
+  l_failure_reason text;
+begin
+  if p_order_id is null or p_return_request_id is null
+     or p_task_id is null or p_request_id is null
+     or p_reason_code is null
+     or p_reason_code not in ('unreachable', 'reschedule', 'bad_address',
+                              'refusal', 'other') then
+    raise exception using errcode = '22023', message = 'INVALID_ARGUMENT';
+  end if;
+  l_description := nullif(btrim(coalesce(p_description, '')), '');
+  if p_reason_code = 'other' and l_description is null then
+    raise exception using errcode = '22023', message = 'INVALID_ARGUMENT';
+  end if;
+  if p_reason_code <> 'other' and l_description is not null then
+    raise exception using errcode = '22023', message = 'INVALID_ARGUMENT';
+  end if;
+  if l_actor is null then
+    raise exception using errcode = '42501', message = 'AUTH_REQUIRED';
+  end if;
+  select role::text into l_role from public.profiles where id = l_actor;
+  if l_role is distinct from 'shipper' then
+    raise exception using errcode = '42501', message = 'PERMISSION_DENIED';
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended(
+    'p083_fixture.redelivery_outcome:' || l_actor::text || ':'
+      || p_request_id::text, 0));
+  l_payload := jsonb_build_object(
+    'order_id', p_order_id, 'return_request_id', p_return_request_id,
+    'task_id', p_task_id, 'reason_code', p_reason_code,
+    'description', l_description
+  );
+  select * into l_task
+  from public.delivery_tasks
+  where id = p_task_id and order_id = p_order_id
+    and return_request_id = p_return_request_id
+    and kind = 'redelivery' and assigned_shipper_id = l_actor
+  for update;
+  if not found then
+    raise exception using errcode = '42501', message = 'NOT_FOUND_OR_FORBIDDEN';
+  end if;
+  select * into l_request from public.return_requests
+  where id = p_return_request_id and order_id = p_order_id
+  for update;
+  if not found then
+    raise exception using errcode = '42501', message = 'NOT_FOUND_OR_FORBIDDEN';
+  end if;
+  select * into l_existing
+  from p083_fixture.request_ledger
+  where actor_id = l_actor and request_id = p_request_id
+  for update;
+  if found then
+    if l_existing.operation <> 'fail_redelivery_fixture'
+       or l_existing.target_order_id is distinct from p_order_id
+       or l_existing.target_return_request_id is distinct from p_return_request_id
+       or l_existing.target_task_id is distinct from p_task_id
+       or l_existing.payload is distinct from l_payload then
+      raise exception using errcode = 'P0001', message = 'IDEMPOTENCY_CONFLICT';
+    end if;
+    return l_existing.result;
+  end if;
+  if l_task.status <> 'in_transit' or l_request.status <> 'awaiting_redelivery' then
+    raise exception using errcode = 'P0001', message = 'STATE_CONFLICT';
+  end if;
+  select * into l_custody from p083_fixture.redelivery_custody
+  where task_id = p_task_id;
+  if not found or l_custody.order_id is distinct from p_order_id
+     or l_custody.return_request_id is distinct from p_return_request_id
+     or l_custody.shipper_id is distinct from l_actor
+     or l_custody.accepted_at is distinct from l_task.accepted_at
+     or l_custody.started_at is distinct from l_task.started_at then
+    raise exception using errcode = 'P0001', message = 'CUSTODY_UNRESOLVED';
+  end if;
+
+  -- D9 approved mapping: failure keeps the physical holder/custody and leaves
+  -- both task and request open for manager action.  No closed_at, no attempt,
+  -- no COD write and no inventory write are allowed here.
+  l_now := clock_timestamp();
+  l_failure_reason := p_reason_code
+    || case when l_description is null then '' else ': ' || l_description end;
+  update public.delivery_tasks
+  set status = 'manager_action_required', failure_reason = l_failure_reason,
+      completed_at = null
+  where id = p_task_id;
+  update public.return_requests
+  set status = 'manager_action_required', closed_at = null
+  where id = p_return_request_id;
+  l_result := jsonb_build_object(
+    'operation', 'fail_redelivery_fixture', 'order_id', p_order_id,
+    'return_request_id', p_return_request_id, 'task_id', p_task_id,
+    'task_status', 'manager_action_required',
+    'return_status', 'manager_action_required', 'reason_code', p_reason_code,
+    'description', l_description,
+    'custody_open', true, 'amount_to_collect_vnd', 0
+  );
+  insert into p083_fixture.request_ledger (
+    actor_id, request_id, operation, target_order_id, target_return_request_id,
+    target_task_id, payload, result
+  ) values (
+    l_actor, p_request_id, 'fail_redelivery_fixture', p_order_id,
+    p_return_request_id, p_task_id, l_payload, l_result
+  );
+  return l_result;
+end;
+$$;
+
+-- No public/authenticated/anon/service_role access is granted.  The runner is
+-- postgres and executes these fixture functions directly inside its rollback.
+revoke all on all tables in schema p083_fixture from public, anon, authenticated, service_role;
+revoke all on all functions in schema p083_fixture from public, anon, authenticated, service_role;

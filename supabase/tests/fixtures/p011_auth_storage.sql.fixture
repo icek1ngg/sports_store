@@ -1,0 +1,67 @@
+-- TEST FIXTURE ONLY. Never apply to Supabase/cloud or an existing database.
+-- Minimal Auth/Storage SQL prerequisites for running repository RLS tests on
+-- an isolated native PostgreSQL 17 instance when Docker is unavailable.
+-- These are fixtures, NOT Supabase Auth/Storage services or migrations.
+do $$
+begin
+  if current_setting('sports_store.fixture_mode', true) is distinct from 'p011_isolated'
+     or exists (select 1 from pg_namespace where nspname in ('auth', 'storage'))
+     or to_regclass('public.profiles') is not null then
+    raise exception 'P01.1 fixture requires an explicitly marked EMPTY isolated database';
+  end if;
+end;
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_roles where rolname = 'anon') then
+    create role anon nologin;
+  end if;
+  if not exists (select 1 from pg_roles where rolname = 'authenticated') then
+    create role authenticated nologin;
+  end if;
+  if not exists (select 1 from pg_roles where rolname = 'service_role') then
+    create role service_role nologin bypassrls;
+  end if;
+end;
+$$;
+
+create schema auth;
+create schema storage;
+grant usage on schema auth, storage to anon, authenticated, service_role;
+
+create table auth.users (
+  id uuid primary key,
+  email text,
+  phone text,
+  raw_user_meta_data jsonb default '{}'::jsonb,
+  raw_app_meta_data jsonb default '{}'::jsonb
+);
+create function auth.uid() returns uuid
+language sql stable
+as $$
+  select coalesce(
+    nullif(current_setting('request.jwt.claim.sub', true), ''),
+    nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub'
+  )::uuid;
+$$;
+
+create table storage.buckets (
+  id text primary key,
+  name text not null,
+  public boolean not null default false
+);
+create table storage.objects (
+  id uuid primary key default gen_random_uuid(),
+  bucket_id text not null references storage.buckets(id),
+  name text not null,
+  unique (bucket_id, name)
+);
+alter table storage.objects enable row level security;
+grant select on storage.objects to anon;
+grant select, insert, update, delete on storage.objects to authenticated;
+create function storage.foldername(name text) returns text[]
+language sql immutable
+as $$
+  select (string_to_array(name, '/'))[1:cardinality(string_to_array(name, '/')) - 1];
+$$;

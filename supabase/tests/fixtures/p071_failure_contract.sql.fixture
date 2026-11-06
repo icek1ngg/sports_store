@@ -1,0 +1,52 @@
+-- P07.1 TEST-ONLY fail-closed failure interface fixture.
+-- Never apply this file to Supabase/cloud or a shared database.
+--
+-- The production failure RPC, recipient policy and idempotency ledger are not
+-- available yet. This temporary interface intentionally has no success path,
+-- table I/O, role lookup or task-state lookup. The P07.1 dependency suite
+-- expands this file inside its own transaction and rolls it back.
+--
+-- `p_reason_code` is intentionally text until the owner-approved failure
+-- contract is finalized. The accepted draft values are exact lower-case
+-- tokens; no length limit is invented here. Only `other` requires a nonblank
+-- description.
+
+create or replace function pg_temp.fail_outbound_delivery_contract(
+  p_task_id uuid,
+  p_request_id uuid,
+  p_reason_code text,
+  p_description text
+) returns jsonb
+language plpgsql
+security invoker
+set search_path = pg_catalog, auth, pg_temp
+as $$
+begin
+  if p_task_id is null or p_request_id is null then
+    raise exception using errcode = '22023', message = 'INVALID_ARGUMENT';
+  end if;
+
+  if p_reason_code is null
+     or p_reason_code not in (
+       'unreachable', 'reschedule', 'bad_address', 'refusal', 'other'
+     ) then
+    raise exception using errcode = '22023', message = 'INVALID_ARGUMENT';
+  end if;
+
+  -- `[[:space:]]` rejects spaces, tabs and newlines without imposing a
+  -- maximum length on a nonblank description.
+  if p_reason_code = 'other'
+     and (p_description is null or p_description !~ '[^[:space:]]') then
+    raise exception using errcode = '22023', message = 'INVALID_ARGUMENT';
+  end if;
+
+  if auth.uid() is null then
+    raise exception using errcode = '42501', message = 'AUTH_REQUIRED';
+  end if;
+
+  -- Deliberately fail closed until the owner-approved failure transaction,
+  -- recipient set and idempotency ledger are available. This fixture cannot
+  -- manufacture a successful attempt, task/order state or notification.
+  raise exception using errcode = 'P0001', message = 'DEPENDENCY_NOT_READY';
+end;
+$$;

@@ -9,7 +9,7 @@
 
 ## Khởi tạo và dependency injection
 
-`lib/main.dart` đọc biến biên dịch từ `--dart-define-from-file`, kiểm tra URL/key, rồi gọi `Supabase.initialize` trước khi chạy `ProviderScope`. Session được quản lý bởi Supabase Flutter SDK. Khởi tạo SDK không tự chứng minh kết nối mạng hay quyền truy cập vào bảng.
+`lib/main.dart` dùng `loadSupabaseConfig`: nếu có biến biên dịch Supabase thì đọc toàn bộ cấu hình từ `--dart-define-from-file`; nếu không có, đọc asset `config/supabase.json`. Cấu hình riêng thiếu/sai không được trộn với cấu hình mặc định. Sau khi kiểm tra URL/key, ứng dụng gọi `Supabase.initialize` trước khi chạy `ProviderScope`. Chỉ file cấu hình public dùng chung được đóng gói; không thêm file local hoặc secret key vào assets. Session được quản lý bởi Supabase Flutter SDK. Khởi tạo SDK không tự chứng minh kết nối mạng hay quyền truy cập vào bảng.
 
 `lib/core/supabase/supabase_providers.dart` cung cấp `supabaseClientProvider` trỏ tới `Supabase.instance.client`. Repository thuộc tầng Data nhận client qua constructor; provider của repository lấy client bằng `ref.watch(supabaseClientProvider)`. ViewModel nhận repository qua Riverpod. Widget không gọi Supabase trực tiếp.
 

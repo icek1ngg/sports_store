@@ -1,11 +1,12 @@
 {
-    "name": "sports_store",
-    "short_name": "sports_store",
+    "name": "Sports Store",
+    "short_name": "Sports Store",
+    "lang": "vi",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "Online Sports Store with Flutter and Supabase.",
+    "description": "Cửa hàng thể thao trực tuyến.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

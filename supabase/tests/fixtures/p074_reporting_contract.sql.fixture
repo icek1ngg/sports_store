@@ -1,0 +1,78 @@
+-- P07.4 TEST-ONLY fail-closed reporting contract fixture.
+-- Never apply this file to Supabase/cloud or a shared database.
+--
+-- There is no production custody/handover schema or proof yet.  D2 (receipt,
+-- custody and handover payload), D8 (return-pickup item/quantity proof), and
+-- D9 (redelivery state mapping) remain unresolved.  The exact manager
+-- notification recipients and deep-link policy are also not approved under
+-- D7.  The stop rule for this phase is therefore limited to the explicitly
+-- labelled temporary interfaces below.
+--
+-- `report_store_handover_contract` deliberately omits an items argument.  It
+-- is blocked pending an owner-approved receipt-item/custody payload and is
+-- not a finalized production signature.  `report_delivery_incident_contract`
+-- uses the existing enum, whose only values are `damaged`, `lost`, and
+-- `other`; draft spellings such as `damage` and `loss` are not accepted.
+--
+-- Both interfaces validate only their draft input boundary and auth.uid().
+-- They do not look up a profile, role, task, assignment, state, custody
+-- proof, recipient, ledger or any other table.  Every otherwise-valid call
+-- fails closed with DEPENDENCY_NOT_READY, so this fixture cannot manufacture
+-- a handover, incident, event, notification or idempotency result.
+
+create or replace function pg_temp.report_store_handover_contract(
+  p_task_id uuid,
+  p_request_id uuid
+) returns jsonb
+language plpgsql
+security invoker
+set search_path = pg_catalog, auth, pg_temp
+as $$
+begin
+  if p_task_id is null or p_request_id is null then
+    raise exception using errcode = '22023', message = 'INVALID_ARGUMENT';
+  end if;
+
+  if auth.uid() is null then
+    raise exception using errcode = '42501', message = 'AUTH_REQUIRED';
+  end if;
+
+  -- No items payload is accepted or inferred here.  Custody proof, item
+  -- quantities, task-kind/state rules, exact recipients and an operation
+  -- ledger must be approved before a production handover can exist.
+  raise exception using errcode = 'P0001', message = 'DEPENDENCY_NOT_READY';
+end;
+$$;
+
+create or replace function pg_temp.report_delivery_incident_contract(
+  p_task_id uuid,
+  p_request_id uuid,
+  p_kind public.delivery_incident_kind,
+  p_reason text
+) returns jsonb
+language plpgsql
+security invoker
+set search_path = pg_catalog, auth, pg_temp
+as $$
+begin
+  if p_task_id is null or p_request_id is null or p_kind is null then
+    raise exception using errcode = '22023', message = 'INVALID_ARGUMENT';
+  end if;
+
+  -- A reason is required for every incident kind.  This only validates the
+  -- nonblank input boundary; it does not assign a state transition or infer
+  -- a per-kind D2/D8/D9 allowed state.
+  if p_reason is null or p_reason !~ '[^[:space:]]' then
+    raise exception using errcode = '22023', message = 'INVALID_ARGUMENT';
+  end if;
+
+  if auth.uid() is null then
+    raise exception using errcode = '42501', message = 'AUTH_REQUIRED';
+  end if;
+
+  -- The enum cast itself rejects unknown/case-changed tokens.  No incident
+  -- event, manager notification, role/state check or idempotency replay is
+  -- claimed until the owner-approved production transaction exists.
+  raise exception using errcode = 'P0001', message = 'DEPENDENCY_NOT_READY';
+end;
+$$;
