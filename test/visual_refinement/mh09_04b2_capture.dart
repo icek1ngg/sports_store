@@ -10,7 +10,10 @@ const mh09B2Phase = String.fromEnvironment(
   'MH09_CAPTURE_PHASE',
   defaultValue: 'final',
 );
-const mh09B2Directory = 'docs/features/mh09/artifacts/visual_04b2';
+const mh09B2Directory = String.fromEnvironment(
+  'MH09_B2_OUTPUT',
+  defaultValue: 'docs/features/mh09/artifacts/visual_04b2',
+);
 
 Map<String, double> mh09B2Rect(Rect rect) => {
   'x': rect.left,

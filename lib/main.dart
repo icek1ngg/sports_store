@@ -3,11 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app/sports_store_app.dart';
+import 'app/integration/production_feature_composition.dart';
 import 'app/localization/app_localization.dart';
 import 'core/config/auth_startup_options.dart';
 import 'core/config/load_supabase_config.dart';
-import 'core/state/foundation_providers.dart';
-import 'features/auth/presentation/view_models/auth_providers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,12 +20,8 @@ Future<void> main() async {
     );
     runApp(
       ProviderScope(
-        overrides: [
-          featureSessionScopeProvider.overrideWith(
-            (ref) => ref.watch(trustedFeatureSessionProvider),
-          ),
-        ],
-        child: const SportsStoreApp(),
+        overrides: productionFeatureOverrides,
+        child: const FeatureSessionLifecycle(child: SportsStoreApp()),
       ),
     );
   } catch (error) {

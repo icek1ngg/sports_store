@@ -1,5 +1,16 @@
 # Ánh xạ màn hình Sports Store
 
+Cập nhật tích hợp 07/11/2026: router production gắn MH07 `/customer/orders`,
+MH08 `/manager/orders`, MH09 `/manager/orders/:orderId` (UUID nghiêm ngặt) và
+MH17 `/notifications`. MH08 giữ shell/navigation quản lý; push MH09 rồi Back về
+MH08. MH07 có callbacks sang MH13/MH14; MH09 có callbacks COD và chi tiết trả
+hàng của manager. Các đích vẫn kiểm quyền bằng guard và backend của owner.
+MH17 dùng `SupabaseNotificationRepository` qua composition production.
+`NotificationTargetResolver` vẫn chưa có binding nên link đích báo unavailable.
+Orders repository/OP-O01–08 chưa có adapter triển khai trong main; màn Orders
+giữ trạng thái dependency unavailable thay vì đọc/ghi giả. Các ghi chú "chưa
+gắn route"/slot MH17 bên dưới là lịch sử trước lần tích hợp này.
+
 Cập nhật 02/11/2026: MH11 giữ người nhận, hàng hóa và COD khi xem lại nhiệm vụ
 đã giao/thất bại của chính shipper. Quyền xem độc lập với quyền thao tác.
 [Chi tiết](demos/shipper_history_details_20261102.md).

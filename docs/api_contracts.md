@@ -143,7 +143,7 @@ Owner Bảo đã ủy quyền chốt kỹ thuật phạm vi MH07/08/09/17. [Main
 
 ## I1 Auth/session bridge — implementation ngày 27/10/2026
 
-**Ghi chú tích hợp 07/11/2026:** Phần I1 dưới đây được bảo toàn như mô tả lịch sử của implementation cũ. Các lớp `AuthSessionViewModel` và `auth_session.dart` không có trong source hiện tại; bộ tests I1 local chưa hoàn chỉnh vẫn được giữ riêng, chưa commit. Auth hiện tại thuộc `features/auth`, lấy quyền từ `profiles`; composition production phải dùng một bridge canonical, không kích hoạt thêm authority I1.
+**Ghi chú tích hợp 07/11/2026:** Phần I1 dưới đây được bảo toàn như mô tả lịch sử của implementation cũ. Các lớp `AuthSessionViewModel` và `auth_session.dart` không có trong source hiện tại; bộ tests I1 local chưa hoàn chỉnh vẫn được giữ riêng, chưa commit. Auth hiện tại thuộc `features/auth`, lấy quyền từ `profiles`; composition production dùng duy nhất `trustedFeatureSessionProvider` với kiểm tra SDK identity/token/expiry, generation và fail-closed khi hồ sơ chưa xác minh. Resume làm mới hồ sơ. MH17 bind adapter Supabase hiện có; target resolver vẫn unavailable. Chưa có Orders adapter hoặc migration hiện thực OP-O01–08; không dùng raw UPDATE thay hợp đồng giao dịch.
 
 User đã giao triển khai phần Auth/session của I1. Section này cập nhật riêng client bridge; không coi toàn bộ CIN-01/protected command storage hoặc các external CIN khác là accepted/implemented. Audit 26/10/2026 giữ nguyên như historical snapshot.
 

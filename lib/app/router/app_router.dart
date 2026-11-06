@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/state/foundation_providers.dart';
 import '../../features/cod/presentation/pages/cod_route_page.dart';
 import '../../features/cart/presentation/pages/cart_page.dart';
 import '../../features/checkout/presentation/pages/checkout_page.dart';
@@ -16,18 +17,25 @@ import '../../features/cod/presentation/view_models/cod_providers.dart';
 import '../../features/deliveries/data/repositories/operational_providers.dart';
 import '../../features/deliveries/presentation/pages/delivery_route_pages.dart';
 import '../../features/deliveries/presentation/view_models/delivery_providers.dart';
+import '../../features/notifications/presentation/pages/notifications_page.dart';
+import '../../features/orders/presentation/pages/customer_orders_page.dart';
+import '../../features/orders/presentation/pages/manager_order_details_page.dart';
+import '../../features/orders/presentation/pages/manager_orders_page.dart';
 import '../../features/returns/presentation/pages/manager_return_detail_page.dart';
 import '../../features/returns/presentation/pages/manager_returns_page.dart';
 import '../../features/returns/presentation/pages/return_request_flow_page.dart';
 import '../../features/returns/presentation/pages/return_tracking_page.dart';
 import '../shells/shipper_shell.dart';
+import '../shells/manager_navigation_bar.dart';
+import '../shells/store_management_shell.dart';
 import 'operational_route_guard.dart';
 import 'dung_an_route_pages.dart';
+import 'four_screen_route_boundary.dart';
 
-/// Bảo can supply MH17 without replacing the shared router or implementing it
-/// inside deliveries. Null is an explicit missing-integration boundary.
+/// Production MH17 uses the shared router; tests can override this builder.
 final notificationRouteBuilderProvider = Provider<WidgetBuilder?>(
-  (ref) => null,
+  (ref) =>
+      (_) => const NotificationsPage(key: ValueKey('mh17-production-screen')),
 );
 
 /// Temporary Auth integration slot. The live catalog tool supplies a login
@@ -157,7 +165,65 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/manager/orders',
-        builder: (context, state) => const DungAnRoutePage(),
+        caseSensitive: true,
+        builder: (context, state) => FourScreenRouteBoundary(
+          roles: const {'manager'},
+          child: _ManagerOrdersRouteShell(
+            child: ManagerOrdersPage(
+              onOpenOrder: (orderId) {
+                if (!isStrictUuid(orderId)) return;
+                context.push('/manager/orders/${Uri.encodeComponent(orderId)}');
+              },
+            ),
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/manager/orders/:orderId',
+        caseSensitive: true,
+        builder: (context, state) {
+          final orderId = state.pathParameters['orderId'];
+          final valid = orderId != null && isStrictUuid(orderId);
+          return FourScreenRouteBoundary(
+            roles: const {'manager'},
+            invalidId: !valid,
+            child: valid
+                ? ManagerOrderDetailsPage(
+                    orderId: orderId,
+                    onOpenCod: (id) {
+                      if (!isStrictUuid(id)) return;
+                      context.push(
+                        Uri(
+                          path: '/cod',
+                          queryParameters: {'orderId': id},
+                        ).toString(),
+                      );
+                    },
+                    onOpenReturn: (id) {
+                      if (isStrictUuid(id)) {
+                        context.push('/manager/returns/$id');
+                      }
+                    },
+                  )
+                : const SizedBox.shrink(),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/customer/orders',
+        caseSensitive: true,
+        builder: (context, state) => FourScreenRouteBoundary(
+          roles: const {'customer'},
+          child: CustomerOrdersPage(
+            onOpenCatalog: () => context.go('/customer/products'),
+            onCreateReturn: (id) {
+              if (isStrictUuid(id)) context.push('/customer/orders/$id/return');
+            },
+            onOpenReturn: (id) {
+              if (isStrictUuid(id)) context.push('/customer/returns/$id');
+            },
+          ),
+        ),
       ),
       GoRoute(
         path: '/chat',
@@ -341,9 +407,45 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       });
     }
   });
+  ref.listen(featureSessionScopeProvider, (previous, next) {
+    if (previous == null || previous == next) return;
+    scheduleMicrotask(() {
+      if (!ref.mounted) return;
+      // Root dialogs contain account-scoped state outside the feature subtree.
+      navigatorKey.currentState?.popUntil(
+        (route) => route is PageRoute<dynamic>,
+      );
+      router.refresh();
+    });
+  });
   ref.onDispose(router.dispose);
   return router;
 });
+
+/// Preserve the team shell around MH08; the outer feature gate owns access.
+class _ManagerOrdersRouteShell extends ConsumerWidget {
+  const _ManagerOrdersRouteShell({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scope = ref.watch(featureSessionScopeProvider);
+    final profile = ref.watch(currentProfileProvider).asData?.value;
+    if (profile?.id == scope.userId && profile?.role == AppRole.manager) {
+      return StoreManagementShell(
+        profile: profile!,
+        inbox: false,
+        child: child,
+      );
+    }
+    // Explicit feature-scope fixtures need no independent Auth identity.
+    // In production an unresolved profile is hidden by the outer scope gate.
+    return Scaffold(
+      bottomNavigationBar: const ManagerNavigationBar(selectedIndex: 0),
+      body: child,
+    );
+  }
+}
 
 // go_router 18.0.2 removes an imperative pop from its match list without
 // rerunning top-level redirect. Recheck the revealed page rather than reuse
