@@ -8,9 +8,13 @@ import 'core/config/auth_startup_options.dart';
 import 'core/config/load_supabase_config.dart';
 import 'core/state/foundation_providers.dart';
 import 'features/auth/presentation/view_models/auth_providers.dart';
+import 'features/auth/data/email_confirmation_callback.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // The SDK consumes and clears auth URL parameters during initialize().
+  final incomingUri = Uri.base;
+  final confirmingEmail = EmailConfirmationCallback.isCallback(incomingUri);
 
   try {
     final config = await loadSupabaseConfig();
@@ -22,6 +26,13 @@ Future<void> main() async {
     runApp(
       ProviderScope(
         overrides: [
+          if (confirmingEmail)
+            initialEmailConfirmationProvider.overrideWithValue(
+              EmailConfirmationCallback.resolveAfterSdkInitialization(
+                incomingUri,
+                Supabase.instance.client.auth.currentSession,
+              ),
+            ),
           featureSessionScopeProvider.overrideWith(
             (ref) => ref.watch(trustedFeatureSessionProvider),
           ),

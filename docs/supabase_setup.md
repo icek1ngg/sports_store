@@ -23,7 +23,28 @@ Base đã có cấu hình và SDK để kết nối project. Schema nền tảng
 
 Repository dùng tên bảng/cột theo migration và [api_contracts.md](api_contracts.md). Các thao tác tồn kho, đặt/hủy đơn, giao nhận, COD và trả/hoàn hàng cần RPC phía server; quyền client hiện chặn ghi trực tiếp các bảng này. Vai trò trong app lấy từ `profiles.role`, chỉ được quản trị qua công cụ server đáng tin cậy.
 
-Chưa cấu hình OAuth/magic link hoặc redirect đăng nhập trên dashboard. Khi triển khai các luồng này, cần thiết lập callback theo nền tảng và kiểm tra session thực tế.
+### Xác nhận email đăng ký trên Web
+
+Ứng dụng gửi `emailRedirectTo` về `/auth/confirm-email` trên origin hiện tại.
+Trong Supabase Dashboard → Authentication → URL Configuration, thêm URL
+callback của môi trường chạy vào **Redirect URLs**, ví dụ
+`http://localhost:57604/auth/confirm-email`. Khi phát triển với cổng động có thể
+dùng `http://localhost:*/**`; production nên khai báo URL chính xác. Web hosting
+cần phục vụ Flutter `index.html` cho đường dẫn `/auth/confirm-email`.
+Xem [hướng dẫn redirect của Supabase](https://supabase.com/docs/guides/auth/redirect-urls).
+
+`main.dart` chụp URL đầu vào trước khi khởi tạo SDK; Supabase Flutter 2.18.0
+tự đổi code/token thành session và xóa tham số auth khi thành công. App chỉ
+hiển thị **Xác nhận email thành công!** khi SDK đã tạo phiên còn hạn với
+`emailConfirmedAt`. Không đổi code lần hai. Link cũ trả về `/` với query/fragment
+auth cũng được nhận diện, tránh để hash router hiểu token hoặc lỗi thành route.
+Kết quả chỉ giữ trong bộ nhớ của lần khởi động (`persistSession: false`);
+mở callback trống hoặc truyền `success=true` không chứng minh đã xác nhận.
+
+`otp_expired` hiển thị link hết hạn/đã sử dụng, không báo thành công giả. Người
+dùng đã xác nhận có thể quay về đăng nhập; người chưa xác nhận cần email/link
+còn hiệu lực. Không vô hiệu hóa yêu cầu xác nhận email. Chưa thay đổi cấu hình
+dashboard hoặc gửi email thật trong bản sửa này.
 
 ## Kiểm tra kết nối
 

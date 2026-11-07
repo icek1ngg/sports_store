@@ -1,5 +1,16 @@
 # Ánh xạ màn hình Sports Store
 
+## Callback xác nhận email — 07/11/2026
+
+`/auth/confirm-email` là trang trạng thái kỹ thuật của MH01/MH02, không tăng số
+màn hình nghiệp vụ. Sau khi Supabase SDK xác thực link đăng ký, hiển thị
+**Xác nhận email thành công!** và nút **Tiếp tục**. Nút đi qua `/login`; phiên
+đã đăng nhập tiếp tục dùng guard và home theo role hiện có. Không tự chuyển
+trang khi session/profile cập nhật để người dùng đọc được kết quả. Link hết
+hạn/đã sử dụng hoặc không hợp lệ hiển thị trạng thái tương ứng và nút về đăng
+nhập. Link cũ về root cũng được nhận diện trước khi hash router xử lý URL.
+Xem [cấu hình callback Web](supabase_setup.md#xác-nhận-email-đăng-ký-trên-web).
+
 Cập nhật 02/11/2026: MH11 giữ người nhận, hàng hóa và COD khi xem lại nhiệm vụ
 đã giao/thất bại của chính shipper. Quyền xem độc lập với quyền thao tác.
 [Chi tiết](demos/shipper_history_details_20261102.md).

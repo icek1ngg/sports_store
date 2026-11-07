@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:sports_store/features/auth/data/repositories/supabase_auth_repository.dart';
+import 'package:sports_store/features/auth/data/email_confirmation_callback.dart';
+import 'package:sports_store/features/auth/domain/models/email_confirmation_result.dart';
 import 'package:sports_store/features/auth/domain/models/app_profile.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -121,6 +123,10 @@ void main() {
   );
 
   test('signup submits personal fields only and requires confirmation without session', () async {
+    repository = SupabaseAuthRepository(
+      client,
+      emailRedirectTo: 'http://localhost:57604/auth/confirm-email',
+    );
     handle = (_) async => _json(_user(_userId));
     final result = await repository.register(
       fullName: ' Nguyễn An ',
@@ -130,11 +136,106 @@ void main() {
     );
     final body = jsonDecode(requests.single.body) as Map<String, dynamic>;
     expect(requests.single.url.path, '/auth/v1/signup');
+    expect(
+      requests.single.url.queryParameters['redirect_to'],
+      'http://localhost:57604/auth/confirm-email',
+    );
     expect(body['data'], {'full_name': 'Nguyễn An', 'phone': '0912345678'});
     expect((body['data'] as Map).containsKey('role'), isFalse);
     expect(result.needsEmailConfirmation, isTrue);
     expect(repository.currentSession.signedIn, isFalse);
   });
+
+  test(
+    'signup callback reports success after SDK exchanges the code',
+    () async {
+      handle = (request) async {
+        if (request.url.path.endsWith('/signup')) return _json(_user(_userId));
+        expect(request.url.queryParameters['grant_type'], 'pkce');
+        final session = _session();
+        (session['user']! as Map<String, Object?>)['email_confirmed_at'] =
+            '2026-11-07T00:00:00Z';
+        return _json(session);
+      };
+      await repository.register(
+        fullName: 'Nguyễn An',
+        phone: '0912345678',
+        email: 'customer@example.com',
+        password: 'strong-password',
+      );
+      final callback = Uri.parse('http://localhost:57604/?code=test-code');
+      await client.auth.getSessionFromUrl(callback);
+      expect(
+        EmailConfirmationCallback.resolveAfterSdkInitialization(
+          callback,
+          client.auth.currentSession,
+        ),
+        EmailConfirmationResult.success,
+      );
+      expect(
+        requests.where((r) => r.url.path.endsWith('/token')),
+        hasLength(1),
+      );
+    },
+  );
+
+  test('failed SDK code exchange never reports confirmation success', () async {
+    handle = (_) async =>
+        _json({'error_code': 'bad_code_verifier', 'msg': 'Invalid code'}, 400);
+    final callback = Uri.parse('http://localhost:57604/?code=invalid');
+    await expectLater(
+      client.auth.getSessionFromUrl(callback),
+      throwsA(isA<AuthException>()),
+    );
+    expect(
+      EmailConfirmationCallback.resolveAfterSdkInitialization(
+        callback,
+        client.auth.currentSession,
+      ),
+      EmailConfirmationResult.failed,
+    );
+  });
+
+  test(
+    'legacy implicit callback succeeds only after the SDK verifies its user',
+    () async {
+      handle = (request) async {
+        expect(request.url.path, '/auth/v1/user');
+        return _json({
+          ..._user(_userId),
+          'email_confirmed_at': '2026-11-07T00:00:00Z',
+        });
+      };
+      final session = _session();
+      final callback = Uri.parse('http://localhost:57604/').replace(
+        fragment: Uri(
+          queryParameters: {
+            'access_token': session['access_token']! as String,
+            'refresh_token': session['refresh_token']! as String,
+            'expires_in': '3600',
+            'token_type': 'bearer',
+            'type': 'signup',
+          },
+        ).query,
+      );
+      await client.auth.getSessionFromUrl(callback);
+      expect(
+        EmailConfirmationCallback.resolveAfterSdkInitialization(
+          callback,
+          client.auth.currentSession,
+        ),
+        EmailConfirmationResult.success,
+      );
+      // An auth error takes precedence even when a verified session exists.
+      expect(
+        EmailConfirmationCallback.resolveAfterSdkInitialization(
+          Uri.parse('http://localhost:57604/#error_code=otp_expired'),
+          client.auth.currentSession,
+        ),
+        EmailConfirmationResult.expired,
+      );
+    },
+  );
 
   test(
     'profile uses server role rather than user metadata and scopes read by id',
