@@ -4,8 +4,9 @@ import '../../domain/models/app_profile.dart';
 import '../../domain/repositories/auth_repository.dart';
 
 class SupabaseAuthRepository implements AuthRepository {
-  SupabaseAuthRepository(this._client);
+  SupabaseAuthRepository(this._client, {this.emailRedirectTo});
   final SupabaseClient _client;
+  final String? emailRedirectTo;
 
   AuthSession _session(Session? value) => value == null || value.isExpired
       ? const AuthSession()
@@ -90,6 +91,7 @@ class SupabaseAuthRepository implements AuthRepository {
       final result = await _client.auth.signUp(
         email: email.trim(),
         password: password,
+        emailRedirectTo: emailRedirectTo,
         data: {'full_name': fullName.trim(), 'phone': phone.trim()},
       );
       if (result.user == null) {

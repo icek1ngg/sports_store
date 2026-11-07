@@ -1,15 +1,28 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/supabase/supabase_providers.dart';
 import '../../../../core/state/session_scope.dart';
 import '../../data/repositories/supabase_auth_repository.dart';
+import '../../data/email_confirmation_callback.dart';
 import '../../domain/models/app_profile.dart';
+import '../../domain/models/email_confirmation_result.dart';
 import '../../domain/repositories/auth_repository.dart';
 
 export '../../domain/models/app_profile.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>(
-  (ref) => SupabaseAuthRepository(ref.watch(supabaseClientProvider)),
+  (ref) => SupabaseAuthRepository(
+    ref.watch(supabaseClientProvider),
+    emailRedirectTo: kIsWeb
+        ? Uri.base.resolve(EmailConfirmationCallback.path).toString()
+        : null,
+  ),
+);
+
+/// Result of the SDK's initial web callback exchange; contains no URL tokens.
+final initialEmailConfirmationProvider = Provider<EmailConfirmationResult?>(
+  (ref) => null,
 );
 
 final authSessionProvider = StreamProvider<AuthSession>((ref) {
