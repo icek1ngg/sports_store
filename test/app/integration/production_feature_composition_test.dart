@@ -5,6 +5,8 @@ import 'package:sports_store/app/integration/production_feature_composition.dart
 import 'package:sports_store/core/state/foundation_providers.dart';
 import 'package:sports_store/core/supabase/supabase_providers.dart';
 import 'package:sports_store/features/notifications/presentation/providers/notification_providers.dart';
+import 'package:sports_store/features/orders/presentation/view_models/order_providers.dart';
+import 'package:sports_store/features/orders/domain/models/order_query.dart';
 
 import '../../features/notifications/data/notification_supabase_test_support.dart';
 
@@ -16,6 +18,17 @@ void main() {
       await harness.supplySession();
       var row = inboxRow(1);
       harness.handle = (request) async {
+        if (request.url.path.endsWith('/rpc/get_customer_orders')) {
+          return Response(
+            jsonEncode({
+              'ok': true,
+              'data': fixtureOrderListJson(),
+              'error': null,
+            }),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
         if (request.url.path.endsWith('/profiles')) {
           return Response(
             jsonEncode([
@@ -79,6 +92,15 @@ void main() {
           hasLength(1),
         );
         expect(await repository.getUnreadCount(), 0);
+        final orders = container.read(orderRepositoryProvider)!;
+        expect(
+          identical(orders, container.read(supabaseOrderRepositoryProvider)),
+          isTrue,
+        );
+        expect(
+          (await orders.getCustomerOrders(OrderQuery())).items.single.order.id,
+          fixtureOrderId,
+        );
       } finally {
         container.dispose();
         await harness.dispose();

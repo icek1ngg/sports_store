@@ -6,12 +6,12 @@ Business authority ở BEHAVIOR_CONTRACT; không tái tạo policy sai trong moc
 
 ## Ảnh Chromium thật và phương pháp
 
-- [390×844 viewport](artifacts/html_390x844.png), [390×1475 full page](artifacts/html_390_full.png).
-- [Manifest](artifacts/html_render_manifest.json): Chromium155.0.8059.84, viewport390×844, DPR1, scrollWidth390.
+- [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md), [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md).
+- [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md): Chromium155.0.8059.84, viewport390×844, DPR1, scrollWidth390.
 - `document.fonts.ready` + explicit9 font loads Inter400–700/Barlow600–800/italic700/Symbols400;
   mỗi load có faces>0/status loaded; cả2 ảnh product decode/naturalWidth>0; failedRequests0.
 - Source hash before=after. Source HTML không sửa; manifest có renderer/screenshot hashes.
-- Lượt sandbox bị DNS fail CDN/fonts/ảnh; [attempt log](artifacts/html_render_attempt1.log).
+- Lượt sandbox bị DNS fail CDN/fonts/ảnh; [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md).
   Render ngoài sandbox thành công. Không dùng capture thiếu CSS/font làm reference.
 - Full-page API giữ fixed footer tại y772 của viewport gốc; nó cắt ngang payment trong ảnh dài.
   Đây là hành vi capture Chromium, không phải footer ở giữa scroll content hoặc layout target Flutter.
@@ -66,12 +66,12 @@ Items → Mh09ItemsSection (private item row cùng file nếu đủ LOC); paymen
 Delivery/COD/Returns giữ public shared sections qua Mh09LifecycleSections composition ban đầu.
 Timeline giữ `OrderTimeline` normalization hiện hữu, local composition/style hạn chế theo ARCHITECTURE_PLAN.
 Warnings phải từ field authorized hiện có; footer → Mh09ActionFooter, eligibility ở owner page.
-API/LOC/tests/risk từng component: [ARCHITECTURE_PLAN](ARCHITECTURE_PLAN.md).
+API/LOC/tests/risk từng component: [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md).
 
 ## Visual difference matrix
 
-So sánh source hiện tại + [historical Flutter top](../../visual_refinement_artifacts/mh09_390_s1_0_top.png)
-và [bottom](../../visual_refinement_artifacts/mh09_390_s1_0_bottom.png), đã xem trực tiếp trong audit.
+So sánh source hiện tại + [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md)
+và [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md), đã xem trực tiếp trong audit.
 Ảnh lịch sử390×800, fixture1 item, không back vì standalone; không coi là fresh/equal-viewport diff.
 
 | Vùng | Current Flutter / HTML | Hướng kế hoạch |

@@ -6,11 +6,11 @@ Business/permissions nằm trong [BEHAVIOR_CONTRACT](BEHAVIOR_CONTRACT.md).
 ## Visual source và bằng chứng
 
 - [HTML gốc](../../ui_mocks/MH08_Manager_Order_List.html), giữ nguyên source.
-- [Ảnh 390×844](artifacts/html_390x844.png), [full page](artifacts/html_390_full.png).
-- [Render manifest](artifacts/html_render_manifest.json): viewport/DPR/font/geometry/request failures.
+- [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md), [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md).
+- [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md): viewport/DPR/font/geometry/request failures.
 - Renderer: `tool/ui_preview/render_mh08_reference.cjs`, dùng lại cách Playwright/Chromium của MH07.
 - Render xác minh width 390, height 844, DPR 1, scrollWidth 390; font Inter/Barlow/Symbols loaded.
-- Flutter mới: [so sánh04B2](artifacts/visual_04b2/comparison_390.png), widget render có fonts, không phải Android screenshot.
+- Flutter mới: [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md), widget render có fonts, không phải Android screenshot.
 
 ## Layout hierarchy đích
 
@@ -131,4 +131,4 @@ Chưa có đo pixel-diff; không tuyên bố pixel-perfect. Xác nhận visual m
 - K1 giữ nguyên bool trước Scaffold; keyboard ẩn cả KPI và leading total, không thêm resize/padding/state.
 - 390×844/scale1 cùng fixtures: card580→476h, y318→277; buyer142→106h, items148→104h; actions y633/48h.
 - HTML card234h khác dữ liệu/contracts; vẫn giữ2 KPI, UUID, COD, typed warning,48px actions và details; không claim pixel-perfect.
-- Đo và ảnh: [measurements](artifacts/visual_04b2/density_measurements.json), [report](artifacts/visual_04b2/mh08_04b2_refined_report.json).
+- Đo và ảnh: [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md), [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md).

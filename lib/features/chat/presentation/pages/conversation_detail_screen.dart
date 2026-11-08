@@ -6,7 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_theme.dart';
-import '../../../../core/supabase/supabase_providers.dart';
+
 import '../../../../core/utils/display_formatters.dart';
 import '../../../../shared/widgets/foreground_refresh.dart';
 import '../../domain/models/chat_models.dart';
@@ -104,7 +104,7 @@ class _ConversationDetailScreenState
   @override
   Widget build(BuildContext context) {
     final thread = ref.watch(_provider);
-    final ownId = ref.watch(supabaseClientProvider).auth.currentUser?.id;
+    final ownId = ref.watch(chatViewerIdProvider)();
     final value = thread.asData?.value;
     if (value != null && !_probedOnce) {
       _probedOnce = true;

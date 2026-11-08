@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../../core/errors/app_failure.dart';
 import '../../../../core/errors/presentation_failure_message.dart';
@@ -11,9 +12,10 @@ import '../../../../core/state/session_scope.dart';
 import '../../../../shared/widgets/feature_access_gate.dart';
 import '../../domain/models/model_validators.dart';
 import '../../domain/models/order_status.dart';
+import '../../domain/models/order_command.dart';
+import '../view_models/order_providers.dart';
 
-/// Phase 2 dialog/validation only. Command persistence/transport is a later gate.
-/// No request key is invented and no repository mutation is sent here.
+/// Existing confirmation UI, backed by durable same-key command recovery.
 class OrderActionDialog extends ConsumerStatefulWidget {
   const OrderActionDialog({
     required this.orderId,
@@ -42,6 +44,8 @@ class _OrderActionDialogState extends ConsumerState<OrderActionDialog> {
   late final SessionScope _submittedScope;
   AppFailure? _failure;
   bool _sourceInvalidated = false;
+  bool _busy = false;
+  StableOrderCommand? _command;
   void Function()? _cancelPrivateData;
 
   bool get _requiresReason =>
@@ -93,22 +97,73 @@ class _OrderActionDialogState extends ConsumerState<OrderActionDialog> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
+    if (_busy) return;
     if (!(_form.currentState?.validate() ?? false)) return;
     final scope = ref.read(featureSessionScopeProvider);
     final authorized =
         scope == _submittedScope &&
         _roles.contains(scope.role) &&
         ref.read(epochCacheProvider).canRead;
-    setState(() {
-      _failure = AppFailure(
-        code: !authorized
-            ? AppFailure.forbiddenOrUnavailable
-            : _sourceInvalidated || !widget.isStillAllowed()
-            ? AppFailure.stateChanged
-            : AppFailure.externalDependencyUnavailable,
+    if (!authorized ||
+        (_command == null &&
+            (_sourceInvalidated || !widget.isStillAllowed()))) {
+      setState(
+        () => _failure = AppFailure(
+          code: !authorized
+              ? AppFailure.forbiddenOrUnavailable
+              : AppFailure.stateChanged,
+        ),
       );
+      return;
+    }
+    final controller = ref.read(orderCommandControllerProvider);
+    if (controller == null) {
+      setState(
+        () => _failure = const AppFailure(
+          code: AppFailure.externalDependencyUnavailable,
+        ),
+      );
+      return;
+    }
+    _command ??= StableOrderCommand(
+      orderId: widget.orderId,
+      requestId: const Uuid().v4(),
+      operation: widget.operation,
+      reason: _requiresReason ? _reason.text : null,
+    );
+    setState(() {
+      _busy = true;
+      _failure = null;
     });
+    try {
+      await controller.execute(_command!);
+      if (!mounted ||
+          ref.read(featureSessionScopeProvider) != _submittedScope) {
+        return;
+      }
+      ref.read(epochCacheProvider).invalidatePrefix('orders/');
+      ref.read(epochCacheProvider).invalidatePrefix('notifications/');
+      ref.invalidate(orderListFoundationProvider);
+      ref.invalidate(orderDetailsFoundationProvider);
+      Navigator.of(context).pop();
+    } catch (error) {
+      if (!mounted ||
+          ref.read(featureSessionScopeProvider) != _submittedScope) {
+        return;
+      }
+      setState(
+        () => _failure = error is AppFailure
+            ? error
+            : const AppFailure(
+                code: AppFailure.outcomeUnknownCode,
+                outcomeUnknown: true,
+                retryable: true,
+              ),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   @override
@@ -151,6 +206,7 @@ class _OrderActionDialogState extends ConsumerState<OrderActionDialog> {
                 TextFormField(
                   key: const ValueKey('order-action-reason'),
                   controller: _reason,
+                  enabled: !_busy && _command == null,
                   minLines: 2,
                   maxLines: 5,
                   decoration: const InputDecoration(
@@ -188,14 +244,15 @@ class _OrderActionDialogState extends ConsumerState<OrderActionDialog> {
           FilledButton(
             key: const ValueKey('order-action-submit'),
             onPressed:
-                scope == _submittedScope &&
+                !_busy &&
+                    scope == _submittedScope &&
                     widget.operation.isClientOperation &&
                     ref.read(epochCacheProvider).canRead &&
-                    !_sourceInvalidated &&
-                    widget.isStillAllowed()
+                    (_command != null ||
+                        (!_sourceInvalidated && widget.isStillAllowed()))
                 ? _submit
                 : null,
-            child: const Text('Tiếp tục'),
+            child: Text(_busy ? 'Đang xử lý…' : 'Tiếp tục'),
           ),
         ],
       ),

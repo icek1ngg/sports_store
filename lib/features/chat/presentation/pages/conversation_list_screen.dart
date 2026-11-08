@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/supabase/supabase_providers.dart';
 import '../../../../shared/widgets/foreground_refresh.dart';
 import '../../../../shared/widgets/prm_preview_widgets.dart';
 import '../../domain/models/chat_models.dart';
@@ -49,7 +48,7 @@ class _ConversationListScreenState
   @override
   Widget build(BuildContext context) {
     final inbox = ref.watch(chatInboxProvider);
-    final userId = ref.watch(supabaseClientProvider).auth.currentUser?.id;
+    final userId = ref.watch(chatViewerIdProvider)();
     return ForegroundRefresh(
       canRefresh: () => !ref.read(chatInboxProvider).isLoading,
       onRefresh: () => ref.invalidate(chatInboxProvider),

@@ -249,6 +249,29 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
+      // MH17 is shared and can be opened from a root-level account/chat page
+      // above an existing customer shell. Keep its page on the root stack so
+      // that push does not add the same ShellRoute page key a second time.
+      // The operational redirect and boundary still verify current access.
+      GoRoute(
+        path: '/notifications',
+        caseSensitive: true,
+        builder: (context, state) => ListenableBuilder(
+          listenable: guard.decisionChanges,
+          builder: (context, _) => _OperationalRouteBoundary(
+            guard: guard,
+            location: state.uri,
+            child: Consumer(
+              builder: (context, ref, _) =>
+                  ref.watch(notificationRouteBuilderProvider)?.call(context) ??
+                  const Center(
+                    key: ValueKey('mh17-integration-unavailable'),
+                    child: Text('Màn thông báo chưa được tích hợp.'),
+                  ),
+            ),
+          ),
+        ),
+      ),
       ShellRoute(
         observers: [_RecheckOnPop(recheckAfterPop)],
         builder: (context, state, child) => ListenableBuilder(
@@ -354,18 +377,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             caseSensitive: true,
             builder: (context, state) => CodRoutePage(
               orderId: OperationalRouteLocation.parse(state.uri).orderId,
-            ),
-          ),
-          GoRoute(
-            path: '/notifications',
-            caseSensitive: true,
-            builder: (context, state) => Consumer(
-              builder: (context, ref, _) =>
-                  ref.watch(notificationRouteBuilderProvider)?.call(context) ??
-                  const Center(
-                    key: ValueKey('mh17-integration-unavailable'),
-                    child: Text('Màn thông báo chưa được tích hợp.'),
-                  ),
             ),
           ),
         ],

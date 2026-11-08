@@ -35,6 +35,12 @@ void main() {
     var roleReads = 0;
     final client = (await tester.runAsync(
       () => fixtureClient((request) async {
+        if (request.url.path.endsWith('/rpc/get_manager_orders')) {
+          return jsonResponse(request, {
+            'code': 'PGRST202',
+            'message': 'Orders aggregate not deployed in this fixture.',
+          }, status: 404);
+        }
         if (request.url.path.endsWith('/profiles')) {
           if (request.url.queryParameters['select'] == 'role') {
             roleReads++;
@@ -214,6 +220,12 @@ void main() {
       final client = (await tester.runAsync(
         () => fixtureClient((request) async {
           calls.add(request.url.path);
+          if (request.url.path.endsWith('/rpc/get_manager_orders')) {
+            return jsonResponse(request, {
+              'code': 'PGRST202',
+              'message': 'Orders aggregate not deployed in this fixture.',
+            }, status: 404);
+          }
           if (request.url.path.endsWith('/profiles')) {
             if (request.url.queryParameters['select'] == 'role') {
               return jsonResponse(request, {'role': 'manager'});

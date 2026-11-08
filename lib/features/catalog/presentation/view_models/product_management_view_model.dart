@@ -20,7 +20,7 @@ final productImageRepositoryProvider = Provider<ProductImageRepository>(
   (ref) => SupabaseProductImageRepository(ref.watch(supabaseClientProvider)),
 );
 
-final _catalogIdentityProvider = StreamProvider<String?>((ref) async* {
+final catalogIdentityProvider = StreamProvider<String?>((ref) async* {
   final client = ref.watch(supabaseClientProvider);
   yield client.auth.currentSession?.accessToken;
   await for (final change in client.auth.onAuthStateChange) {
@@ -28,6 +28,11 @@ final _catalogIdentityProvider = StreamProvider<String?>((ref) async* {
   }
 });
 
+/// Stable identity snapshot for upload completion guards; injectable locally.
+final catalogSessionIdentityProvider = Provider<Object? Function()>((ref) {
+  final client = ref.watch(supabaseClientProvider);
+  return () => client.auth.currentSession;
+});
 final productManagementViewModelProvider =
     AsyncNotifierProvider.autoDispose<
       ProductManagementViewModel,
@@ -39,7 +44,7 @@ class ProductManagementViewModel extends AsyncNotifier<CatalogSnapshot> {
   @override
   Future<CatalogSnapshot> build() async {
     _generation++;
-    ref.watch(_catalogIdentityProvider);
+    ref.watch(catalogIdentityProvider);
     return ref.watch(catalogRepositoryProvider).loadManagement();
   }
 
@@ -62,13 +67,14 @@ class ProductManagementViewModel extends AsyncNotifier<CatalogSnapshot> {
 
   Future<UploadedProductImage?> pickAndUploadImage() async {
     final generation = _generation;
-    final client = ref.read(supabaseClientProvider);
-    final token = client.auth.currentSession?.accessToken;
+
+    final token = await ref.read(catalogIdentityProvider.future);
+    final session = ref.read(catalogSessionIdentityProvider)();
     if (token == null) throw const CatalogFailure('Vui lòng đăng nhập lại.');
     void checkCurrent() {
       if (!ref.mounted ||
           generation != _generation ||
-          client.auth.currentSession?.accessToken != token) {
+          !identical(ref.read(catalogSessionIdentityProvider)(), session)) {
         throw const CatalogFailure(
           'Tài khoản đã thay đổi. Vui lòng mở lại biểu mẫu.',
         );

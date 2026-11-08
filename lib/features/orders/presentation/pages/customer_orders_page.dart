@@ -39,6 +39,7 @@ class CustomerOrdersPage extends StatelessWidget {
     this.onCreateReturn,
     this.onOpenReturn,
     this.onOpenCatalog,
+    this.onOpenOrder,
     this.enablePolling = true,
     this.showPreviewNavigation = false,
     super.key,
@@ -47,6 +48,9 @@ class CustomerOrdersPage extends StatelessWidget {
   final ValueChanged<String>? onCreateReturn;
   final ValueChanged<String>? onOpenReturn;
   final VoidCallback? onOpenCatalog;
+
+  /// Optional central-router destination; standalone previews keep the sheet.
+  final ValueChanged<String>? onOpenOrder;
   final bool enablePolling;
   final bool showPreviewNavigation;
 
@@ -59,6 +63,7 @@ class CustomerOrdersPage extends StatelessWidget {
           onCreateReturn: onCreateReturn,
           onOpenReturn: onOpenReturn,
           onOpenCatalog: onOpenCatalog,
+          onOpenOrder: onOpenOrder,
           enablePolling: enablePolling,
           showPreviewNavigation: showPreviewNavigation,
         ),
@@ -72,6 +77,7 @@ class _CustomerOrdersBody extends ConsumerStatefulWidget {
     required this.onCreateReturn,
     required this.onOpenReturn,
     required this.onOpenCatalog,
+    required this.onOpenOrder,
     required this.enablePolling,
     required this.showPreviewNavigation,
   });
@@ -79,6 +85,7 @@ class _CustomerOrdersBody extends ConsumerStatefulWidget {
   final ValueChanged<String>? onCreateReturn;
   final ValueChanged<String>? onOpenReturn;
   final VoidCallback? onOpenCatalog;
+  final ValueChanged<String>? onOpenOrder;
   final bool enablePolling;
   final bool showPreviewNavigation;
 
@@ -721,6 +728,10 @@ class _CustomerOrdersBodyState extends ConsumerState<_CustomerOrdersBody> {
 
   Future<void> _openDetails(String orderId) async {
     if (!_canRead) return;
+    if (widget.onOpenOrder != null) {
+      widget.onOpenOrder!(orderId);
+      return;
+    }
     final capturedScope = ref.read(featureSessionScopeProvider);
     _detailRequestedIds.add(orderId);
     await showModalBottomSheet<void>(
@@ -740,6 +751,34 @@ class _CustomerOrdersBodyState extends ConsumerState<_CustomerOrdersBody> {
       await _refreshCanonical();
     }
   }
+}
+
+/// Route presentation of the same approved customer detail used by the sheet.
+class CustomerOrderDetailsPage extends ConsumerWidget {
+  const CustomerOrderDetailsPage({
+    required this.orderId,
+    this.onCreateReturn,
+    this.onOpenReturn,
+    super.key,
+  });
+  final String orderId;
+  final ValueChanged<String>? onCreateReturn;
+  final ValueChanged<String>? onOpenReturn;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => Scaffold(
+    body: SafeArea(
+      child: FeatureAccessGate(
+        roles: const {'customer'},
+        child: _CustomerOrderDetailsSheet(
+          orderId: orderId,
+          capturedScope: ref.watch(featureSessionScopeProvider),
+          onCreateReturn: onCreateReturn,
+          onOpenReturn: onOpenReturn,
+          enablePolling: false,
+        ),
+      ),
+    ),
+  );
 }
 
 class _CustomerListHeader extends StatelessWidget {

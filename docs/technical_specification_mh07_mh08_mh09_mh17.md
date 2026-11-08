@@ -17,7 +17,7 @@ Tài liệu dùng cùng ba phụ lục, không đọc phần blueprint tách kh�
 
 - [Data dictionary và API contracts](technical_specification_mh07_mh08_mh09_mh17_data_api.md).
 - [Test plan và requirement-to-test traceability](technical_specification_mh07_mh08_mh09_mh17_tests.md).
-- [Source evidence, inventory và conflict register](technical_specification_mh07_mh08_mh09_mh17_evidence.md).
+- [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](FINAL_REPORT_MH07_MH08_MH09_MH17.md).
 
 Quy ước bằng chứng bắt buộc:
 
@@ -895,17 +895,17 @@ Technical assumptions `PROPOSED`: customer detail là modal MH07; count/search/p
 - [ ] Đã thực thi test matrix, NFR đo thực tế và acceptance NT từng ID với full report.
 - [ ] Mobile platforms/min OS/theme/shared shell đã ký; analyze/tests/build/demo có bằng chứng.
 
-Trạng thái revision1.2: từng màn READY FOR PARTIAL IMPLEMENTATION; all full-runtime workflows còn external evidence/implementation gates ở [Implementation Readiness1.2](Implementation_Readiness_v1.2.md). Không coi revision tài liệu là approval hợp đồng hoặc kết quả kiểm thử ứng dụng.
+Trạng thái revision1.2: từng màn READY FOR PARTIAL IMPLEMENTATION; all full-runtime workflows còn external evidence/implementation gates ở [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](FINAL_REPORT_MH07_MH08_MH09_MH17.md). Không coi revision tài liệu là approval hợp đồng hoặc kết quả kiểm thử ứng dụng.
 
 ## Lịch sử remediation — revision 1.1, 08/10/2026
 
 Revision 1.0 được giữ làm baseline trong báo cáo audit lịch sử. Revision 1.1 sửa AUD-04/06/08/09/10 và hoàn thiện phần draft AUD-03/05/07; AUD-01/02 vẫn PENDING APPROVAL. Tất cả proposals chưa được ký vẫn `PROPOSED`, kể cả khi wire names được chuẩn hóa.
 
-- [Post Audit Remediation Report](Post_Audit_Remediation_Report.md): delta, trạng thái từng finding và checks thực tế.
-- [Technical Decision Log](Technical_Decision_Log.md): DR-01/02/03 và các integration gates.
-- [Remaining Issues](Remaining_Issues.md): phân loại công việc còn lại.
-- [Updated Implementation Readiness](Updated_Implementation_Readiness.md): giới hạn phần có thể bắt đầu coding.
+- [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](FINAL_REPORT_MH07_MH08_MH09_MH17.md): delta, trạng thái từng finding và checks thực tế.
+- [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](FINAL_REPORT_MH07_MH08_MH09_MH17.md): DR-01/02/03 và các integration gates.
+- [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](FINAL_REPORT_MH07_MH08_MH09_MH17.md): phân loại công việc còn lại.
+- [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](FINAL_REPORT_MH07_MH08_MH09_MH17.md): giới hạn phần có thể bắt đầu coding.
 
 ## Finalization history — revision1.2
 
-Owner authority finalizes DR01/03/04; DR02 consumer exact SHARED flow. [Final Decisions](Final_Technical_Decisions.md), [Cross Contracts](Cross_Module_Integration_Contracts.md), [Readiness1.2](Implementation_Readiness_v1.2.md), [Change Log](Finalization_Change_Log.md). Current owned designs supersede historical1.1 pending labels only; not external acceptance/runtime PASS.
+Owner authority finalizes DR01/03/04; DR02 consumer exact SHARED flow. [Final Decisions](Final_Technical_Decisions.md), [Cross Contracts](Cross_Module_Integration_Contracts.md), [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](FINAL_REPORT_MH07_MH08_MH09_MH17.md), [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](FINAL_REPORT_MH07_MH08_MH09_MH17.md). Current owned designs supersede historical1.1 pending labels only; not external acceptance/runtime PASS.

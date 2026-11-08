@@ -2,9 +2,9 @@
 
 ## Implementation checkpoint01
 
-[Scope/API/oracles](IMPLEMENTATION_CHECKPOINT_01.md):26 new pure snapshot predicate cases; existing tests/assertions protected.
+[Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md):26 new pure snapshot predicate cases; existing tests/assertions protected.
 Scope/generation/cache replacement/block/dispose, stale head/tail, active/access latch, exact server count và identity keys.
-Evidence/counts thực thi ở [verification](artifacts/implementation_checkpoint_01/verification.json); failed fixture-compile attempt giữ riêng.
+Evidence/counts thực thi ở [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md); failed fixture-compile attempt giữ riêng.
 Không coi pure predicate tests là Page first-frame/modal runtime proof; N01/N04/N05/N07 cần future integration tests.
 R architecture accepted với sole ReadCoordinator≤280 exception; F02 response validation tests thuộc separate authorized fix.
 
@@ -19,34 +19,34 @@ Status “covered” chỉ nói client assertions đã đọc/chạy; không chu
   synchronous replay, stale authority boundary, consecutive refresh và raw empty/oversized F02 cursors.
 - Source152/250LOC, test379/400; old Dart/03A1 assertions untouched. Existing page/pagination/characterization files run individually.
 - New coordinator individual26; old individual counts9/6/2/3/4/5/4; selected protected regressions7 PASS; analyzer/format PASS.
-- [Transition design/results](COORDINATOR_03A2.md), [focused146](artifacts/coordinator_03a2/focused_final.log),
-  [individuals](artifacts/coordinator_03a2/individual_results.json), [verification](artifacts/coordinator_03a2/verification.json).
+- [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md), [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md),
+  [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md), [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md).
 - No full suite/fixed-output capture, Android/backend/RLS/TalkBack or production modal/navigation acceptance inferred.
 
 ## MH17-03A1 — test extraction và characterization
 
 - Fresh baseline106 PASS trước edits; final focused120 PASS =106preserved +14new, không cộng historical461.
 - Original page18declarations/19cases/94assertions103expanded qua3files222/221/124LOC; support137/52.
-- Full body/assertion/literal/loop/setup/fake preservation +5negative mutation controls: [report](artifacts/refactor_03a1/test_preservation_report.json).
+- Full body/assertion/literal/loop/setup/fake preservation +5negative mutation controls: [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md).
 - New2feed cases: duplicate projection/count independence và explicit refresh rejecting old in-flight tail.
 - New3gesture cases: available/pending/rapid taps, stale disabled body, captured callbacks after disposal.
 - New4privacy cases: own inbox3roles/foreign row rejection; late A count99 cannot replace B count3.
 - New5navigation cases: unknown/null resolver/unavailable target; pending resolver after disposal or generation change while mounted.
 - Reuse protected7session cases for logout/unresolved/expiry/late list/modal privacy; full F03 role destination matrix remains separate.
-- [Focused120](artifacts/refactor_03a1/focused_verified.log), [individual7files](artifacts/refactor_03a1/individual_results_final.json),
-  [selected regressions7](artifacts/refactor_03a1/regressions_verified.log), [analyze](artifacts/refactor_03a1/analyze_verified.log),
-  [format](artifacts/refactor_03a1/format_verified_final.log), [verification](artifacts/refactor_03a1/verification.json).
+- [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md), [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md),
+  [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md), [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md),
+  [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md), [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md).
 - Tests ran on working source. Full suite NOT RUN: legacy fixed-output capture paths protected; no validated mirror prepared.
 - No actual forbidden navigation reproduced, no failing production oracle hidden; F05 callback multiplicity is observed current behavior.
 - Two review issues fixed in new test tooling/oracle, not production: literal/cardinality preservation; mounted-generation isolation.
-- Initial analyzer export ambiguity +2brace infos fixed without ignores/assertion removal; [notes](artifacts/refactor_03a1/attempts.txt).
-- Android/production routes/backend/RLS/NFR/TalkBack NOT RUN. [Detailed inventory/plan](REFACTOR_03A1.md).
+- Initial analyzer export ambiguity +2brace infos fixed without ignores/assertion removal; [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md).
+- Android/production routes/backend/RLS/NFR/TalkBack NOT RUN. [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md).
 
 ## Thực thi MH17-02 — isolated components
 
-- Fresh original baseline67 PASS: [log](artifacts/components_02/baseline_tests.log).
+- Fresh original baseline67 PASS: [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md).
 - Final `flutter test --no-pub test/features/notifications --reporter expanded`: **106 PASS** = original67 +new39,
-  không skip/weaken assertions; [log](artifacts/components_02/focused_final.log).
+  không skip/weaken assertions; [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md).
 - New directory `test/features/notifications/presentation/widgets/mh17/`: filters9, context10, feed15, feed_interaction5.
 - Filters: controlled default/selected/null/busy/one callback, selected/disabled semantics,320/390×text1.5/2, targets≥48.
 - Context: plain authorized strings/explanation, null/delegated close, exact heading/live-region semantics, safe area,
@@ -56,25 +56,25 @@ Status “covered” chỉ nói client assertions đã đọc/chạy; không chu
  45rows/last footer reachable, immutable inputs/removal, long Vietnamese matrix và semantics.
 - New support fixture có unique event/recipient và notification_only.subjectId=eventId; không sửa Preview/F07 fixtures cũ.
 - Selected read-only regression: `feature_access_gate_test`, `foreground_refresh_test`, `preview_app_test` **7 PASS**,
-  [log](artifacts/components_02/protected_regressions.log); đây không phải Android hoặc full protected suite.
+  [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md); đây không phải Android hoặc full protected suite.
 - `dart format --output=none --set-exit-if-changed` trên8new Dart files **0 changed/exit0**:
-  [format](artifacts/components_02/format_verified.log); analyzer **No issues found/exit0**: [log](artifacts/components_02/analyze_verified.log).
+  [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md); analyzer **No issues found/exit0**: [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md).
 - Initial new-test attempts có lỗi expectation/semantics handle/refresh animation timing; sửa test harness, không sửa protected source.
 - Initial analyze có7 deprecated hasFlag info; thay bằng flagsCollection/Tristate, giữ assertions, không ignore diagnostics.
-- [Attempt notes](artifacts/components_02/attempts.txt), [working-file verification](artifacts/components_02/verification.json).
+- [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md), [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md).
 - Full suite, Preview launch, Android/TalkBack, backend/RLS, production modal invalidation **NOT RUN** trong02.
 
 ## Thực thi trong MH17-01
 
 | Check | Result / evidence |
 | --- | --- |
-| `flutter test --no-pub test/features/notifications --reporter expanded` | **67 PASS**, exit0; [log](artifacts/audit_01/focused_verified.log) |
-| `flutter analyze --no-pub` | **No issues found**, exit0; [log](artifacts/audit_01/analyze.log) |
+| `flutter test --no-pub test/features/notifications --reporter expanded` | **67 PASS**, exit0; [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md) |
+| `flutter analyze --no-pub` | **No issues found**, exit0; [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md) |
 | Full `flutter test` | **NOT RUN**, không sử dụng MH09 historical461 để thay thế |
 | Android build/install/runtime/TalkBack MH17 | **NOT RUN** |
 | SQL/RLS/concurrency/backend | **NOT RUN**, không có deployed backend evidence |
 | `dart format` changed Dart | N/A: không sửa Dart |
-| HTML/links/physical LOC/diff/hashes | [verification](artifacts/audit_01/verification.json), chỉ task-owned gates |
+| HTML/links/physical LOC/diff/hashes | [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md), chỉ task-owned gates |
 
 Lần Flutter sandbox đầu không tạo output, stopped; log0byte không phải PASS.
 Verified retry dùng installed SDK ngoài workspace qua tool escalation. Không đổi SDK/deps/lockfile/source.
@@ -103,7 +103,7 @@ Không chạy legacy visual captures vì fixed output có thể ghi đè evidenc
 | No optional features T17-21 | source inspection no mark-all/unread/push | UI acceptance confirm no accidental mock metrics/category/bulk features |
 | Text scale/semantics | tile320dp/text2, exact124 badge semantics, long page text | full320/360/390/412×1/1.5/2, contrast,48dp targets, actual TalkBack |
 
-Coverage files và LOC chi tiết trong [SOURCE_AUDIT](SOURCE_AUDIT.md); không sửa assertions trong task01.
+Coverage files và LOC chi tiết trong [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md); không sửa assertions trong task01.
 NT01–NT30 report definitions chưa có trong minimal supplied context; không tự gán oracle chi tiết cho NT ID.
 
 ## Priority cho follow-up

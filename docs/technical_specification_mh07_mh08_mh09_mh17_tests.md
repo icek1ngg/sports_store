@@ -280,7 +280,7 @@ Rules from DOCX II.3.1, Common II.3.2; operational flows II.1.2; exact test defi
 
 AUD-06 oracle FIXED bằng T09-01 (route) và T09-21–24 (API). AUD-04/08 local ordering/replay scenarios TX-05/25–28. AUD-09 read failure/notification_only T17-23/24. AUD-07 PARTIALLY FIXED: đủ 22 event-family fixture rows nhưng exact fixtures/producers/recipient policies phải ký DR-01/DR-03; chưa đủ evidence đóng integration test gap. Không tuyên bố test nào PASS.
 
-[Decision Log](Technical_Decision_Log.md), [Remaining Issues](Remaining_Issues.md), [Remediation Report](Post_Audit_Remediation_Report.md) xác định trạng thái gates. Unit/widget design có thể chuẩn bị bằng test-only fakes ghi rõ draft contract; không dùng fake làm production fallback. Historical global alternative removed: current TX23 uses scoped protocol; no choice left to coding agent. Điều kiện này không là requirement bổ sung đã duyệt.
+[Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](FINAL_REPORT_MH07_MH08_MH09_MH17.md), [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](FINAL_REPORT_MH07_MH08_MH09_MH17.md), [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](FINAL_REPORT_MH07_MH08_MH09_MH17.md) xác định trạng thái gates. Unit/widget design có thể chuẩn bị bằng test-only fakes ghi rõ draft contract; không dùng fake làm production fallback. Historical global alternative removed: current TX23 uses scoped protocol; no choice left to coding agent. Điều kiện này không là requirement bổ sung đã duyệt.
 
 ## 10. Finalization contract fixtures — revision1.2
 
@@ -300,4 +300,4 @@ No fixture executed. IDs below reference exact ownerwire §9 DataAPI, not source
 | CF-05 | §9.8/9.9 rawnotification vs RPCenvelope | T17-06/07; serverfirstreadtime, rawarraynotinventedenvelope |
 | CF-06 | Each CIN09SourceFacts9requirednullkeys+typedtargets+manifest | EV01–22/T17-25/28–31+TX32; externalacceptance pending |
 
-Finalization coverage additions: BR13–19 → T09-25–28/TX30/31/33; BR32/36 → TX29–35/T17-28–31; CR07/08/09/11 → TX29–36/CF01–06; DR01→FP01–05/TX23/29–35; DR02→T09-25–28; DR03→EV01–22/TX32/T17-28–31; DR04→TX27/35/36. Historical1.1 §9 remains a snapshot, current fixture/gate authority supersedes pending ownlabels. [Decisions](Final_Technical_Decisions.md), [CrossContracts](Cross_Module_Integration_Contracts.md), [Readiness](Implementation_Readiness_v1.2.md).
+Finalization coverage additions: BR13–19 → T09-25–28/TX30/31/33; BR32/36 → TX29–35/T17-28–31; CR07/08/09/11 → TX29–36/CF01–06; DR01→FP01–05/TX23/29–35; DR02→T09-25–28; DR03→EV01–22/TX32/T17-28–31; DR04→TX27/35/36. Historical1.1 §9 remains a snapshot, current fixture/gate authority supersedes pending ownlabels. [Decisions](Final_Technical_Decisions.md), [CrossContracts](Cross_Module_Integration_Contracts.md), [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](FINAL_REPORT_MH07_MH08_MH09_MH17.md).

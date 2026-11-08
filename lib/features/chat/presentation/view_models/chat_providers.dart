@@ -14,6 +14,16 @@ final chatSessionProvider = StreamProvider.autoDispose<String?>((ref) async* {
     (event) => event.session?.accessToken,
   );
 });
+
+/// Injectable identity and epoch. Live defaults preserve SDK session guards.
+final chatViewerIdProvider = Provider<String? Function()>((ref) {
+  final client = ref.watch(supabaseClientProvider);
+  return () => client.auth.currentUser?.id;
+});
+final chatEpochProvider = Provider<Object? Function()>((ref) {
+  final client = ref.watch(supabaseClientProvider);
+  return () => client.auth.currentSession;
+});
 final chatRepositoryProvider = Provider<ChatRepository>(
   (ref) => SupabaseChatRepository(ref.watch(supabaseClientProvider)),
 );
@@ -34,12 +44,11 @@ class ChatInboxViewModel extends AsyncNotifier<List<ChatConversation>> {
   }
 
   Future<String> startCustomerConversation() async {
-    final client = ref.read(supabaseClientProvider);
-    final session = client.auth.currentSession;
+    final session = ref.read(chatEpochProvider)();
     final id = await ref
         .read(chatRepositoryProvider)
         .ensureCustomerConversation();
-    if (!ref.mounted || !identical(client.auth.currentSession, session)) {
+    if (!ref.mounted || !identical(ref.read(chatEpochProvider)(), session)) {
       throw const ChatFailure('Phiên hội thoại đã kết thúc.');
     }
     ref.invalidateSelf();
@@ -113,8 +122,8 @@ class ChatThreadViewModel extends AsyncNotifier<ChatThreadState> {
     if (token == null) {
       throw const ChatFailure('Vui lòng đăng nhập để xem hội thoại.');
     }
-    final owner = ref.read(supabaseClientProvider).auth.currentUser?.id;
-    final session = ref.read(supabaseClientProvider).auth.currentSession;
+    final owner = ref.read(chatViewerIdProvider)();
+    final session = ref.read(chatEpochProvider)();
     if (_pendingOwner != owner) {
       _pendingId = null;
       _pendingBody = null;
@@ -125,10 +134,7 @@ class ChatThreadViewModel extends AsyncNotifier<ChatThreadState> {
         .getMessages(conversationId);
     if (ref.mounted &&
         epoch == _epoch &&
-        identical(
-          ref.read(supabaseClientProvider).auth.currentSession,
-          session,
-        )) {
+        identical(ref.read(chatEpochProvider)(), session)) {
       _contiguousHead = page.messages.lastOrNull;
       // The head RPC has committed its read watermark. MH19 must fetch the
       // server's new unread count even when the user never sends a reply.
@@ -144,14 +150,11 @@ class ChatThreadViewModel extends AsyncNotifier<ChatThreadState> {
     final current = state.asData?.value;
     if (current == null || current.busy) return;
     final epoch = _epoch;
-    final session = ref.read(supabaseClientProvider).auth.currentSession;
+    final session = ref.read(chatEpochProvider)();
     bool isCurrent() =>
         ref.mounted &&
         _epoch == epoch &&
-        identical(
-          ref.read(supabaseClientProvider).auth.currentSession,
-          session,
-        );
+        identical(ref.read(chatEpochProvider)(), session);
     state = AsyncData(
       ChatThreadState(
         page: current.page,
@@ -226,13 +229,13 @@ class ChatThreadViewModel extends AsyncNotifier<ChatThreadState> {
     final current = state.asData?.value;
     if (current == null || current.busy || _probing) return;
     final epoch = _epoch;
-    final client = ref.read(supabaseClientProvider);
-    final session = client.auth.currentSession;
-    final viewer = client.auth.currentUser?.id;
+
+    final session = ref.read(chatEpochProvider)();
+    final viewer = ref.read(chatViewerIdProvider)();
     bool isCurrent() =>
         ref.mounted &&
         _epoch == epoch &&
-        identical(client.auth.currentSession, session);
+        identical(ref.read(chatEpochProvider)(), session);
     _probing = true;
     try {
       final activity = await ref
@@ -294,14 +297,11 @@ class ChatThreadViewModel extends AsyncNotifier<ChatThreadState> {
     }
     if (body.trim().isEmpty || body.length > 4000) return false;
     final epoch = _epoch;
-    final session = ref.read(supabaseClientProvider).auth.currentSession;
+    final session = ref.read(chatEpochProvider)();
     bool isCurrent() =>
         ref.mounted &&
         _epoch == epoch &&
-        identical(
-          ref.read(supabaseClientProvider).auth.currentSession,
-          session,
-        );
+        identical(ref.read(chatEpochProvider)(), session);
     if (_pendingBody != body.trim()) {
       _pendingId = _uuid();
       _pendingBody = body.trim();
@@ -344,14 +344,11 @@ class ChatThreadViewModel extends AsyncNotifier<ChatThreadState> {
       return;
     }
     final epoch = _epoch;
-    final session = ref.read(supabaseClientProvider).auth.currentSession;
+    final session = ref.read(chatEpochProvider)();
     bool isCurrent() =>
         ref.mounted &&
         _epoch == epoch &&
-        identical(
-          ref.read(supabaseClientProvider).auth.currentSession,
-          session,
-        );
+        identical(ref.read(chatEpochProvider)(), session);
     state = AsyncData(
       ChatThreadState(page: current.page, loadingOlder: true).carry(current),
     );

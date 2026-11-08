@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/state/foundation_providers.dart';
 import '../../features/auth/presentation/view_models/auth_providers.dart';
 import '../../features/notifications/presentation/providers/notification_providers.dart';
+import '../../features/orders/presentation/view_models/order_providers.dart';
 
 /// The only production overrides for the existing feature foundations.
 /// Preview continues to supply its own explicitly labelled fixture overrides.
@@ -13,6 +14,9 @@ final productionFeatureOverrides = [
   ),
   notificationRepositoryProvider.overrideWith(
     (ref) => ref.watch(supabaseNotificationRepositoryProvider),
+  ),
+  orderRepositoryProvider.overrideWith(
+    (ref) => ref.watch(supabaseOrderRepositoryProvider),
   ),
 ];
 
@@ -47,6 +51,7 @@ class _FeatureSessionLifecycleState
   Widget build(BuildContext context) {
     // Eagerly observe startup/logout/expiry even before feature routes exist.
     ref.watch(featureSessionScopeProvider);
+    ref.watch(orderPendingRecoveryProvider);
     return widget.child;
   }
 

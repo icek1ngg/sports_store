@@ -66,6 +66,8 @@ Widget mh09PageHost({
         (ref) => ref.watch(mh09TestSessionProvider),
       ),
       orderRepositoryProvider.overrideWithValue(repository),
+      // This read-page fixture deliberately has no mutation implementation.
+      orderCommandControllerProvider.overrideWithValue(null),
       readRetryPolicyProvider.overrideWithValue(
         const ReadRetryPolicy(backoffs: []),
       ),
