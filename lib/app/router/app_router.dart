@@ -11,6 +11,9 @@ import '../../features/checkout/presentation/pages/checkout_page.dart';
 import '../../features/catalog/presentation/pages/product_list_page.dart';
 import '../../features/catalog/presentation/pages/product_details_page.dart';
 import '../../features/auth/presentation/pages/register_screen.dart';
+import '../../features/auth/presentation/pages/email_confirmation_page.dart';
+import '../../features/auth/data/email_confirmation_callback.dart';
+import '../../features/auth/domain/models/email_confirmation_result.dart';
 import '../../features/auth/presentation/view_models/auth_providers.dart';
 import '../../features/chat/presentation/pages/conversation_detail_screen.dart';
 import '../../features/cod/presentation/view_models/cod_providers.dart';
@@ -54,6 +57,7 @@ final operationalRouteGuardProvider = Provider<OperationalRouteGuard>((ref) {
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final guard = ref.watch(operationalRouteGuardProvider);
+  final confirmation = ref.read(initialEmailConfirmationProvider);
   final navigatorKey = GlobalKey<NavigatorState>();
   late final GoRouter router;
   var popCheckScheduled = false;
@@ -84,10 +88,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   }
 
   router = GoRouter(
+    initialLocation: confirmation != null
+        ? EmailConfirmationCallback.path
+        : null,
+    // Supabase's #access_token / #error fragment is not a Flutter hash route.
+    overridePlatformDefaultLocation: confirmation != null,
     navigatorKey: navigatorKey,
     observers: [_RecheckOnPop(recheckAfterPop)],
     refreshListenable: guard,
     redirect: (context, state) async {
+      if (state.uri.path == EmailConfirmationCallback.path) return null;
       final checkedLocation = pendingPopLocation ?? state.uri;
       pendingPopLocation = null;
       final destination = await guard.redirectLocation(checkedLocation);
@@ -141,6 +151,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     errorBuilder: (context, state) =>
         const _NavigationStatusPage(message: 'Không tìm thấy trang.'),
     routes: [
+      GoRoute(
+        path: EmailConfirmationCallback.path,
+        builder: (context, state) => EmailConfirmationPage(
+          result: confirmation ?? EmailConfirmationResult.invalid,
+        ),
+      ),
       GoRoute(
         path: '/',
         builder: (context, state) =>
@@ -414,6 +430,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         if (!ref.mounted) return;
         // Imperative editor sheets belong to the old account too.
         navigatorKey.currentState?.popUntil((route) => route.isFirst);
+        if (router.state.uri.path == EmailConfirmationCallback.path) return;
         router.go('/');
       });
     }
