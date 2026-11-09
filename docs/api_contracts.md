@@ -2152,3 +2152,24 @@ Repository ký URL bằng quyền hiện có; UI không lưu URL ký sẵn. `loc
 trong manifest chỉ là đầu vào script upload, không được ghi vào attributes.
 SQL chỉ đổi metadata sau khi kiểm tra đủ 52 object thật; giữ nguyên giá/tồn
 và snapshot đơn. Xem [quy trình upload và trạng thái](storage_color_images_20261109.md).
+
+## MH07 → MH13 — `can_open_return_creation` (09/11/2026)
+
+Migration `20261109124501_orders_return_creation_capability.sql` thêm
+`private.orders_return_creation_open(p_order_id uuid) returns boolean`
+(SECURITY INVOKER, chạy dưới RLS của người gọi, chỉ `authenticated` được gọi).
+Kết quả được gộp vào `capabilities.can_open_return_creation` của
+`get_order_details` và `private.orders_read_summary` (danh sách MH07/MH08).
+`private.orders_write_capabilities` giữ nguyên.
+
+`true` chỉ khi: người gọi là customer sở hữu đơn, đơn `delivered`,
+`clock_timestamp() <= delivered_at + 7 ngày`, và đơn chưa có return đang hoạt
+động (cùng danh sách trạng thái với `submit_return_request`). Manager luôn
+nhận `false`. Cờ này chỉ mở nút ở MH07; `submit_return_request` vẫn kiểm tra
+lại toàn bộ khi gửi.
+
+Đã áp lên project `bqoyfytmrtvjwrpshuhh` ngày 09/11/2026 bằng
+`supabase db query --linked -f` và ghi lịch sử bằng
+`supabase migration repair --status applied 20261109124501` (không dùng
+`db push` vì lịch sử remote có 6 version chưa có trong repo). Kiểm thử cục bộ:
+`supabase/tests/orders_return_creation_capability.sql`.
