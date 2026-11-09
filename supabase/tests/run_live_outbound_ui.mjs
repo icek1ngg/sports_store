@@ -107,7 +107,7 @@ try {
     commit;`);
   seeded=true;
   const managerToken=await login(manager);
-  const assignment=await rpc(managerToken,'assign_delivery_task',{p_order_id:ids.order,p_shipper_id:shipper.id,p_request_id:randomUUID()});
+  const assignment=await rpc(managerToken,'prepare_and_assign_delivery',{p_order_id:ids.order,p_shipper_id:shipper.id,p_request_id:randomUUID(),p_prepared:true});
   const taskId=assignment.task_id;
   const otherToken=await login(other);
   await rpc(otherToken,'get_my_delivery_task',{p_task_id:taskId},true);
@@ -260,7 +260,7 @@ try {
       ${codOrders.length?`delete from public.cod_collections where order_id in(${codOrders.map(id=>`'${id}'::uuid`).join(',')});
       delete from public.orders where id in(${codOrders.map(id=>`'${id}'::uuid`).join(',')});`:''}
       do $$ declare t text; begin
-        foreach t in array array['outbound_completion_results','outbound_completion_requests','outbound_command_requests','outbound_custody_acceptances','outbound_dispatches','delivery_assignment_audits','delivery_assignment_requests'] loop
+        foreach t in array array['outbound_completion_results','outbound_completion_requests','outbound_command_requests','outbound_custody_acceptances','outbound_dispatches','delivery_preparation_proofs','delivery_assignment_audits','delivery_assignment_requests'] loop
           if to_regclass('private.'||t) is not null then
             execute format('alter table private.%I disable trigger user',t);
             execute format('delete from private.%I where order_id=%L::uuid',t,'${ids.order}');

@@ -87,6 +87,7 @@ try {
     'delivery_read_security.sql',
     'delivery_task_list.sql',
     'delivery_task_detail.sql',
+    'prepare_and_assign_delivery.sql',
     'outbound_assignment.sql',
     'outbound_accept_start.sql',
     'outbound_completion_production.sql',

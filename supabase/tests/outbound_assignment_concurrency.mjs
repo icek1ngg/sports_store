@@ -18,8 +18,10 @@ export async function testAssignmentConcurrency(Client, options, admin) {
       [actor, JSON.stringify({ sub: actor, role: 'authenticated' })]);
   }
   const assign = (client, order, shipper, request, task = null, previous = null) =>
-    client.query('select public.assign_delivery_task($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid) as result',
-      [order, shipper, request, task, previous]).then(r => r.rows[0].result);
+    client.query(task === null
+      ? 'select public.prepare_and_assign_delivery($1::uuid,$2::uuid,$3::uuid,true) as result'
+      : 'select public.assign_delivery_task($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid) as result',
+      task === null ? [order, shipper, request] : [order, shipper, request, task, previous]).then(r => r.rows[0].result);
   async function blockedRace(firstActor, secondActor, firstCall, secondCall) {
     await begin(a, firstActor);
     await begin(b, secondActor);
@@ -51,7 +53,7 @@ export async function testAssignmentConcurrency(Client, options, admin) {
     const initial = await blockedRace(managerA, managerB,
       c => assign(c, orders[0], shipperA, id(20)), c => assign(c, orders[0], shipperB, id(21)));
     assert.equal(initial.second.error?.code, 'PT409');
-    assert.equal(initial.second.error?.message, 'TASK_CONFLICT');
+    assert.equal(initial.second.error?.message, 'STATE_CONFLICT');
 
     const replay = await blockedRace(managerA, managerA,
       c => assign(c, orders[1], shipperA, id(22)), c => assign(c, orders[1], shipperA, id(22)));
@@ -85,6 +87,7 @@ export async function testAssignmentConcurrency(Client, options, admin) {
     await admin.query('BEGIN');
     try {
       await admin.query("SET LOCAL session_replication_role = 'replica'");
+      await admin.query('delete from private.delivery_preparation_proofs where order_id=any($1::uuid[])', [orders]);
       await admin.query('delete from private.delivery_assignment_requests where order_id=any($1::uuid[])', [orders]);
       await admin.query('delete from private.delivery_assignment_audits where order_id=any($1::uuid[])', [orders]);
       await admin.query('delete from public.cod_collections where order_id=any($1::uuid[])', [orders]);

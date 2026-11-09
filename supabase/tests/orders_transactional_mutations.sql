@@ -121,7 +121,7 @@ select set_config('request.jwt.claim.sub','b2222222-2222-4222-8222-222222222222'
 set local role authenticated;
 do $$ declare o record; assignment jsonb; begin
  select * into o from b2_orders where label='confirm';
- assignment:=public.assign_delivery_task(o.id,'d2222222-2222-4222-8222-222222222222',gen_random_uuid());
+ assignment:=public.prepare_and_assign_delivery(o.id,'d2222222-2222-4222-8222-222222222222',gen_random_uuid(),true);
  perform pg_temp.b2_check(public.cancel_manager_order(o.id,gen_random_uuid(),'No revoke contract')#>>'{error,code}'='custody_unverified','assigned cancellation blocked');
  perform pg_temp.b2_check(public.get_order_details(o.id)#>>'{data,capabilities,can_cancel_exceptional}'='false','assigned capability disabled');
 end $$;

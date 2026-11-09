@@ -11,6 +11,7 @@ class Mh09ActionFooter extends StatelessWidget {
     this.canActInCurrentScope = false,
     this.isBusy = false,
     this.onAction,
+    this.onPrepareAndAssign,
     super.key,
   });
 
@@ -19,6 +20,7 @@ class Mh09ActionFooter extends StatelessWidget {
   final bool canActInCurrentScope;
   final bool isBusy;
   final ValueChanged<OrderOperation>? onAction;
+  final VoidCallback? onPrepareAndAssign;
 
   static const _labelStyle = TextStyle(
     fontFamily: 'BarlowCondensed',
@@ -29,6 +31,7 @@ class Mh09ActionFooter extends StatelessWidget {
     letterSpacing: 1.12,
   );
   bool get _hasFooterCapability =>
+      (capabilities.canAssign && onPrepareAndAssign != null) ||
       capabilities.canReject ||
       capabilities.canConfirm ||
       capabilities.canCancelExceptional;
@@ -57,6 +60,15 @@ class Mh09ActionFooter extends StatelessWidget {
             textScale > 1.25 ||
             MediaQuery.sizeOf(context).height < 500;
         final main = <Widget>[
+          if (capabilities.canAssign && onPrepareAndAssign != null)
+            FilledButton.icon(
+              key: const ValueKey('mh09-action-prepare-dispatch'),
+              onPressed: isActionStateFresh && canActInCurrentScope && !isBusy
+                  ? onPrepareAndAssign
+                  : null,
+              icon: const Icon(Icons.inventory_2_outlined),
+              label: const Text('Chuẩn bị xong & phân công giao'),
+            ),
           if (capabilities.canReject)
             _rejectButton(context, _enabled(capabilities.canReject)),
           if (capabilities.canConfirm)

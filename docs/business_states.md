@@ -106,7 +106,7 @@ redelivery_failed là đã đóng.
 
 | Bước / điều kiện | Task | Order | Hiệu ứng bắt buộc |
 | --- | --- | --- | --- |
-| Quản lý phân công outbound | pending_assignment/assigned | preparing → awaiting_pickup | Gán holder/task; chưa tăng attempt và chưa restock |
+| Quản lý xác nhận kiểm đủ hàng, đóng gói và phân công outbound | pending_assignment/assigned | preparing → awaiting_pickup | RPC `prepare_and_assign_delivery` ghi bằng chứng chuẩn bị và phân công trong một transaction; không tăng attempt, không xuất kho lần nữa. Gọi phân công trực tiếp không có bằng chứng chuẩn bị trong transaction bị chặn. |
 | Shipper accept rồi start | assigned → accepted → in_transit | awaiting_pickup → delivering | Start mới tăng delivery_attempt_count; tối đa 2, không tăng khi chỉ đổi task/shipper |
 | Giao thành công | in_transit → delivered | delivering → delivered | Ghi attempt success, người nhận và full COD; COD chuyển uncollected → collected |
 | Lần 1 thất bại | in_transit → failed | delivering → awaiting_redelivery | Ghi reason và attempt failed; không tự trừ/tăng tồn kho, không thu/hoàn COD |

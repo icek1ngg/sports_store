@@ -9,8 +9,10 @@ import '../../../../../core/state/session_scope.dart';
 import '../../../../../shared/widgets/async_content.dart';
 import '../../../../../shared/widgets/foreground_refresh.dart';
 import '../../../domain/models/order_details.dart';
-import '../../../domain/models/order_operation.dart';
+import '../../../domain/models/order_status.dart';
+import '../../widgets/prepare_dispatch_dialog.dart';
 import '../../view_models/order_providers.dart';
+import '../../view_models/manager_dispatch_providers.dart';
 import '../../widgets/mh09/mh09_header.dart';
 import '../../widgets/mh09/mh09_action_footer.dart';
 import '../../widgets/order_action_dialog.dart';
@@ -169,6 +171,56 @@ class _Mh09DetailContentState extends ConsumerState<Mh09DetailContent> {
     }
   }
 
+  bool _canDispatch(int ticket, SessionScope scope, EpochCache cache) {
+    final current = _current(ticket, scope, cache);
+    return current?.order.status == OrderStatus.preparing &&
+        current?.capabilities.canAssign == true;
+  }
+
+  Future<void> _prepareDispatch(
+    int ticket,
+    SessionScope scope,
+    EpochCache cache,
+  ) async {
+    if (_dialogOpen ||
+        _route?.isCurrent == false ||
+        !_canDispatch(ticket, scope, cache)) {
+      return;
+    }
+    setState(() => _dialogOpen = true);
+    try {
+      final assigned = await showDialog<DispatchDialogOutcome>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => PrepareDispatchDialog(
+          orderId: widget.orderId,
+          scope: scope,
+          isStillAllowed: () => _canDispatch(ticket, scope, cache),
+        ),
+      );
+      if (!mounted || !_authorized(ticket, scope, cache)) return;
+      if (assigned == DispatchDialogOutcome.assigned ||
+          assigned == DispatchDialogOutcome.unresolved ||
+          ref.read(pendingDispatchStoreProvider).forOrder(widget.orderId) !=
+              null) {
+        cache.invalidatePrefix('orders/');
+        cache.invalidatePrefix('notifications/');
+        if (assigned == DispatchDialogOutcome.assigned) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Đã chuẩn bị hàng và phân công. Đơn đang chờ shipper lấy hàng.',
+              ),
+            ),
+          );
+        }
+      }
+      await _refresh(ticket, scope, cache);
+    } finally {
+      if (_owns(ticket)) setState(() => _dialogOpen = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ticket = _generation;
@@ -192,7 +244,9 @@ class _Mh09DetailContentState extends ConsumerState<Mh09DetailContent> {
         _showAction(operation, ticket, scope, cache);
     final hasActions =
         details != null &&
-        (details.capabilities.canConfirm ||
+        ((details.order.status == OrderStatus.preparing &&
+                details.capabilities.canAssign) ||
+            details.capabilities.canConfirm ||
             details.capabilities.canReject ||
             details.capabilities.canCancelExceptional);
 
@@ -209,6 +263,11 @@ class _Mh09DetailContentState extends ConsumerState<Mh09DetailContent> {
                 canActInCurrentScope: _authorized(ticket, scope, cache),
                 isBusy: loading || _dialogOpen,
                 onAction: action,
+                onPrepareAndAssign:
+                    details.order.status == OrderStatus.preparing &&
+                        details.capabilities.canAssign
+                    ? () => _prepareDispatch(ticket, scope, cache)
+                    : null,
               ),
         header: Mh09Header(
           canPop: Navigator.of(context).canPop(),
@@ -235,6 +294,9 @@ class _Mh09DetailContentState extends ConsumerState<Mh09DetailContent> {
                   details: details,
                   onRefresh: refresh,
                   contactEnabled: fresh,
+                  assignmentIntegrated:
+                      details.order.status == OrderStatus.preparing &&
+                      details.capabilities.canAssign,
                   onCall: widget.onCallRecipient == null
                       ? null
                       : () => _forward(

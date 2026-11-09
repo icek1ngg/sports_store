@@ -72,7 +72,7 @@ export async function testAcceptStartConcurrency(Client, options, admin) {
       await admin.query(`insert into public.inventory_movements(variant_id,order_id,event_id,kind,reserved_delta,actor_id,reason)
         values($1,$2,$3,'reserve',2,$4,'TEST-ONLY checkout reservation seed')`, [id(32), order, id(60 + i), manager]);
       await begin(a, manager);
-      const assignment = await a.query('select public.assign_delivery_task($1,$2,$3) result', [order, shipper, id(80 + i)]);
+      const assignment = await a.query('select public.prepare_and_assign_delivery($1,$2,$3,true) result', [order, shipper, id(80 + i)]);
       tasks.push(assignment.rows[0].result.task_id);
       await a.query('COMMIT');
     }
@@ -136,7 +136,7 @@ export async function testAcceptStartConcurrency(Client, options, admin) {
     try {
       // Specific fixture IDs in a NEW isolated DB only. Never a production path.
       await admin.query("SET LOCAL session_replication_role='replica'");
-      for (const table of ['outbound_command_requests', 'outbound_custody_acceptances', 'outbound_dispatches', 'delivery_assignment_requests', 'delivery_assignment_audits']) {
+      for (const table of ['outbound_command_requests', 'outbound_custody_acceptances', 'outbound_dispatches', 'delivery_preparation_proofs', 'delivery_assignment_requests', 'delivery_assignment_audits']) {
         await admin.query(`delete from private.${table} where order_id=any($1::uuid[])`, [orders]);
       }
       await admin.query(`delete from public.notifications where event_id in

@@ -176,21 +176,16 @@ set local role authenticated;
 create temp table p072_ids(name text primary key,id uuid) on commit drop;
 create temp table p072_responses(name text primary key,response jsonb) on commit drop;
 select pg_temp.set_p072_claims('07250000-0000-0000-0000-000000000002');
-insert into p072_ids(name,id) select 'main_task1',(public.assign_delivery_task(
- '07250000-0000-0000-0000-000000000010'::uuid,'07250000-0000-0000-0000-000000000004'::uuid,
- '07250000-0000-0000-0000-000000000401'::uuid,null,null)->>'task_id')::uuid;
-insert into p072_ids(name,id) select 'early_task1',(public.assign_delivery_task(
- '07250000-0000-0000-0000-000000000011'::uuid,'07250000-0000-0000-0000-000000000004'::uuid,
- '07250000-0000-0000-0000-000000000402'::uuid,null,null)->>'task_id')::uuid;
-insert into p072_ids(name,id) select 'assigned_task1',(public.assign_delivery_task(
- '07250000-0000-0000-0000-000000000012'::uuid,'07250000-0000-0000-0000-000000000004'::uuid,
- '07250000-0000-0000-0000-000000000403'::uuid,null,null)->>'task_id')::uuid;
-insert into p072_ids(name,id) select 'accepted_task1',(public.assign_delivery_task(
- '07250000-0000-0000-0000-000000000013'::uuid,'07250000-0000-0000-0000-000000000004'::uuid,
- '07250000-0000-0000-0000-000000000404'::uuid,null,null)->>'task_id')::uuid;
-insert into p072_ids(name,id) select 'fault_task1',(public.assign_delivery_task(
- '07250000-0000-0000-0000-000000000014'::uuid,'07250000-0000-0000-0000-000000000004'::uuid,
- '07250000-0000-0000-0000-000000000405'::uuid,null,null)->>'task_id')::uuid;
+insert into p072_ids(name,id) select 'main_task1',(public.prepare_and_assign_delivery('07250000-0000-0000-0000-000000000010'::uuid,'07250000-0000-0000-0000-000000000004'::uuid,
+ '07250000-0000-0000-0000-000000000401'::uuid,true)->>'task_id')::uuid;
+insert into p072_ids(name,id) select 'early_task1',(public.prepare_and_assign_delivery('07250000-0000-0000-0000-000000000011'::uuid,'07250000-0000-0000-0000-000000000004'::uuid,
+ '07250000-0000-0000-0000-000000000402'::uuid,true)->>'task_id')::uuid;
+insert into p072_ids(name,id) select 'assigned_task1',(public.prepare_and_assign_delivery('07250000-0000-0000-0000-000000000012'::uuid,'07250000-0000-0000-0000-000000000004'::uuid,
+ '07250000-0000-0000-0000-000000000403'::uuid,true)->>'task_id')::uuid;
+insert into p072_ids(name,id) select 'accepted_task1',(public.prepare_and_assign_delivery('07250000-0000-0000-0000-000000000013'::uuid,'07250000-0000-0000-0000-000000000004'::uuid,
+ '07250000-0000-0000-0000-000000000404'::uuid,true)->>'task_id')::uuid;
+insert into p072_ids(name,id) select 'fault_task1',(public.prepare_and_assign_delivery('07250000-0000-0000-0000-000000000014'::uuid,'07250000-0000-0000-0000-000000000004'::uuid,
+ '07250000-0000-0000-0000-000000000405'::uuid,true)->>'task_id')::uuid;
 
 select pg_temp.set_p072_claims('07250000-0000-0000-0000-000000000004');
 select public.accept_delivery_task((select id from p072_ids where name='main_task1'),'07250000-0000-0000-0000-000000000411'::uuid);
