@@ -5,6 +5,7 @@ abstract interface class AuthRepository {
   Stream<AuthSession> watchSession();
   Future<AppProfile?> getCurrentProfile();
   Future<void> login({required String email, required String password});
+  Future<void> loginWithGoogle();
   Future<RegistrationResult> register({
     required String fullName,
     required String phone,

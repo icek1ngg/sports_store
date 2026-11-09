@@ -9,12 +9,16 @@ import 'core/config/load_supabase_config.dart';
 import 'core/state/foundation_providers.dart';
 import 'features/auth/presentation/view_models/auth_providers.dart';
 import 'features/auth/data/email_confirmation_callback.dart';
+import 'features/auth/data/oauth_sign_in_callback.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // The SDK consumes and clears auth URL parameters during initialize().
   final incomingUri = Uri.base;
   final confirmingEmail = EmailConfirmationCallback.isCallback(incomingUri);
+  final oauthError = confirmingEmail
+      ? null
+      : OAuthSignInCallback.errorMessage(incomingUri);
 
   try {
     final config = await loadSupabaseConfig();
@@ -26,6 +30,8 @@ Future<void> main() async {
     runApp(
       ProviderScope(
         overrides: [
+          if (oauthError != null)
+            initialOAuthErrorProvider.overrideWithValue(oauthError),
           if (confirmingEmail)
             initialEmailConfirmationProvider.overrideWithValue(
               EmailConfirmationCallback.resolveAfterSdkInitialization(
