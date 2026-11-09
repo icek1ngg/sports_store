@@ -1,0 +1,277 @@
+[
+  {
+    "key": "S01",
+    "category": "shoes",
+    "name": "Giày Nike Air Jordan 1 Đỏ Đen",
+    "price_vnd": 1890000,
+    "image": "https://cdn.dummyjson.com/product-images/mens-shoes/nike-air-jordan-1-red-and-black/thumbnail.webp",
+    "sizes": [
+      "36",
+      "37",
+      "38",
+      "39",
+      "40",
+      "41",
+      "42",
+      "43",
+      "44"
+    ],
+    "colors": [
+      "Đỏ đen"
+    ],
+    "material": "Vải và vật liệu tổng hợp",
+    "description": "Giày thể thao dành cho bộ sưu tập minh họa; lựa chọn cỡ từ 36 đến 44."
+  },
+  {
+    "key": "S02",
+    "category": "shoes",
+    "name": "Giày Nike Baseball Cleats",
+    "price_vnd": 1590000,
+    "image": "https://cdn.dummyjson.com/product-images/mens-shoes/nike-baseball-cleats/thumbnail.webp",
+    "sizes": [
+      "36",
+      "37",
+      "38",
+      "39",
+      "40",
+      "41",
+      "42",
+      "43",
+      "44"
+    ],
+    "colors": [
+      "Đen trắng"
+    ],
+    "material": "Vải và vật liệu tổng hợp",
+    "description": "Giày thể thao dành cho bộ sưu tập minh họa; lựa chọn cỡ từ 36 đến 44."
+  },
+  {
+    "key": "S03",
+    "category": "shoes",
+    "name": "Giày Puma Future Rider",
+    "price_vnd": 1490000,
+    "image": "https://cdn.dummyjson.com/product-images/mens-shoes/puma-future-rider-trainers/thumbnail.webp",
+    "sizes": [
+      "36",
+      "37",
+      "38",
+      "39",
+      "40",
+      "41",
+      "42",
+      "43",
+      "44"
+    ],
+    "colors": [
+      "Nhiều màu"
+    ],
+    "material": "Vải và vật liệu tổng hợp",
+    "description": "Giày thể thao dành cho bộ sưu tập minh họa; lựa chọn cỡ từ 36 đến 44."
+  },
+  {
+    "key": "S04",
+    "category": "shoes",
+    "name": "Giày Sports Sneakers Off White & Red",
+    "price_vnd": 1190000,
+    "image": "https://cdn.dummyjson.com/product-images/mens-shoes/sports-sneakers-off-white-&-red/thumbnail.webp",
+    "sizes": [
+      "36",
+      "37",
+      "38",
+      "39",
+      "40",
+      "41",
+      "42",
+      "43",
+      "44"
+    ],
+    "colors": [
+      "Trắng đỏ"
+    ],
+    "material": "Vải và vật liệu tổng hợp",
+    "description": "Giày thể thao dành cho bộ sưu tập minh họa; lựa chọn cỡ từ 36 đến 44."
+  },
+  {
+    "key": "S05",
+    "category": "shoes",
+    "name": "Giày Sports Sneakers Off White Red",
+    "price_vnd": 1290000,
+    "image": "https://cdn.dummyjson.com/product-images/mens-shoes/sports-sneakers-off-white-red/thumbnail.webp",
+    "sizes": [
+      "36",
+      "37",
+      "38",
+      "39",
+      "40",
+      "41",
+      "42",
+      "43",
+      "44"
+    ],
+    "colors": [
+      "Trắng đỏ"
+    ],
+    "material": "Vải và vật liệu tổng hợp",
+    "description": "Giày thể thao dành cho bộ sưu tập minh họa; lựa chọn cỡ từ 36 đến 44."
+  },
+  {
+    "key": "A01",
+    "category": "apparel",
+    "name": "Áo chạy bộ Kalenji Xanh",
+    "price_vnd": 350000,
+    "image": "https://contents.mediadecathlon.com/p2506817/k$6bb995e8d179b5827ab1f530b137c8ca/picture.jpg",
+    "sizes": [
+      "S",
+      "M",
+      "L",
+      "XL",
+      "XXL"
+    ],
+    "colors": [
+      "Xanh dương",
+      "Xanh navy"
+    ],
+    "material": "Polyester",
+    "description": "Quần áo thể thao minh họa cho tập luyện và vận động hằng ngày."
+  },
+  {
+    "key": "A02",
+    "category": "apparel",
+    "name": "Áo tập Nike Miler Cam",
+    "price_vnd": 490000,
+    "image": "https://strtsply.com/cdn/shop/files/NIKEDRIFIT1.0MILERTSHIRTBURNTORANGESTRTSPLY.jpg?v=1740091172&width=600",
+    "sizes": [
+      "S",
+      "M",
+      "L",
+      "XL",
+      "XXL"
+    ],
+    "colors": [
+      "Cam",
+      "Đen"
+    ],
+    "material": "Polyester",
+    "description": "Quần áo thể thao minh họa cho tập luyện và vận động hằng ngày."
+  },
+  {
+    "key": "A03",
+    "category": "apparel",
+    "name": "Áo thể thao Carrollton Trắng",
+    "price_vnd": 390000,
+    "image": "https://www.tascperformance.com/cdn/shop/files/TM110-100CarrolltonFitnessT_White_1200x1600_b693f427-e466-4c86-b8fc-0288966be2cd.jpg?v=1767110501&width=600",
+    "sizes": [
+      "S",
+      "M",
+      "L",
+      "XL",
+      "XXL"
+    ],
+    "colors": [
+      "Trắng",
+      "Xám"
+    ],
+    "material": "Vải pha co giãn",
+    "description": "Quần áo thể thao minh họa cho tập luyện và vận động hằng ngày."
+  },
+  {
+    "key": "A04",
+    "category": "apparel",
+    "name": "Áo tập Performance Xám",
+    "price_vnd": 290000,
+    "image": "https://contents.mediadecathlon.com/p3154123/k$bb23ec633d82f9914c4005f23a1349e0/picture.jpg?f=600x600",
+    "sizes": [
+      "S",
+      "M",
+      "L",
+      "XL",
+      "XXL"
+    ],
+    "colors": [
+      "Xám",
+      "Đen"
+    ],
+    "material": "Polyester",
+    "description": "Quần áo thể thao minh họa cho tập luyện và vận động hằng ngày."
+  },
+  {
+    "key": "A05",
+    "category": "apparel",
+    "name": "Quần short tập luyện Essential",
+    "price_vnd": 250000,
+    "image": "https://contents.mediadecathlon.com/p2789798/k$55d674c813deb11fa069180916a1a9e3/picture.jpg?f=600x600",
+    "sizes": [
+      "S",
+      "M",
+      "L",
+      "XL",
+      "XXL"
+    ],
+    "colors": [
+      "Đen",
+      "Xanh navy"
+    ],
+    "material": "Polyester",
+    "description": "Quần áo thể thao minh họa cho tập luyện và vận động hằng ngày."
+  },
+  {
+    "key": "A06",
+    "category": "apparel",
+    "name": "Quần short chạy bộ nữ Kiprun",
+    "price_vnd": 280000,
+    "image": "https://contents.mediadecathlon.com/p2765177/k$13438722e78a8584797fae1cfbb6091b/picture.jpg?f=600x600",
+    "sizes": [
+      "S",
+      "M",
+      "L",
+      "XL",
+      "XXL"
+    ],
+    "colors": [
+      "Đen",
+      "Trắng"
+    ],
+    "material": "Polyester",
+    "description": "Quần áo thể thao minh họa cho tập luyện và vận động hằng ngày."
+  },
+  {
+    "key": "A07",
+    "category": "apparel",
+    "name": "Áo khoác chạy bộ Kiprun",
+    "price_vnd": 790000,
+    "image": "https://contents.mediadecathlon.com/p2906668/k$09e4d07281641cc1bc555a48f51006d5/men-s-running-jacket-kiprun-run-100-warm-black.jpg",
+    "sizes": [
+      "S",
+      "M",
+      "L",
+      "XL",
+      "XXL"
+    ],
+    "colors": [
+      "Đen",
+      "Xanh navy"
+    ],
+    "material": "Vải tổng hợp",
+    "description": "Quần áo thể thao minh họa cho tập luyện và vận động hằng ngày."
+  },
+  {
+    "key": "A08",
+    "category": "apparel",
+    "name": "Áo khoác chạy bộ nữ",
+    "price_vnd": 690000,
+    "image": "https://contents.mediadecathlon.com/s1210002/k$252cb943d97c12ca08d4d124d5132fd2/6e9b540a-dcce-48d9-ac2b-705e974edfcc.jpg",
+    "sizes": [
+      "S",
+      "M",
+      "L",
+      "XL",
+      "XXL"
+    ],
+    "colors": [
+      "Đen",
+      "Xám"
+    ],
+    "material": "Vải tổng hợp",
+    "description": "Quần áo thể thao minh họa cho tập luyện và vận động hằng ngày."
+  }
+]

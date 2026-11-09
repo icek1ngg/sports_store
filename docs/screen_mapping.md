@@ -146,8 +146,8 @@ biến thể và bộ chọn vị trí trong màn đặt hàng là thành phần
 | MH02 | Đăng ký | Khách chưa có tài khoản | Dung An | Đăng ký tài khoản khách với quyền customer |
 | MH03 | Quản lý sản phẩm | Manager | Dung An | Thêm/sửa/ngừng bán sản phẩm, biến thể và tồn kho bằng hộp thoại |
 | MH04 | Danh sách sản phẩm | Khách | Văn Đức | Xem, tìm kiếm và lọc theo danh mục |
-| MH05 | Chi tiết sản phẩm | Khách | Văn Đức | Xem thông tin, chọn biến thể và số lượng |
-| MH06 | Giỏ hàng | Khách | Văn Đức | Xem, sửa, xóa món và chuyển sang đặt hàng |
+| MH05 | Chi tiết sản phẩm | Khách | Văn Đức | Gallery, chọn màu/cỡ, giá/tồn theo biến thể, số lượng và thêm giỏ |
+| MH06 | Giỏ hàng | Khách | Văn Đức | Chọn từng dòng/tất cả, sửa số lượng, xóa, tiền hàng cố định và chuyển MH16 với UUID đã chọn |
 | MH07 | Đơn hàng của khách | Khách | Bảo | Xem đơn, chi tiết, hủy trước khi xác nhận và mở yêu cầu trả |
 | MH08 | Danh sách đơn của manager | Manager | Bảo | Lọc trạng thái, xem đơn mới và cảnh báo giao thất bại |
 | MH09 | Chi tiết đơn của manager | Manager | Bảo | Xác nhận/từ chối, phân công, giao lại, hoàn và nhận hàng trả |
@@ -812,3 +812,25 @@ Chỉ bổ sung RPC báo bàn giao/sự cố outbound, không thêm dialog hoặ
   `client_message_id`.
 - MH19 chuyển từ hẹn giờ 20 s sang cùng chính sách 3 s và tải lại khi quay về từ
   MH20.
+
+## Cập nhật MH04 ngày 08/11/2026
+
+Thanh dưới khách: Sản phẩm (`/customer/products`), Đơn hàng
+(`/customer/orders`, MH07), Giỏ hàng (`/customer/cart`) và Tài khoản (sheet,
+không tăng số màn chính). Tài khoản giữ đường dẫn `/chat`. Thanh dưới không
+hiện trên checkout/chi tiết/luồng trả hàng. Xem
+[bản chỉnh catalog](van_duc_catalog_redesign_20261108.md).
+
+## Cập nhật MH05 ngày 09/11/2026
+
+Văn Đức: 13 mẫu demo có 4 ảnh riêng theo màu/mẫu. Chọn màu đổi gallery theo
+biến thể; ảnh AI có chú thích riêng. Dùng widget/provider ảnh chung cho các
+luồng catalog, giỏ và checkout; không thêm màn hoặc đổi route. Xem
+[bản cập nhật ảnh màu](van_duc_color_images_20261109.md).
+
+## MH16 — luồng nhập địa chỉ trước bản đồ, 09/11/2026
+
+Văn Đức: form chính dùng tìm địa chỉ/gợi ý, số nhà/ngõ và xác nhận; bỏ map
+nhỏ và ô tọa độ. Chỉnh vị trí qua dialog bản đồ lớn, ghim cố định giữa, vẫn
+thuộc MH16; không đổi 20 màn chính hoặc thêm route riêng. Xem
+[hướng dẫn và hợp đồng](van_duc_address_first_checkout_20261109.md).

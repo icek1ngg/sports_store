@@ -53,6 +53,10 @@ class CatalogQueryViewModel extends Notifier<CatalogQuery> {
     state = state.copyWith(categoryId: categoryId, page: 0);
   }
 
+  void setOptions({required CatalogSort sort, required bool inStockOnly}) {
+    state = state.copyWith(sort: sort, inStockOnly: inStockOnly, page: 0);
+  }
+
   void nextPage() {
     state = state.copyWith(page: state.page + 1);
   }

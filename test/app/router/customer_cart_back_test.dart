@@ -125,8 +125,31 @@ Future<void> _tap(WidgetTester tester, String key) async {
 }
 
 void main() {
-  testWidgets('customer can sign out from the catalog toolbar', (tester) async {
+  testWidgets(
+    'four customer tabs include a real account sheet and chat access',
+    (tester) async {
+      final app = await _openStore(tester);
+      for (var i = 0; i < 4; i++) {
+        expect(find.byKey(ValueKey('customer-tab-$i')), findsOneWidget);
+      }
+      await tester.tap(find.byKey(const ValueKey('customer-tab-3')));
+      await tester.pumpAndSettle();
+      expect(find.text('[TEST] Khách hàng'), findsOneWidget);
+      expect(find.text('Liên hệ cửa hàng'), findsOneWidget);
+      expect(app.router.state.uri.path, '/customer/products');
+      await tester.tap(find.byTooltip('Đăng xuất').last);
+      await tester.pumpAndSettle();
+      expect(
+        app.container.read(supabaseClientProvider).auth.currentSession,
+        isNull,
+      );
+      expect(find.text('[TEST] Khách hàng'), findsNothing);
+    },
+  );
+  testWidgets('customer can sign out from the account sheet', (tester) async {
     final app = await _openStore(tester);
+    expect(find.byTooltip('Đăng xuất'), findsNothing);
+    await _tap(tester, 'customer-tab-3');
     await tester.tap(find.byTooltip('Đăng xuất'));
     await tester.pumpAndSettle();
     expect(

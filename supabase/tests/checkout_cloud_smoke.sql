@@ -23,6 +23,14 @@ insert into public.product_variants
   (id, product_id, sku, label, price_vnd, on_hand, reserved, damaged) values
   ('9b4d0000-0000-4000-8000-000000000006',
    '9b4d0000-0000-4000-8000-000000000005', 'CHECKOUT-CLOUD-SMOKE', 'Cỡ 40', 690000, 3, 0, 0);
+insert into public.product_variants
+  (id, product_id, sku, label, price_vnd, on_hand, reserved, damaged) values
+  ('9b4d0000-0000-4000-8000-000000000010',
+   '9b4d0000-0000-4000-8000-000000000005', 'CHECKOUT-CLOUD-UNSELECTED', 'Cỡ 41', 690000, 3, 0, 0);
+insert into public.cart_items(customer_id,variant_id,quantity) values
+  ('9b4d0000-0000-4000-8000-000000000001','9b4d0000-0000-4000-8000-000000000006',3),
+  ('9b4d0000-0000-4000-8000-000000000001','9b4d0000-0000-4000-8000-000000000010',1),
+  ('9b4d0000-0000-4000-8000-000000000002','9b4d0000-0000-4000-8000-000000000006',1);
 
 select set_config('request.jwt.claim.sub', '9b4d0000-0000-4000-8000-000000000001', true);
 select set_config('request.jwt.claims',
@@ -67,6 +75,10 @@ begin
   if r#>>'{error,code}' is distinct from 'outside_service_area' then
     raise exception 'cloud outside-Hanoi rejection failed';
   end if;
+  if (select quantity from public.cart_items where variant_id='9b4d0000-0000-4000-8000-000000000006') is distinct from 1
+    or (select quantity from public.cart_items where variant_id='9b4d0000-0000-4000-8000-000000000010') is distinct from 1 then
+    raise exception 'cloud selected cart subtraction or replay isolation failed';
+  end if;
 end;
 $$;
 
@@ -104,8 +116,31 @@ begin
   if to_regprocedure('private.validate_outbound_reservation(uuid,jsonb)') is not null then
     perform private.validate_outbound_reservation(o, private.outbound_items_snapshot(o));
   end if;
+  if (select quantity from public.cart_items where customer_id='9b4d0000-0000-4000-8000-000000000002'
+      and variant_id='9b4d0000-0000-4000-8000-000000000006') is distinct from 1 then
+    raise exception 'cloud cart consumption modified another customer';
+  end if;
 end;
 $$;
+
+select set_config('request.jwt.claim.sub', '9b4d0000-0000-4000-8000-000000000001', true);
+select set_config('request.jwt.claims',
+  '{"sub":"9b4d0000-0000-4000-8000-000000000001","role":"authenticated"}', true);
+set local role authenticated;
+do $$
+declare r jsonb;
+begin
+  r := public.place_order(
+    '9b4d0000-0000-4000-8000-000000000009',
+    '[{"variant_id":"9b4d0000-0000-4000-8000-000000000006","quantity":1}]',
+    '[TEST] Văn Đức', '0901234567', 'Số 1 Tràng Tiền, Hoàn Kiếm, Hà Nội', 21.0285, 105.8542);
+  if r->>'ok' is distinct from 'true'
+    or exists(select 1 from public.cart_items where variant_id='9b4d0000-0000-4000-8000-000000000006')
+    or (select quantity from public.cart_items where variant_id='9b4d0000-0000-4000-8000-000000000010') is distinct from 1 then
+    raise exception 'cloud fully purchased row deletion or unselected preservation failed';
+  end if;
+end $$;
+reset role;
 
 select 'checkout_cloud_smoke.sql: PASS (all fixture data rolled back)' as result;
 rollback;

@@ -49,6 +49,8 @@ analysis_benchmark.json
 .pub-preload-cache/
 .pub/
 build/
+# Color demo upload sources are kept locally; runtime images live in Storage.
+/assets/images/stride_color_20261109_*
 flutter_*.png
 linked_*.ds
 unlinked.ds
