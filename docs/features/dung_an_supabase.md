@@ -55,8 +55,9 @@ dart run tool/check_dung_an_backend.dart
 ```
 
 Ứng dụng chính dùng cùng client được khởi tạo trong `lib/main.dart`, Riverpod,
-go_router và repository thật. `tool/ui_preview/prm_main.dart` chuyển vào cùng
-entrypoint; không còn bộ sản phẩm/hội thoại demo trong các màn này.
+go_router và repository thật. Alias preview cũ đã được loại bỏ; chỉ chạy bằng
+`flutter run -d emulator-5554 -t lib/main.dart --no-dds`. Không có bộ sản phẩm/
+hội thoại demo trong các màn này.
 
 | Màn | Route | Chức năng |
 | --- | --- | --- |

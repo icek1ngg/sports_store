@@ -5,15 +5,15 @@ import 'package:sports_store/features/orders/presentation/pages/customer_orders_
 import 'package:sports_store/features/orders/presentation/pages/manager_orders_page.dart';
 import 'package:sports_store/features/orders/presentation/widgets/mh08/mh08_order_card.dart';
 
-import '../../tool/ui_preview/main.dart' as preview_entrypoint;
-import '../../tool/ui_preview/mh08_manager_repository.dart';
-import '../../tool/ui_preview/mh08_preview_environment.dart';
+import '../support/ui_preview/mh08_preview_app.dart';
+import '../support/ui_preview/mh08_manager_repository.dart';
+import '../support/ui_preview/mh08_preview_environment.dart';
 
 import 'mh08_preview_test_support.dart';
 
 void main() {
-  testWidgets('preview entrypoint defaults to MH07', (tester) async {
-    preview_entrypoint.main();
+  testWidgets('orders visual fixture defaults to MH07', (tester) async {
+    await tester.pumpWidget(const Mh08PreviewApp());
     try {
       await tester.pump();
       await tester.pumpAndSettle();

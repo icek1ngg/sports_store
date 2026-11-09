@@ -73,6 +73,36 @@ void main() {
     );
   });
 
+  test('lookup-only recovery retains unknown key and retires only final failure before new intent', () async {
+    await store.save(command);
+    var sends = 0;
+    repository.send = (next) async {
+      sends++;
+      final json = fixtureMutationReceiptJson(
+        operation: 'customer_cancel',
+        status: 'cancelled',
+      );
+      json['request_id'] = next.requestId;
+      return OrderMutationReceiptDto.fromJson(json).domain;
+    };
+    expect((await controller.resolve(command)).isNotFound, isTrue);
+    expect(sends, 0);
+    expect((await store.list()).single.requestId, command.requestId);
+    repository.lookup = const OperationResult.failed(
+      AppFailure(code: AppFailure.stateChanged),
+    );
+    expect((await controller.resolve(command)).isFailed, isTrue);
+    expect(await store.list(), isEmpty);
+    expect(sends, 0);
+    final next = StableOrderCommand(
+      orderId: command.orderId,
+      requestId: '90000000-0000-4000-8000-000000000999',
+      operation: command.operation,
+    );
+    expect((await controller.execute(next)).requestId, next.requestId);
+    expect(sends, 1);
+  });
+
   test(
     'protected pending saved before send, removed only after canonical ACK',
     () async {

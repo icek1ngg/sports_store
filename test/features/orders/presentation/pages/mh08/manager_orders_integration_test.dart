@@ -192,50 +192,79 @@ void main() {
     await finishMh08Test(tester, container);
   });
 
-  testWidgets('dialog fails closed after list cache invalidation', (
-    tester,
-  ) async {
-    final repository = OrderListFixtureRepository(
-      managerPage: listFixturePage(
-        items: [
-          listFixtureSummary(
-            capabilities: listFixtureCapabilities(
-              canConfirm: true,
-              canReject: true,
+  testWidgets(
+    'dialog waits for refresh, retains unchanged decision and blocks revocation',
+    (tester) async {
+      final repository = OrderListFixtureRepository(
+        managerPage: listFixturePage(
+          items: [
+            listFixtureSummary(
+              capabilities: listFixtureCapabilities(
+                canConfirm: true,
+                canReject: true,
+              ),
             ),
-          ),
-        ],
-      ),
-    );
-    final container = createMh08Container(repository);
-    await pumpMh08Page(
-      tester,
-      container,
-      const ManagerOrdersPage(enablePolling: false),
-    );
-    final confirm = find.byKey(const ValueKey('mh08-confirm'));
-    await tester.ensureVisible(confirm);
-    await tester.pump();
-    await tester.tap(confirm);
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('order-action-submit')), findsOneWidget);
+          ],
+        ),
+      );
+      final container = createMh08Container(repository);
+      await pumpMh08Page(
+        tester,
+        container,
+        const ManagerOrdersPage(enablePolling: false),
+      );
+      final confirm = find.byKey(const ValueKey('mh08-confirm'));
+      await tester.ensureVisible(confirm);
+      await tester.pump();
+      await tester.tap(confirm);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('order-action-submit')), findsOneWidget);
 
-    container.read(epochCacheProvider).invalidatePrefix('orders/list/');
-    await tester.pump();
-    expect(
-      tester
-          .widget<FilledButton>(
-            find.byKey(const ValueKey('order-action-submit')),
-          )
-          .onPressed,
-      isNull,
-    );
-    expect(
-      find.text('Dữ liệu đã thay đổi. Làm mới trước khi tiếp tục.'),
-      findsOneWidget,
-    );
-    await finishMh08Test(tester, container);
-  });
+      final pending = Completer<OrderPage>();
+      repository.managerPageLoader = (_) => pending.future;
+      container.read(epochCacheProvider).invalidatePrefix('orders/list/');
+      await tester.pump();
+      expect(
+        tester
+            .widget<FilledButton>(
+              find.byKey(const ValueKey('order-action-submit')),
+            )
+            .onPressed,
+        isNull,
+      );
+      expect(
+        find.text('Dữ liệu đã thay đổi. Làm mới trước khi tiếp tục.'),
+        findsNothing,
+      );
+      pending.complete(repository.managerPage!);
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<FilledButton>(
+              find.byKey(const ValueKey('order-action-submit')),
+            )
+            .onPressed,
+        isNotNull,
+      );
+      repository.managerPageLoader = null;
+      repository.managerPage = listFixturePage();
+      container.read(epochCacheProvider).invalidatePrefix('orders/list/');
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<FilledButton>(
+              find.byKey(const ValueKey('order-action-submit')),
+            )
+            .onPressed,
+        isNull,
+      );
+      expect(
+        find.text('Dữ liệu đã thay đổi. Làm mới trước khi tiếp tục.'),
+        findsOneWidget,
+      );
+      await finishMh08Test(tester, container);
+    },
+  );
 
   testWidgets(
     'dialog expiry hides private content without disposed ref errors',

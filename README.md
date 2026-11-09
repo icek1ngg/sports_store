@@ -1,16 +1,22 @@
 # Sports Store
 
-## Chạy ứng dụng trình bày trên Android
+## Chạy ứng dụng Sports Store trên Android
 
 ```powershell
-flutter run -d emulator-5554 -t lib/main_dev.dart --no-dds
+flutter run -d emulator-5554 -t lib/main.dart --no-dds
 ```
 
-Entrypoint này chạy full-app với dữ liệu local, không cần triển khai Supabase.
-Phạm vi và kết quả kiểm tra Orders/Notifications xem
+Ứng dụng chính dùng Supabase Auth, hồ sơ phân quyền từ server và các Supabase
+repositories/RPC của nhóm. Không có tài khoản local, role switcher hoặc RAM
+business fallback trong runtime chính. Cần Internet, cấu hình client hợp lệ
+và tài khoản ứng dụng được cấp quyền; không đưa mật khẩu/token vào source.
+Các RPC chưa được triển khai hoặc không đủ quyền phải báo unavailable/error,
+không tự tạo đơn hay báo thao tác thành công bằng dữ liệu fixture.
+
+Phạm vi Orders/Notifications và các giới hạn xác minh xem
 [báo cáo tổng kết MH07/MH08/MH09/MH17](docs/FINAL_REPORT_MH07_MH08_MH09_MH17.md).
-Các hướng dẫn Supabase và ghi chú lịch sử của từng module bên dưới được giữ
-để tham chiếu; không thay thế lệnh trình bày local ở trên.
+Các công cụ kiểm tra và ghi chú theo module bên dưới là tài liệu tham chiếu;
+entrypoint chính thức của ứng dụng đầy đủ là `lib/main.dart`.
 
 Ứng dụng dùng tiếng Việt cho giao diện, thông báo, nút điều hướng và các menu
 mặc định của Flutter, kể cả khi thiết bị đang dùng ngôn ngữ khác. Cấu hình chung
@@ -28,7 +34,7 @@ tại máy và kết quả cloud hiện hành:
 
 ```powershell
 flutter pub get
-flutter run -d chrome -t tool/catalog_live/main.dart --dart-define-from-file=config/supabase.json
+flutter run -d emulator-5554 -t lib/main.dart --no-dds
 ```
 
 Đăng nhập bằng tài khoản `customer` của project. Xem
@@ -49,11 +55,11 @@ các cập nhật giao hàng, COD và bản đồ từ main.
 Các màn và luồng còn lại xem trạng thái cụ thể trong `docs/screen_mapping.md`;
 không coi toàn bộ MH01–MH20 đã hoàn thành.
 
-Cập nhật 30/10: đã sửa điều hướng trang chính theo vai trò, giữ lịch sử khi chat
-tự tải lại, đồng bộ số chưa đọc và chọn/upload ảnh sản phẩm. Sau đồng bộ main,
-trang customer dùng catalog/giỏ/checkout của Văn Đức; MH08 chưa bind repository
-thật nên trang chính manager báo dịch vụ chưa tích hợp và vẫn có navigation
-tới phần Dung An. Xem
+Ứng dụng dùng navigation theo vai trò và cùng một router cho catalog, giỏ,
+checkout, Orders, Notifications và các module nhóm. MH07/MH08/MH09 đã bind
+`SupabaseOrderRepository`; MH17 bind `SupabaseNotificationRepository`.
+Backend lỗi hoặc thiếu RPC hiển thị unavailable, không chuyển sang dữ liệu RAM.
+Phạm vi Auth/Catalog/Chat của Dung An xem
 [phạm vi, phụ thuộc và kiểm thử](docs/features/dung_an_supabase.md).
 
 ## Các màn Dung An đã nối Supabase
@@ -62,7 +68,8 @@ MH01 đăng nhập và MH02 đăng ký dùng Supabase Auth. MH03 quản lý sả
 
 **Đã kiểm tra sau migration trên cloud:** Auth/Data API kết nối được tới project `bqoyfytmrtvjwrpshuhh`; cả năm RPC mới đã tồn tại và từ chối caller chưa đăng nhập đúng quyền (`42501`). Lượt kiểm tra lại có 30 test chức năng/điều hướng và 37 kiểm tra database cô lập thành công. Chưa kiểm thử thao tác ghi bằng tài khoản đăng nhập thật trên cloud. Chi tiết chức năng, giới hạn và kết quả ở [docs/features/dung_an_supabase.md](docs/features/dung_an_supabase.md).
 
-Entrypoint cũ `tool/ui_preview/prm_main.dart` nay chuyển vào ứng dụng chính, dùng cùng cấu hình Supabase và không còn dữ liệu demo.
+Các harness UI chỉ còn là fixtures dưới `test/support`; không có entrypoint
+preview/local riêng trong application source.
 
 ## Chạy ứng dụng
 

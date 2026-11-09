@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/errors/app_failure.dart';
@@ -23,6 +24,10 @@ class OrderActionDialog extends ConsumerStatefulWidget {
     required this.isStillAllowed,
     required this.submittedScope,
     this.sourceCache,
+    this.sourceResourcePrefix = 'orders/',
+    this.onRefreshDecision,
+    this.decisionChanges,
+    this.decisionUnchanged,
     super.key,
   });
   final String orderId;
@@ -33,6 +38,12 @@ class OrderActionDialog extends ConsumerStatefulWidget {
   /// Detail sheets can own a session-bound cache below the root Navigator.
   /// Observe the decision's cache without reparenting a live modal scope.
   final EpochCache? sourceCache;
+  final String sourceResourcePrefix;
+  final Future<void> Function()? onRefreshDecision;
+  final ProviderListenable<Object?>? decisionChanges;
+
+  /// Null means a read is still pending; it is not a server conflict.
+  final bool? Function()? decisionUnchanged;
 
   @override
   ConsumerState<OrderActionDialog> createState() => _OrderActionDialogState();
@@ -44,9 +55,11 @@ class _OrderActionDialogState extends ConsumerState<OrderActionDialog> {
   late final SessionScope _submittedScope;
   AppFailure? _failure;
   bool _sourceInvalidated = false;
+  bool _decisionPending = false;
   bool _busy = false;
   StableOrderCommand? _command;
   void Function()? _cancelPrivateData;
+  ProviderSubscription<Object?>? _decisionSubscription;
 
   bool get _requiresReason =>
       widget.operation == OrderOperation.reject ||
@@ -66,6 +79,25 @@ class _OrderActionDialogState extends ConsumerState<OrderActionDialog> {
   void initState() {
     super.initState();
     _submittedScope = widget.submittedScope;
+    if (widget.decisionChanges != null) {
+      _decisionSubscription = ref.listenManual(widget.decisionChanges!, (_, _) {
+        final unchanged = widget.decisionUnchanged?.call();
+        if (!mounted || _busy) return;
+        scheduleMicrotask(() {
+          if (!mounted || _busy) return;
+          setState(() {
+            _decisionPending = unchanged == null;
+            if (unchanged == null) return;
+            _sourceInvalidated = !unchanged;
+            if (!unchanged) {
+              _failure = const AppFailure(code: AppFailure.stateChanged);
+            } else if (_failure?.code == AppFailure.stateChanged) {
+              _failure = null;
+            }
+          });
+        });
+      });
+    }
     ref.listenManual(featureSessionScopeProvider, (_, next) {
       if (next != _submittedScope) {
         _reason.clear();
@@ -78,7 +110,10 @@ class _OrderActionDialogState extends ConsumerState<OrderActionDialog> {
       if (!cache.canRead && mounted) {
         _reason.clear();
         _failure = null;
-      } else if (mounted && resource.startsWith('orders/')) {
+      } else if (mounted &&
+          resource.startsWith(widget.sourceResourcePrefix) &&
+          !_busy &&
+          widget.decisionChanges == null) {
         // The confirmation was opened from an older decision snapshot.
         // Reopen it from fresh data instead of owning another loader here.
         _sourceInvalidated = true;
@@ -93,6 +128,7 @@ class _OrderActionDialogState extends ConsumerState<OrderActionDialog> {
   @override
   void dispose() {
     _cancelPrivateData?.call();
+    _decisionSubscription?.close();
     _reason.dispose();
     super.dispose();
   }
@@ -137,7 +173,23 @@ class _OrderActionDialogState extends ConsumerState<OrderActionDialog> {
       _failure = null;
     });
     try {
-      await controller.execute(_command!);
+      if (!widget.isStillAllowed()) {
+        // A revoked capability permits lookup of an already dispatched intent,
+        // never another business submission based on its historical snapshot.
+        final result = await controller.resolve(_command!);
+        if (result.isFailed) {
+          _command = null;
+          throw result.failure!;
+        }
+        if (!result.isCommitted) {
+          throw const AppFailure(
+            code: AppFailure.outcomeUnknownCode,
+            outcomeUnknown: true,
+          );
+        }
+      } else {
+        await controller.execute(_command!);
+      }
       if (!mounted ||
           ref.read(featureSessionScopeProvider) != _submittedScope) {
         return;
@@ -148,6 +200,20 @@ class _OrderActionDialogState extends ConsumerState<OrderActionDialog> {
       ref.invalidate(orderDetailsFoundationProvider);
       Navigator.of(context).pop();
     } catch (error) {
+      if (error is AppFailure &&
+          (error.code == AppFailure.stateChanged ||
+              error.code == AppFailure.cancellationNotAllowed)) {
+        final command = _command;
+        if (command != null) {
+          try {
+            final result = await controller.resolve(command);
+            if (result.isFailed) _command = null;
+          } catch (_) {
+            // Keep the original key until lookup proves a final outcome.
+          }
+        }
+        await widget.onRefreshDecision?.call();
+      }
       if (!mounted ||
           ref.read(featureSessionScopeProvider) != _submittedScope) {
         return;
@@ -237,6 +303,22 @@ class _OrderActionDialogState extends ConsumerState<OrderActionDialog> {
         ),
         actionsOverflowDirection: VerticalDirection.down,
         actions: [
+          if (widget.onRefreshDecision != null && _sourceInvalidated && !_busy)
+            TextButton(
+              onPressed: () async {
+                await widget.onRefreshDecision!();
+                if (mounted &&
+                    ref.read(featureSessionScopeProvider) == _submittedScope) {
+                  setState(() {
+                    _sourceInvalidated = !widget.isStillAllowed();
+                    _failure = _sourceInvalidated
+                        ? const AppFailure(code: AppFailure.stateChanged)
+                        : null;
+                  });
+                }
+              },
+              child: const Text('Làm mới quyền thao tác'),
+            ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Đóng'),
@@ -245,6 +327,7 @@ class _OrderActionDialogState extends ConsumerState<OrderActionDialog> {
             key: const ValueKey('order-action-submit'),
             onPressed:
                 !_busy &&
+                    !_decisionPending &&
                     scope == _submittedScope &&
                     widget.operation.isClientOperation &&
                     ref.read(epochCacheProvider).canRead &&
@@ -252,7 +335,13 @@ class _OrderActionDialogState extends ConsumerState<OrderActionDialog> {
                         (!_sourceInvalidated && widget.isStillAllowed()))
                 ? _submit
                 : null,
-            child: Text(_busy ? 'Đang xử lý…' : 'Tiếp tục'),
+            child: Text(
+              _busy
+                  ? 'Đang xử lý…'
+                  : _command != null && !widget.isStillAllowed()
+                  ? 'Kiểm tra kết quả'
+                  : 'Tiếp tục',
+            ),
           ),
         ],
       ),

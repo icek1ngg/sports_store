@@ -21,7 +21,12 @@ class LogoutButton extends ConsumerWidget {
                   .logout();
               if (!context.mounted) return;
               if (success) {
-                context.go('/login');
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (context.mounted) {
+                    context.go('/login');
+                  }
+                });
+                WidgetsBinding.instance.ensureVisualUpdate();
               } else {
                 final error = ref.read(authViewModelProvider).error;
                 if (error != null) {

@@ -8,8 +8,10 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:sports_store/app/router/app_router.dart';
 import 'package:sports_store/app/sports_store_app.dart';
+import 'package:sports_store/app/integration/production_feature_composition.dart';
+import 'package:sports_store/app/shells/sports_store_shell.dart';
+import 'package:sports_store/features/orders/presentation/pages/customer_orders_page.dart';
 import 'package:sports_store/core/supabase/supabase_providers.dart';
-import 'package:sports_store/features/checkout/data/repositories/pending_placement_store.dart';
 import 'package:sports_store/features/checkout/presentation/view_models/checkout_providers.dart';
 import 'package:sports_store/features/deliveries/data/repositories/operational_providers.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -17,6 +19,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../features/catalog/catalog_repository_test.dart'
     show productId, productRow, variantId, variantRow;
 import '../../features/support/operational_supabase_fixture.dart';
+import '../../support/fixtures/in_memory_pending_placement_store.dart';
 
 const _recipient = '[THỬ NGHIỆM] Khách hàng A';
 const _phone = '0901234567';
@@ -27,6 +30,8 @@ const _longitude = 105.85;
 /// Isolated SDK transport; the application uses its production router,
 /// ViewModels and repositories. No cloud sessions, orders or stock are changed.
 class _CustomerFixture {
+  _CustomerFixture({this.fullProfile = false});
+  final bool fullProfile;
   late final SupabaseClient client;
   String role = 'customer';
   Completer<void>? profileGate;
@@ -50,7 +55,12 @@ class _CustomerFixture {
         );
       }
       return jsonResponse(request, [
-        {'role': role},
+        {
+          if (fullProfile) 'id': client.auth.currentUser!.id,
+          'role': role,
+          'full_name': 'QA fixture',
+          'phone': null,
+        },
       ]);
     }
     if (path.endsWith('/categories')) {
@@ -96,6 +106,20 @@ class _CustomerFixture {
         'data': _receipt(payload),
         'error': null,
       });
+    }
+    if (path.endsWith('/notifications') && request.method == 'HEAD') {
+      return http.Response(
+        '',
+        200,
+        request: request,
+        headers: {'content-range': '*/0'},
+      );
+    }
+    if (path.endsWith('/rpc/get_customer_orders')) {
+      return jsonResponse(request, {
+        'code': 'PGRST202',
+        'message': 'Unavailable fixture RPC',
+      }, status: 404);
     }
     if (path.endsWith('/logout')) return jsonResponse(request, null);
     throw StateError('Unexpected customer fixture endpoint: $path');
@@ -150,21 +174,25 @@ class _CustomerFixture {
 }
 
 class _App {
-  const _App(this.fixture, this.container, this.router);
+  const _App(this.fixture, this.container);
   final _CustomerFixture fixture;
   final ProviderContainer container;
-  final GoRouter router;
+  GoRouter get router => container.read(appRouterProvider);
 
   void refreshSession() =>
       container.read(operationalReadAccessProvider).refreshSession();
 }
 
-Future<_App> _openCheckout(WidgetTester tester) async {
-  final fixture = _CustomerFixture();
+Future<_App> _openCheckout(
+  WidgetTester tester, {
+  bool canonicalBindings = false,
+}) async {
+  final fixture = _CustomerFixture(fullProfile: canonicalBindings);
   await tester.runAsync(fixture.initialize);
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        if (canonicalBindings) ...productionFeatureOverrides,
         supabaseClientProvider.overrideWithValue(fixture.client),
         pendingPlacementStoreProvider.overrideWithValue(
           InMemoryPendingPlacementStore(),
@@ -177,7 +205,6 @@ Future<_App> _openCheckout(WidgetTester tester) async {
   final container = ProviderScope.containerOf(
     tester.element(find.byType(SportsStoreApp)),
   );
-  final router = container.read(appRouterProvider);
   addTearDown(() async {
     final gate = fixture.profileGate;
     if (gate != null && !gate.isCompleted) gate.complete();
@@ -185,19 +212,19 @@ Future<_App> _openCheckout(WidgetTester tester) async {
     await tester.runAsync(fixture.client.dispose);
   });
 
-  router.go('/customer/products');
+  _currentRouter(tester).go('/customer/products');
   await _until(tester, () => _visible('catalog-product-list'));
-  unawaited(router.push('/customer/cart'));
+  unawaited(_currentRouter(tester).push('/customer/cart'));
   await _until(tester, () => _visible('cart-checkout'));
   await _tap(tester, 'cart-checkout');
   await _until(tester, () => _visible('checkout-name'));
-  expect(router.state.uri.path, '/customer/checkout');
+  expect(_currentRouter(tester).state.uri.path, '/customer/checkout');
   await _enter(tester, 'checkout-name', _recipient);
   await _enter(tester, 'checkout-phone', _phone);
   await _enter(tester, 'checkout-address', _address);
   FocusManager.instance.primaryFocus?.unfocus();
   await tester.pump();
-  return _App(fixture, container, router);
+  return _App(fixture, container);
 }
 
 Future<void> _selectLocation(WidgetTester tester) async {
@@ -252,6 +279,40 @@ Future<void> _enter(WidgetTester tester, String key, String value) async {
 }
 
 void main() {
+  testWidgets(
+    'canonical checkout ACK opens Orders without replacing the application shell',
+    (tester) async {
+      final app = await _openCheckout(tester, canonicalBindings: true);
+      await _selectLocation(tester);
+      final application = tester.element(find.byType(MaterialApp));
+      final shell = tester.element(find.byType(SportsStoreShell));
+      final router = app.router;
+      expect(find.byType(NavigationBar), findsOneWidget);
+      await _tap(tester, 'checkout-submit');
+      await _until(tester, () => _visible('checkout-success'));
+      expect(app.fixture.placements, hasLength(1));
+      final destination = find.text('Xem đơn hàng của tôi');
+      await tester.ensureVisible(destination);
+      await tester.tap(destination);
+      await _until(
+        tester,
+        () =>
+            app.router.state.uri.path == '/customer/orders' &&
+            find.byType(CustomerOrdersPage).evaluate().isNotEmpty,
+      );
+      expect(app.router, same(router));
+      expect(tester.element(find.byType(MaterialApp)), same(application));
+      expect(tester.element(find.byType(SportsStoreShell)), same(shell));
+      expect(find.byType(MaterialApp), findsOneWidget);
+      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(
+        tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
+        3,
+      );
+      expect(app.fixture.placements, hasLength(1));
+      expect(tester.takeException(), isNull);
+    },
+  );
   testWidgets(
     'same-user session recheck preserves checkout form and selected coordinates',
     (tester) async {
@@ -488,7 +549,11 @@ void main() {
           () => app.fixture.client.auth.signOut(scope: SignOutScope.local),
         );
       }
-      await _until(tester, () => app.router.state.uri.path == '/');
+      await _until(
+        tester,
+        () =>
+            app.router.state.uri.path == (action == 'logout' ? '/login' : '/'),
+      );
       await tester.pumpAndSettle();
       expect(
         find.byKey(const ValueKey('checkout-page'), skipOffstage: false),
@@ -550,3 +615,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 }
+
+GoRouter _currentRouter(WidgetTester tester) =>
+    ProviderScope.containerOf(tester.element(find.byType(SportsStoreApp)))
+        .read(appRouterProvider);

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../catalog/presentation/widgets/catalog_formatters.dart';
 import '../../../orders/domain/models/order_status.dart';
+import '../../../orders/presentation/view_models/order_providers.dart';
 import '../../domain/models/checkout_failure.dart';
 import '../../presentation/view_models/checkout_providers.dart';
 import '../../presentation/view_models/checkout_state.dart';
@@ -497,9 +498,12 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
           ),
           const SizedBox(height: 18),
           FilledButton.icon(
-            onPressed: () => context.go('/customer/products'),
+            onPressed: () {
+              ref.invalidate(orderListFoundationProvider);
+              context.go('/customer/orders');
+            },
             icon: const Icon(Icons.storefront_outlined),
-            label: const Text('Tiếp tục mua sắm'),
+            label: const Text('Xem đơn hàng của tôi'),
           ),
           const SizedBox(height: 8),
           OutlinedButton.icon(

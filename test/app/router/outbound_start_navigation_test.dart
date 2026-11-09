@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:sports_store/app/router/app_router.dart';
 import 'package:sports_store/app/sports_store_app.dart';
 import 'package:sports_store/core/supabase/supabase_providers.dart';
@@ -118,11 +119,7 @@ void main() {
           child: const SportsStoreApp(),
         ),
       );
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(SportsStoreApp)),
-      );
-      final router = container.read(appRouterProvider);
-      router.go('/shipper/tasks');
+      _currentRouter(tester).go('/shipper/tasks');
 
       await _until(
         tester,
@@ -138,7 +135,7 @@ void main() {
         if (finder.evaluate().isEmpty) return false;
         return tester.widget<ButtonStyleButton>(finder).onPressed != null;
       });
-      expect(router.state.uri.path, '/shipper/tasks/$taskId');
+      expect(_currentRouter(tester).state.uri.path, '/shipper/tasks/$taskId');
       expect(detailReads, greaterThanOrEqualTo(1));
 
       // Returning from MH18 must reactivate the MH11 action controller.  The
@@ -154,7 +151,7 @@ void main() {
         );
         await tester.pump(const Duration(milliseconds: 400));
         final detailReadsBeforeReturn = detailReads;
-        router.pop();
+        _currentRouter(tester).pop();
         await _until(tester, () {
           final finder = find.byKey(const ValueKey('outbound-start-delivery'));
           return detailReads > detailReadsBeforeReturn &&
@@ -200,3 +197,7 @@ void main() {
     },
   );
 }
+
+GoRouter _currentRouter(WidgetTester tester) =>
+    ProviderScope.containerOf(tester.element(find.byType(SportsStoreApp)))
+        .read(appRouterProvider);

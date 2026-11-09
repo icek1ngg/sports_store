@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../tool/ui_preview/mh08_manager_repository.dart';
-import '../../tool/ui_preview/mh08_preview_app.dart';
-import '../../tool/ui_preview/mh08_preview_environment.dart';
+import '../support/ui_preview/mh08_manager_repository.dart';
+import '../support/ui_preview/mh08_preview_app.dart';
+import '../support/ui_preview/mh08_preview_environment.dart';
 
 const previewScopeKey = ValueKey<String>('ui-preview-provider-scope');
 

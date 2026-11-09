@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sports_store/features/orders/presentation/pages/manager_order_details_page.dart';
 import 'package:sports_store/features/orders/presentation/pages/manager_orders_page.dart';
@@ -6,12 +7,13 @@ import 'package:sports_store/features/orders/presentation/widgets/mh08/mh08_orde
 import 'package:sports_store/features/orders/presentation/widgets/order_feed.dart';
 import 'package:sports_store/shared/widgets/async_content.dart';
 
-import '../../tool/ui_preview/mh08_manager_repository.dart';
-import '../../tool/ui_preview/mh08_preview_environment.dart';
+import '../support/ui_preview/mh08_manager_repository.dart';
+import '../support/ui_preview/mh08_preview_environment.dart';
 
 import 'mh08_preview_test_support.dart';
 
 void main() {
+  setUp(() => FlutterSecureStorage.setMockInitialValues({}));
   testWidgets('all MH08 scenarios expose safe states and recover to data', (
     tester,
   ) async {
@@ -154,7 +156,11 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('order-action-submit')));
       await tester.pumpAndSettle();
       expect(
-        find.text('Thao tác hiện chưa khả dụng. Vui lòng thử lại sau.'),
+        // The preceding confirm has no canonical receipt. A different intent
+        // for that order must stay blocked until the pending outcome resolves.
+        find.text(
+          'Chưa xác định được kết quả. Làm mới trạng thái trước khi tiếp tục.',
+        ),
         findsOneWidget,
       );
       await tester.tap(find.text('Đóng'));

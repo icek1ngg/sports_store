@@ -177,8 +177,8 @@ biến thể và bộ chọn vị trí trong màn đặt hàng là thành phần
   không có cột mã đơn riêng.
 - Lý do trả dùng `ReturnReason` có wire value đúng enum `public.return_reason`:
   `defective`, `wrong_item`, `missing_items`.
-- Preview DEMO riêng (390 × 884, không đăng nhập, repository DEMO, không gọi
-  Supabase): `flutter run -d edge -t tool/ui_preview/mh13_main.dart`.
+- Entrypoint preview riêng của giai đoạn này đã được loại bỏ. Chạy ứng dụng
+  Supabase canonical bằng `flutter run -d emulator-5554 -t lib/main.dart --no-dds`.
 
 ### Trạng thái MH14 (01/11/2026)
 
@@ -188,8 +188,9 @@ biến thể và bộ chọn vị trí trong màn đặt hàng là thành phần
   kéo để tải lại cũng đọc trạng thái mới nhất.
 - Chưa có: yêu cầu bổ sung từ manager và lịch hẹn lấy hàng (schema chưa có,
   phụ thuộc MH15); các lệnh duyệt/phân công/kiểm tra/hoàn tiền thuộc MH15.
-- Preview DEMO riêng (11 tình huống, không gọi Supabase):
-  `flutter run -d edge -t tool/ui_preview/mh14_main.dart`.
+- Entrypoint preview riêng của giai đoạn này đã được loại bỏ; các fixture còn
+  cần cho kiểm thử nằm trong `test/support/ui_preview`. Chạy app bằng
+  `flutter run -d emulator-5554 -t lib/main.dart --no-dds`.
 
 ## Điều hướng chính
 
@@ -729,7 +730,8 @@ không tự đánh dấu toàn bộ MH11 hoặc luồng giao→COD hoàn tất.
 - Thao tác theo trạng thái: `pending_review` → "Duyệt lấy hàng" (chọn sản
   phẩm/số lượng + shipper, một giao dịch) hoặc "Từ chối" (lý do + xác nhận).
   Trạng thái khác chưa có thao tác ở giai đoạn 1 (hiện ghi chú bước tiếp theo).
-- Preview DEMO: `flutter run -d edge --web-port 7415 -t tool/ui_preview/mh15_main.dart`.
+- Entrypoint preview riêng đã được loại bỏ. Chạy app Supabase canonical bằng
+  `flutter run -d emulator-5554 -t lib/main.dart --no-dds`.
 - Giai đoạn 2 (02/11/2026): thao tác theo trạng thái —
   `pending_review`: duyệt lấy hàng / từ chối / yêu cầu bổ sung;
   `returning_to_store`: "Xác nhận đã nhận hàng" (chỉ khi shipper đã báo bàn

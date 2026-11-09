@@ -5,8 +5,8 @@ import 'package:sports_store/features/orders/presentation/widgets/mh08/mh08_kpi_
 import 'package:sports_store/features/orders/presentation/widgets/mh08/mh08_status_chips.dart';
 import 'package:sports_store/features/orders/presentation/widgets/order_feed.dart';
 
-import '../../tool/ui_preview/mh08_preview_app.dart';
-import '../../tool/ui_preview/mh08_preview_environment.dart';
+import '../support/ui_preview/mh08_preview_app.dart';
+import '../support/ui_preview/mh08_preview_environment.dart';
 import 'mh08_preview_test_support.dart';
 
 const _searchKey = ValueKey<String>('mh08-search-field');

@@ -97,8 +97,8 @@ class _ProductListPageState extends ConsumerState<ProductListPage> {
           actions: [
             IconButton(
               key: const ValueKey('catalog-open-account'),
-              onPressed: () => context.push('/chat'),
-              tooltip: 'Tài khoản và hỗ trợ',
+              onPressed: () => context.go('/customer/account'),
+              tooltip: 'Tài khoản',
               icon: const Icon(Icons.account_circle_outlined),
             ),
             IconButton(

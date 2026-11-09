@@ -139,7 +139,7 @@ class _DeliveryTaskMapPageState extends ConsumerState<DeliveryTaskMapPage>
       );
     }
 
-    // When the route is hosted by ShipperShell there is already one app bar.
+    // When the route is hosted by SportsStoreShell there is already one app bar.
     // Keep a small, in-content refresh affordance so this page does not lose
     // its explicit reload action when the duplicate app bar is suppressed.
     return Column(

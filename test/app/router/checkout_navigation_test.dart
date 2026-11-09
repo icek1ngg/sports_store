@@ -49,7 +49,9 @@ void main() {
       router.go('/customer/checkout');
       await _until(
         tester,
-        () => router.routeInformationProvider.value.uri.path == '/',
+        () =>
+            router.routeInformationProvider.value.uri.path ==
+            (role == 'signed-out' ? '/login' : '/'),
       );
       expect(find.byKey(const ValueKey('checkout-page')), findsNothing);
       expect(cartReads, 0);

@@ -7,6 +7,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:sports_store/app/router/app_router.dart';
 import 'package:sports_store/app/sports_store_app.dart';
 import 'package:sports_store/core/supabase/supabase_providers.dart';
@@ -129,11 +130,7 @@ void main() {
       await tester.pump();
       await tester.runAsync(client.dispose);
     });
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(SportsStoreApp)),
-    );
-    final router = container.read(appRouterProvider);
-    router.go('/shipper/tasks');
+    _currentRouter(tester).go('/shipper/tasks');
     await _until(tester, () => find.text(recipient).evaluate().isNotEmpty);
     if (const bool.fromEnvironment('CAPTURE_MH10')) {
       await tester.pumpAndSettle();
@@ -174,11 +171,11 @@ void main() {
       () => find.byKey(const ValueKey('mh11-outlet')).evaluate().isNotEmpty,
     );
     final beforeReturn = queries.length;
-    expect(router.state.uri.path, '/shipper/tasks/$taskId');
+    expect(_currentRouter(tester).state.uri.path, '/shipper/tasks/$taskId');
     recipient = 'Minh sau cập nhật';
     final rolesBeforeReturn = roleReads;
     returning = true;
-    router.pop();
+    _currentRouter(tester).pop();
     await _until(
       tester,
       () =>
@@ -194,10 +191,14 @@ void main() {
     expect(queries.last['p_state_group'], 'waiting');
     expect(queries.last['p_cursor'], isNull);
     expect(find.text('Minh trước cập nhật'), findsNothing);
-    expect(router.state.uri.path, '/shipper/tasks');
+    expect(_currentRouter(tester).state.uri.path, '/shipper/tasks');
     await tester.pump(const Duration(seconds: 1));
     expect(queries.length - beforeReturn, 1);
     // Both the route guard and business read must revalidate authorization.
     expect(roleReads - rolesBeforeReturn, greaterThanOrEqualTo(2));
   });
 }
+
+GoRouter _currentRouter(WidgetTester tester) =>
+    ProviderScope.containerOf(tester.element(find.byType(SportsStoreApp)))
+        .read(appRouterProvider);

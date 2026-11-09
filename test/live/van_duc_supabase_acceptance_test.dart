@@ -1,3 +1,5 @@
+import '../support/fixtures/in_memory_pending_placement_store.dart';
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -15,7 +17,6 @@ import 'package:sports_store/features/cart/data/repositories/supabase_cart_repos
 import 'package:sports_store/features/cart/domain/models/cart_failure.dart';
 import 'package:sports_store/features/catalog/data/repositories/supabase_catalog_repository.dart';
 import 'package:sports_store/features/catalog/domain/models/catalog_query.dart';
-import 'package:sports_store/features/checkout/data/repositories/pending_placement_store.dart';
 import 'package:sports_store/features/checkout/data/repositories/supabase_checkout_repository.dart';
 import 'package:sports_store/features/checkout/domain/models/checkout_failure.dart';
 import 'package:sports_store/features/checkout/domain/models/placement_request.dart';

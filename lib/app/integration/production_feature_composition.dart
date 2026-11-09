@@ -2,8 +2,11 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/state/foundation_providers.dart';
+import '../../core/supabase/supabase_providers.dart';
 import '../../features/auth/presentation/view_models/auth_providers.dart';
 import '../../features/notifications/presentation/providers/notification_providers.dart';
+import '../../features/notifications/presentation/providers/notification_interaction_view_model.dart';
+import '../../features/notifications/data/repositories/supabase_notification_target_resolver.dart';
 import '../../features/orders/presentation/view_models/order_providers.dart';
 
 /// The only production overrides for the existing feature foundations.
@@ -14,6 +17,13 @@ final productionFeatureOverrides = [
   ),
   notificationRepositoryProvider.overrideWith(
     (ref) => ref.watch(supabaseNotificationRepositoryProvider),
+  ),
+  notificationTargetResolverProvider.overrideWith(
+    (ref) => SupabaseNotificationTargetResolver(
+      client: ref.watch(supabaseClientProvider),
+      orders: ref.watch(supabaseOrderRepositoryProvider),
+      readSession: () => ref.read(featureSessionScopeProvider),
+    ),
   ),
   orderRepositoryProvider.overrideWith(
     (ref) => ref.watch(supabaseOrderRepositoryProvider),

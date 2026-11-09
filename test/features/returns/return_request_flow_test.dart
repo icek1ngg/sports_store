@@ -432,12 +432,19 @@ void main() {
       expect(ok.protected && ok.customerOnly && !ok.invalidId, isTrue);
       for (final path in [
         '/customer/orders/not-a-uuid/return',
-        '/customer/orders/$_orderId',
         '/customer/orders/$_orderId/return/extra',
       ]) {
         final location = OperationalRouteLocation.parse(Uri.parse(path));
         expect(location.invalidId, isTrue, reason: path);
       }
+      // The canonical app also exposes the separate customer order detail.
+      // It is guarded by FourScreenRouteBoundary and repository ownership,
+      // rather than being interpreted as a malformed return-request route.
+      final detail = OperationalRouteLocation.parse(
+        Uri.parse('/customer/orders/$_orderId'),
+      );
+      expect(detail.invalidId, isFalse);
+      expect(detail.protected, isFalse);
     });
   });
 }

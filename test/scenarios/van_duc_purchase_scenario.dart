@@ -1,3 +1,5 @@
+import '../support/fixtures/in_memory_pending_placement_store.dart';
+
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -6,7 +8,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sports_store/app/router/app_router.dart';
 import 'package:sports_store/app/sports_store_app.dart';
 import 'package:sports_store/core/supabase/supabase_providers.dart';
-import 'package:sports_store/features/checkout/data/repositories/pending_placement_store.dart';
 import 'package:sports_store/features/checkout/presentation/view_models/checkout_providers.dart';
 
 import '../features/catalog/catalog_repository_test.dart'

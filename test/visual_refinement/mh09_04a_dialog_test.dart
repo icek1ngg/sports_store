@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sports_store/features/orders/presentation/widgets/order_action_dialog.dart';
 
-import '../../tool/ui_preview/mh09_preview_scenario.dart';
+import '../support/ui_preview/mh09_preview_scenario.dart';
 import 'mh09_04a_report.dart';
 import 'mh09_04a_test_support.dart';
 
@@ -96,6 +97,7 @@ Future<void> _capture(
 }
 
 void main() {
+  setUp(() => FlutterSecureStorage.setMockInitialValues({}));
   testWidgets('MH09-04A reject dialog handles long text and keyboard insets', (
     tester,
   ) async {

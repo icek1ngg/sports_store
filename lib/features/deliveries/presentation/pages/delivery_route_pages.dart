@@ -45,7 +45,7 @@ class DeliveryTaskMapRoutePage extends StatelessWidget {
     return Semantics(
       key: ValueKey('mh18-outlet'),
       label: 'Bản đồ điểm đến nhiệm vụ giao hàng',
-      // ShipperShell owns the page-level app bar/back affordance for this
+      // SportsStoreShell owns the page-level app bar/back affordance for this
       // nested route. The map keeps its inline refresh action instead.
       child: DeliveryTaskMapPage(taskId: taskId, showAppBar: false),
     );

@@ -5,9 +5,9 @@ import 'package:sports_store/core/errors/app_failure.dart';
 import 'package:sports_store/features/orders/domain/models/order_details.dart';
 import 'package:sports_store/features/orders/domain/models/order_query.dart';
 
-import '../../tool/ui_preview/mh08_preview_environment.dart';
-import '../../tool/ui_preview/mh09_preview_details.dart';
-import '../../tool/ui_preview/mh09_preview_scenario.dart';
+import '../support/ui_preview/mh08_preview_environment.dart';
+import '../support/ui_preview/mh09_preview_details.dart';
+import '../support/ui_preview/mh09_preview_scenario.dart';
 
 void main() {
   for (final scene in [

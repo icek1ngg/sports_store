@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:sports_store/app/integration/production_feature_composition.dart';
 import 'package:sports_store/app/router/app_router.dart';
 import 'package:sports_store/app/sports_store_app.dart';
 import 'package:sports_store/core/supabase/supabase_providers.dart';
@@ -15,7 +16,15 @@ import '../../features/support/operational_supabase_fixture.dart';
 
 // These tests exercise the real Auth bridge, router and repositories using
 // isolated HTTP responses. No cloud account, cart or stock is changed.
-Future<({GoRouter router, ProviderContainer container})> _openStore(
+class _StoreUnderTest {
+  const _StoreUnderTest(this.container);
+  final ProviderContainer container;
+  // Auth/account changes retire the previous router along with its branch
+  // navigators. Read the current provider instead of retaining that instance.
+  GoRouter get router => container.read(appRouterProvider);
+}
+
+Future<_StoreUnderTest> _openStore(
   WidgetTester tester, {
   bool invalidWriteReceipt = false,
   bool failFirstCartRead = false,
@@ -91,7 +100,10 @@ Future<({GoRouter router, ProviderContainer container})> _openStore(
   ))!;
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [supabaseClientProvider.overrideWithValue(client)],
+      overrides: [
+        ...productionFeatureOverrides,
+        supabaseClientProvider.overrideWithValue(client),
+      ],
       child: const SportsStoreApp(),
     ),
   );
@@ -103,8 +115,11 @@ Future<({GoRouter router, ProviderContainer container})> _openStore(
     await tester.pumpWidget(const SizedBox());
     await tester.runAsync(client.dispose);
   });
+  // Customer now lands on Home; choose the catalog explicitly before testing
+  // the catalog/cart stack. Both remain under the canonical customer shell.
+  router.go('/customer/products');
   await _until(tester, 'catalog-product-$productId');
-  return (router: router, container: container);
+  return _StoreUnderTest(container);
 }
 
 Future<void> _until(WidgetTester tester, String key) async {
@@ -125,9 +140,13 @@ Future<void> _tap(WidgetTester tester, String key) async {
 }
 
 void main() {
-  testWidgets('customer can sign out from the catalog toolbar', (tester) async {
+  testWidgets('customer can sign out through the shared account menu', (
+    tester,
+  ) async {
     final app = await _openStore(tester);
-    await tester.tap(find.byTooltip('Đăng xuất'));
+    await tester.tap(find.widgetWithText(NavigationDestination, 'Tài khoản'));
+    await _until(tester, 'account-logout');
+    await tester.tap(find.byKey(const ValueKey('account-logout')));
     await tester.pumpAndSettle();
     expect(
       app.container.read(supabaseClientProvider).auth.currentSession,

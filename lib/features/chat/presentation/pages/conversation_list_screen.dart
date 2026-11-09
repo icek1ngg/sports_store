@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../shared/widgets/foreground_refresh.dart';
-import '../../../../shared/widgets/prm_preview_widgets.dart';
+import '../../../../shared/widgets/sports_store_widgets.dart';
 import '../../domain/models/chat_models.dart';
 import '../view_models/chat_providers.dart';
 

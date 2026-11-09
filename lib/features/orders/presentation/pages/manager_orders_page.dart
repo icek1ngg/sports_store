@@ -68,6 +68,8 @@ class _ManagerOrdersBodyState extends ConsumerState<_ManagerOrdersBody> {
   final _query = Mh08QueryCoordinator();
   final _feed = Mh08FeedCoordinator();
   bool _active = true;
+  bool _dialogOpen = false;
+  Future<void>? _refreshing;
 
   @override
   void initState() {
@@ -127,10 +129,14 @@ class _ManagerOrdersBodyState extends ConsumerState<_ManagerOrdersBody> {
         selectedStatus: _query.query.statuses.singleOrNull,
       ),
       feed: ForegroundRefresh(
+        interval: const Duration(seconds: 30),
         enabled: widget.enablePolling,
         onRefresh: () => unawaited(_refreshCanonical()),
         canRefresh: () =>
             _canRead &&
+            !_dialogOpen &&
+            !_feed.loadingMore &&
+            !_feed.hasExtraPages &&
             effectiveSnapshot.data != null &&
             !effectiveSnapshot.loading &&
             effectiveSnapshot.failure == null,
@@ -238,8 +244,14 @@ class _ManagerOrdersBodyState extends ConsumerState<_ManagerOrdersBody> {
     }
   }
 
-  Future<void> _refreshCanonical() async {
-    if (!_canRead) return;
+  Future<void> _refreshCanonical() {
+    if (!_canRead || _dialogOpen) return Future.value();
+    return _refreshing ??= _performRefresh().whenComplete(
+      () => _refreshing = null,
+    );
+  }
+
+  Future<void> _performRefresh() async {
     setState(() => _feed.beginRefresh());
     await ref
         .read(orderListFoundationProvider(_query.query).notifier)
@@ -263,26 +275,52 @@ class _ManagerOrdersBodyState extends ConsumerState<_ManagerOrdersBody> {
   }
 
   Future<void> _showActionDialog(String id, OrderOperation operation) async {
-    if (!_canRead) return;
+    if (!_canRead || _dialogOpen) return;
     final summary = _feed.findSummary(id);
     if (summary == null || !_isActionAllowed(summary, operation)) return;
     final scope = ref.read(featureSessionScopeProvider);
     final cache = ref.read(epochCacheProvider);
-    await showDialog<void>(
-      context: context,
-      builder: (_) => OrderActionDialog(
-        orderId: id,
-        operation: operation,
-        submittedScope: scope,
-        sourceCache: cache,
-        isStillAllowed: () {
-          if (!_canRead || ref.read(featureSessionScopeProvider) != scope) {
-            return false;
-          }
-          final current = _feed.findSummary(id);
-          return current != null && _isActionAllowed(current, operation);
-        },
-      ),
-    );
+    setState(() => _dialogOpen = true);
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (_) => OrderActionDialog(
+          orderId: id,
+          operation: operation,
+          submittedScope: scope,
+          sourceCache: cache,
+          sourceResourcePrefix: 'orders/list/',
+          decisionChanges: orderListFoundationProvider(_query.query),
+          decisionUnchanged: () {
+            final read = ref
+                .read(orderListFoundationProvider(_query.query))
+                .asData
+                ?.value;
+            if (read?.isFresh != true) return null;
+            final current = read!.data?.items
+                .where((row) => row.order.id == id)
+                .firstOrNull;
+            if (current == null) return false;
+            return current.order.updatedAt == summary.order.updatedAt &&
+                current.order.status == summary.order.status &&
+                (operation == OrderOperation.confirm
+                    ? current.capabilities.canConfirm
+                    : current.capabilities.canReject);
+          },
+          onRefreshDecision: () => ref
+              .read(orderListFoundationProvider(_query.query).notifier)
+              .refresh(),
+          isStillAllowed: () {
+            if (!_canRead || ref.read(featureSessionScopeProvider) != scope) {
+              return false;
+            }
+            final current = _feed.findSummary(id);
+            return current != null && _isActionAllowed(current, operation);
+          },
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _dialogOpen = false);
+    }
   }
 }

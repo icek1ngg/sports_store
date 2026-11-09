@@ -32,6 +32,23 @@ class OrderCommandController {
       a.operation == b.operation &&
       a.reason == b.reason;
 
+  /// Lookup-only reconciliation. Only a canonical final result retires the key.
+  /// not_found is not evidence that a timed-out mutation rolled back.
+  Future<OperationResult> resolve(StableOrderCommand command) async {
+    _guard();
+    final result = await repository.getOperationResult(
+      requestId: command.requestId,
+      orderId: command.orderId,
+      operation: command.operation,
+    );
+    _guard();
+    if (!result.isNotFound) {
+      await store.remove(command.requestId);
+      _guard();
+    }
+    return result;
+  }
+
   /// Startup/account restoration is lookup-only. not_found never resubmits.
   Future<List<OperationResult>> recoverPending() async {
     _guard();

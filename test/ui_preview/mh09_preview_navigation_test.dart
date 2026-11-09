@@ -7,9 +7,9 @@ import 'package:sports_store/features/orders/presentation/widgets/mh08/mh08_orde
 import 'package:sports_store/features/orders/presentation/widgets/mh08/mh08_status_chips.dart';
 import 'package:sports_store/features/orders/presentation/widgets/mh09/mh09_items_section.dart';
 
-import '../../tool/ui_preview/mh08_preview_environment.dart';
-import '../../tool/ui_preview/mh08_manager_repository.dart';
-import '../../tool/ui_preview/mh09_preview_scenario.dart';
+import '../support/ui_preview/mh08_preview_environment.dart';
+import '../support/ui_preview/mh08_manager_repository.dart';
+import '../support/ui_preview/mh09_preview_scenario.dart';
 import 'mh08_preview_test_support.dart';
 
 void main() {

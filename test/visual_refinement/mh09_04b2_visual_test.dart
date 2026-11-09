@@ -5,7 +5,7 @@ import 'package:sports_store/features/orders/presentation/widgets/mh09/mh09_item
 import 'package:sports_store/features/orders/presentation/widgets/mh09/mh09_recipient_section.dart';
 import 'package:sports_store/features/orders/presentation/widgets/order_timeline.dart';
 
-import '../../tool/ui_preview/mh09_preview_scenario.dart';
+import '../support/ui_preview/mh09_preview_scenario.dart';
 import 'mh09_04a_test_support.dart';
 import 'mh09_04b2_capture.dart';
 

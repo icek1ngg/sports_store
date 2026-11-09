@@ -1,19 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sports_store/app/router/app_router.dart';
 import 'package:sports_store/app/sports_store_app.dart';
 import 'package:sports_store/core/supabase/supabase_providers.dart';
-import 'package:sports_store/main.dart';
 
 import '../../features/support/operational_supabase_fixture.dart';
 
 void main() {
-  for (final app in <Widget>[
-    const SportsStoreApp(),
-    const StartupFailureApp(),
-  ]) {
+  for (final startupFailure in [false, true]) {
     testWidgets(
-      '${app.runtimeType} keeps system controls Vietnamese on an English device',
+      'SportsStoreApp (startup failure=$startupFailure) keeps system controls Vietnamese on an English device',
       (tester) async {
         tester.platformDispatcher.localeTestValue = const Locale('en', 'US');
         addTearDown(tester.platformDispatcher.clearLocaleTestValue);
@@ -29,8 +26,11 @@ void main() {
         });
         await tester.pumpWidget(
           ProviderScope(
-            overrides: [supabaseClientProvider.overrideWithValue(client)],
-            child: app,
+            overrides: [
+              supabaseClientProvider.overrideWithValue(client),
+              appStartupFailureProvider.overrideWithValue(startupFailure),
+            ],
+            child: const SportsStoreApp(),
           ),
         );
         await tester.pumpAndSettle();
