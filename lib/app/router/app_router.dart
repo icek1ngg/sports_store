@@ -556,46 +556,62 @@ class _OperationalRouteBoundaryState
   String? _operationalRole;
   Object? _selfCheckSession;
   Uri? _selfCheckLocation;
+  bool _selfCheckRunning = false;
+  int _selfCheckAttempts = 0;
+  static const _maxSelfCheckAttempts = 5;
 
   /// go_router re-runs redirect on the *base* URI of an imperative stack after
   /// a session refresh (e.g. returning from the MH13 video picker). When that
   /// base is outside this guard (such as `/customer/orders`), the guard clears
   /// its decision and nothing rechecks the visible customer page, leaving it on
-  /// "Đang tải màn hình…". Ask the guard to check this page's own URI once per
-  /// session/location. Task maps also require an exact leaf decision when the base list is rechecked.
-  void _ensureVisibleRouteDecision(OperationalSession session) {
-    if (identical(_selfCheckSession, session) &&
-        _selfCheckLocation == widget.location) {
+  /// "Đang tải màn hình…". Ask the guard to check this page's own URI.
+  ///
+  /// The router's own redirect can supersede this check (the guard discards
+  /// results of older requests) and clear the decision again, which happens on
+  /// web when the tab regains focus after the file dialog. Retry while the
+  /// decision is still missing, bounded per session/location; repositories and
+  /// RPCs still authorize every read/write.
+  /// Only the visible shell page may ask for a decision. A customer shell left
+  /// below a root page (e.g. `/notifications`) must not supersede that page's
+  /// own guard check.
+  bool _shouldSelfCheck(Uri location) =>
+      mounted &&
+      widget.location == location &&
+      (ModalRoute.isCurrentOf(context) ?? true) &&
+      widget.guard.decisionFor(location) == null;
+
+  void _ensureVisibleDecision(OperationalSession session) {
+    if (!identical(_selfCheckSession, session) ||
+        _selfCheckLocation != widget.location) {
+      _selfCheckSession = session;
+      _selfCheckLocation = widget.location;
+      _selfCheckAttempts = 0;
+    }
+    if (_selfCheckRunning || _selfCheckAttempts >= _maxSelfCheckAttempts) {
       return;
     }
-    _selfCheckSession = session;
-    _selfCheckLocation = widget.location;
+    _selfCheckRunning = true;
+    _selfCheckAttempts++;
     final location = widget.location;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted ||
-          widget.location != location ||
-          widget.guard.decisionFor(location) != null) {
-        return;
-      }
-      unawaited(
-        widget.guard.redirectLocation(location).then((destination) {
-          if (!mounted || widget.location != location || destination == null) {
-            return;
-          }
-          // The router no longer refreshes for every session epoch because
-          // reparsing an imperative stack drops the completer returned by
-          // context.push. A failed in-place recheck still needs to leave the
-          // protected page, so perform the explicit guard destination here.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        if (!_shouldSelfCheck(location)) return;
+        final destination = await widget.guard.redirectLocation(location);
+        if (!mounted || widget.location != location) return;
+        if (destination != null) {
           if (destination == '/' &&
               widget.guard.decisionFor(location)?.failure != null) {
-            // The cached trusted profile may still carry the old role. Match
-            // the top-level redirect path and force the root role resolver to
-            // read the current server-managed profile before choosing a home.
             ref.invalidate(currentProfileProvider);
           }
           context.go(destination);
-        }),
-      );
+        }
+      } finally {
+        _selfCheckRunning = false;
+        if (_shouldSelfCheck(location)) {
+          // Superseded or cleared meanwhile: rebuild to check again.
+          setState(() {});
+        }
+      }
     });
   }
 
@@ -620,7 +636,7 @@ class _OperationalRouteBoundaryState
         decision == null &&
         session != null &&
         session.failure == null) {
-      _ensureVisibleRouteDecision(session);
+      _ensureVisibleDecision(session);
     }
     final allowed =
         session != null &&

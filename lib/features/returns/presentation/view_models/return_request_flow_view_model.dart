@@ -249,6 +249,15 @@ class ReturnRequestFlowViewModel extends Notifier<ReturnRequestFlowState> {
         phase: ReturnSubmitPhase.editing,
         failure: failure,
       );
+    } catch (_) {
+      if (!ref.mounted) return;
+      // Preserve the request id after an ambiguous server response.
+      state = state.copyWith(
+        phase: ReturnSubmitPhase.editing,
+        failure: const ReturnRequestFailure(
+          ReturnRequestFailureCode.unexpected,
+        ),
+      );
     }
   }
 }

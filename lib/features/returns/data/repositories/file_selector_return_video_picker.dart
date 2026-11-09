@@ -35,7 +35,7 @@ final class FileSelectorReturnVideoPicker implements ReturnVideoPicker {
         'Chỉ nhận video MP4, MOV, M4V, WEBM hoặc 3GP.',
       );
     }
-    final size = await file.length();
+    final size = await file.length().timeout(const Duration(seconds: 30));
     if (size <= 0 || size > ReturnVideoFile.maxBytes) {
       throw const ReturnVideoPickFailure(
         'Video cần có dung lượng từ 1 byte đến 100 MB.',
@@ -43,7 +43,7 @@ final class FileSelectorReturnVideoPicker implements ReturnVideoPicker {
     }
     return ReturnVideoFile(
       name: file.name,
-      bytes: await file.readAsBytes(),
+      bytes: await file.readAsBytes().timeout(const Duration(seconds: 60)),
       mimeType: ReturnVideoFile.mimeTypeFor(file.name),
     );
   }
