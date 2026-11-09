@@ -35,6 +35,18 @@ class AuthViewModel extends Notifier<AuthFormState> {
     }
   }
 
+  Future<void> loginWithGoogle() async {
+    if (state.busy) return;
+    state = const AuthFormState(busy: true);
+    try {
+      await ref.read(authRepositoryProvider).loginWithGoogle();
+      if (!ref.mounted) return;
+      state = const AuthFormState();
+    } catch (error) {
+      if (ref.mounted) state = AuthFormState(error: _message(error));
+    }
+  }
+
   Future<RegistrationResult?> register({
     required String fullName,
     required String phone,

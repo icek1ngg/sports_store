@@ -32,6 +32,8 @@ class EmailConfirmationCallback {
       return false;
     }
     final parameters = _parameters(uri);
+    if (parameters['error_code'] == 'otp_expired') return true;
+    if (!const {'signup', 'email'}.contains(parameters['type'])) return false;
     return const {
       'code',
       'access_token',
@@ -48,6 +50,17 @@ class EmailConfirmationCallback {
     Session? verifiedSession,
   ) {
     final parameters = _parameters(uri);
+    final fragmentPath = Uri.tryParse(uri.fragment)?.path;
+    final hasEmailConfirmationPath = uri.path == path || fragmentPath == path;
+    final hasEmailConfirmationType = const {
+      'signup',
+      'email',
+    }.contains(parameters['type']);
+    if (!hasEmailConfirmationPath &&
+        !hasEmailConfirmationType &&
+        parameters['error_code'] != 'otp_expired') {
+      return EmailConfirmationResult.invalid;
+    }
     if (parameters['error_code'] == 'otp_expired') {
       return EmailConfirmationResult.expired;
     }

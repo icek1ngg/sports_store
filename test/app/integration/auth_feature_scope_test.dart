@@ -321,6 +321,9 @@ class _FakeAuthRepository implements AuthRepository {
   Future<void> login({required String email, required String password}) async {}
 
   @override
+  Future<void> loginWithGoogle() => throw UnimplementedError();
+
+  @override
   Future<RegistrationResult> register({
     required String fullName,
     required String phone,

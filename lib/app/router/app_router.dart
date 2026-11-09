@@ -58,6 +58,7 @@ final operationalRouteGuardProvider = Provider<OperationalRouteGuard>((ref) {
 final appRouterProvider = Provider<GoRouter>((ref) {
   final guard = ref.watch(operationalRouteGuardProvider);
   final confirmation = ref.read(initialEmailConfirmationProvider);
+  final oauthError = ref.read(initialOAuthErrorProvider);
   final navigatorKey = GlobalKey<NavigatorState>();
   late final GoRouter router;
   var popCheckScheduled = false;
@@ -90,9 +91,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   router = GoRouter(
     initialLocation: confirmation != null
         ? EmailConfirmationCallback.path
+        : oauthError != null
+        ? '/login?oauth_error=1'
         : null,
     // Supabase's #access_token / #error fragment is not a Flutter hash route.
-    overridePlatformDefaultLocation: confirmation != null,
+    overridePlatformDefaultLocation: confirmation != null || oauthError != null,
     navigatorKey: navigatorKey,
     observers: [_RecheckOnPop(recheckAfterPop)],
     refreshListenable: guard,
@@ -165,7 +168,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/login',
-        builder: (context, state) => const DungAnRoutePage(),
+        builder: (context, state) => DungAnRoutePage(
+          initialError: state.uri.queryParameters['oauth_error'] == '1'
+              ? ref.read(initialOAuthErrorProvider)
+              : null,
+        ),
       ),
       GoRoute(
         path: '/register',

@@ -14,9 +14,15 @@ import '../shells/store_management_shell.dart';
 
 /// This boundary discards old data immediately when an auth epoch changes.
 class DungAnRoutePage extends ConsumerWidget {
-  const DungAnRoutePage({super.key, this.inbox = false, this.detailBuilder});
+  const DungAnRoutePage({
+    super.key,
+    this.inbox = false,
+    this.detailBuilder,
+    this.initialError,
+  });
   final bool inbox;
   final WidgetBuilder? detailBuilder;
+  final String? initialError;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -32,6 +38,7 @@ class DungAnRoutePage extends ConsumerWidget {
       return Scaffold(
         body: SafeArea(
           child: LoginScreen(
+            initialError: initialError,
             onRegister: () => context.go('/register'),
             onAuthenticated: () => context.go('/'),
           ),
