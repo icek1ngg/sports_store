@@ -1,5 +1,7 @@
 # Phụ lục Data Dictionary và API Contracts cho MH07 MH08 MH09 MH17
 
+> **Tài liệu thiết kế lịch sử.** Các trạng thái proposed/missing/blocked và chữ ký API bên dưới thuộc snapshot được ghi trong tài liệu, không mô tả toàn bộ codebase hiện tại. Đối chiếu ngày 09/11/2026 xem [mục lục hiện hành](README.md), [API](api_contracts.md), [database](database.md), [trạng thái](business_states.md) và [màn hình](screen_mapping.md). Giữ nội dung bên dưới để truy vết quyết định thiết kế.
+
 Tài liệu đi cùng [đặc tả chính](technical_specification_mh07_mh08_mh09_mh17.md). `VERIFIED IN CODEBASE` nghĩa có trong ba migration kết hợp, không xác nhận cloud hiện tại. Revision 1.2: thiết kế Orders/Notifications là `OWNER DECIDED — PROPOSED IMPLEMENTATION` (chưa có implementation); interfaces module khác là `SHARED CONTRACT — NOT ACCEPTED`. Không có source implementation được tạo bởi phụ lục này.
 
 ## 1. Quy ước dữ liệu và phân lớp

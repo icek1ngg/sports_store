@@ -1,5 +1,7 @@
 # Phụ lục Test Plan và Acceptance Traceability cho MH07 MH08 MH09 MH17
 
+> **Tài liệu thiết kế lịch sử.** Các trạng thái proposed/missing/blocked và chữ ký API bên dưới thuộc snapshot được ghi trong tài liệu, không mô tả toàn bộ codebase hiện tại. Đối chiếu ngày 09/11/2026 xem [mục lục hiện hành](README.md), [API](api_contracts.md), [database](database.md), [trạng thái](business_states.md) và [màn hình](screen_mapping.md). Giữ nội dung bên dưới để truy vết quyết định thiết kế.
+
 Đi cùng [đặc tả chính](technical_specification_mh07_mh08_mh09_mh17.md) và [data/API contracts](technical_specification_mh07_mh08_mh09_mh17_data_api.md). Revision1.2: test oracle owned OWNER DECIDED, external oracle SHARED CONTRACT NOT ACCEPTED; tất cả tests PLANNED/NOT RUN. Bảng không tuyên bố RPC, UI hoặc integration hiện tồn tại. Feature/API thiếu là blocker thực thi, không reason bỏ test.
 
 ## 1. Chiến lược, môi trường và dữ liệu
