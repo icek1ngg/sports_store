@@ -60,7 +60,7 @@ class ReturnRequestFlowPage extends ConsumerWidget {
                 ReturnEligibility.notDelivered =>
                   'Đơn chưa giao thành công nên chưa thể trả hàng.',
                 ReturnEligibility.activeReturnExists =>
-                  'Đơn này đã có yêu cầu trả hàng đang được xử lý.',
+                  'Đơn này đã có yêu cầu đang xử lý hoặc đã được hoàn tiền.',
                 _ => null,
               }
             : null;

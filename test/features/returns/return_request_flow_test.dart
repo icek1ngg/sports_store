@@ -326,7 +326,7 @@ void main() {
       _FakePicker(),
     );
     expect(
-      find.text('Đơn này đã có yêu cầu trả hàng đang được xử lý.'),
+      find.text('Đơn này đã có yêu cầu đang xử lý hoặc đã được hoàn tiền.'),
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('mh13-submit')), findsNothing);
