@@ -5,6 +5,7 @@ import '../../../../shared/widgets/prm_preview_widgets.dart';
 import '../../domain/models/managed_product.dart';
 import '../../domain/models/product_image.dart';
 import '../view_models/product_management_view_model.dart';
+import '../widgets/catalog_image.dart';
 
 class ProductManagementScreen extends ConsumerStatefulWidget {
   const ProductManagementScreen({super.key});
@@ -267,8 +268,10 @@ class _ProductManagementScreenState
                                 height: 52,
                                 child: product.imageUrl == null
                                     ? const Icon(Icons.inventory_2_outlined)
-                                    : Image.network(
-                                        product.imageUrl!,
+                                    : Image(
+                                        image: catalogImageSource(
+                                          product.imageUrl!,
+                                        ),
                                         fit: BoxFit.cover,
                                         errorBuilder: (_, _, _) => const Icon(
                                           Icons.broken_image_outlined,
@@ -570,8 +573,10 @@ class _ProductEditorState extends State<_ProductEditor> {
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         child: SizedBox(
                           height: 120,
-                          child: Image.network(
-                            _uploadedImage!.previewUrl,
+                          child: Image(
+                            image: catalogImageSource(
+                              _uploadedImage!.previewUrl,
+                            ),
                             fit: BoxFit.contain,
                             errorBuilder: (_, _, _) => const Center(
                               child: Text(

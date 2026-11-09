@@ -1,5 +1,17 @@
 # Sports Store
 
+## Chạy ứng dụng trình bày trên Android
+
+```powershell
+flutter run -d emulator-5554 -t lib/main_dev.dart --no-dds
+```
+
+Entrypoint này chạy full-app với dữ liệu local, không cần triển khai Supabase.
+Phạm vi và kết quả kiểm tra Orders/Notifications xem
+[báo cáo tổng kết MH07/MH08/MH09/MH17](docs/FINAL_REPORT_MH07_MH08_MH09_MH17.md).
+Các hướng dẫn Supabase và ghi chú lịch sử của từng module bên dưới được giữ
+để tham chiếu; không thay thế lệnh trình bày local ở trên.
+
 Ứng dụng dùng tiếng Việt cho giao diện, thông báo, nút điều hướng và các menu
 mặc định của Flutter, kể cả khi thiết bị đang dùng ngôn ngữ khác. Cấu hình chung
 nằm trong `lib/app/localization/app_localization.dart`; mã nguồn và API giữ tên

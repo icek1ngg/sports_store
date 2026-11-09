@@ -2,8 +2,8 @@
 
 Checkpoint A ngày21/10/2026, ghi trước khi tạo Dart. User đã duyệt01 và chỉ giao isolated components02.
 Fresh baseline:3.194 working files, branch `feature/orders-notifications-phase2`; hai new code/test directories chưa tồn tại.
-Existing MH17 tests chạy lại:67 PASS; [baseline log](artifacts/components_02/baseline_tests.log).
-[Working SHA baseline](artifacts/components_02/workspace_baseline.json), không dùng HEAD.
+Existing MH17 tests chạy lại:67 PASS; [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md).
+[Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md), không dùng HEAD.
 
 ## Constructor contracts
 
@@ -76,7 +76,7 @@ Optional `notification_test_support.dart` chỉ nếu shared fixture/host respon
 Tests dùng valid UUIDs/UTC/nonblank title/body; unique event/recipient pair, notification_only.subjectId=eventId.
 Format/analyze/new isolated tests + original67 tests; physical LOC/docs links/diff/protected SHA.
 No production page/provider/model/tile/badge/Preview/shared/MH07–09/backend edits; no new dependencies.
-STOP02 trước integration03A/03B/03C. [Architecture](ARCHITECTURE_PLAN.md) giữ các phase sau là proposals.
+STOP02 trước integration03A/03B/03C. [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md) giữ các phase sau là proposals.
 
 ## Implementation02 verified
 
@@ -86,4 +86,4 @@ Filters test196LOC, context233LOC; shared test fixture/host54LOC;39new +67origin
 Tile pending disabled read hit có thể đi tới outer open; giữ behavior protected tile, parent callback guard vẫn cần.
 Empty-state pull refresh không thay outer AsyncContent: owner có thể dùng explicit Filters refresh, như existing page.
 Tests không có ProviderScope/repository/router giả để nhận authorization success; chỉ assertion presentation/callback.
-Final [test log](artifacts/components_02/focused_final.log), [verification](artifacts/components_02/verification.json).
+Final [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md), [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md).

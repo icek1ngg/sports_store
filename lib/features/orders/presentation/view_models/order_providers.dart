@@ -8,15 +8,65 @@ import '../../../../core/state/foundation_providers.dart';
 import '../../../../core/state/read_snapshot.dart';
 import '../../../../core/state/session_scope.dart';
 import '../../../../core/state/snapshot_read_view_model.dart';
+import '../../../../core/supabase/supabase_providers.dart';
+import '../../data/repositories/supabase_order_repository.dart';
+import '../../data/repositories/secure_pending_order_command_store.dart';
 import '../../domain/models/order_details.dart';
 import '../../domain/models/order_command.dart';
 import '../../domain/models/order_mutation_receipt.dart';
 import '../../domain/models/order_page.dart';
 import '../../domain/models/order_query.dart';
 import '../../domain/repositories/order_repository.dart';
+import 'order_command_controller.dart';
 
-/// Phase 2 supplies the actual adapter using the shared Supabase client.
+/// Production opts into the canonical aggregate adapter; Preview retains its
+/// own explicit fixtures. Missing deployed RPCs surface dependency unavailable.
+final supabaseOrderRepositoryProvider = Provider<OrderRepository>(
+  (ref) => SupabaseOrderRepository(
+    client: ref.watch(supabaseClientProvider),
+    readSession: () => ref.read(featureSessionScopeProvider),
+  ),
+);
+
 final orderRepositoryProvider = Provider<OrderRepository?>((ref) => null);
+
+final pendingOrderCommandStoreProvider = Provider<PendingOrderCommandStore>((
+  ref,
+) {
+  final scope = ref.watch(featureSessionScopeProvider);
+  return SecurePendingOrderCommandStore(
+    scope: scope,
+    readSession: () => ref.read(featureSessionScopeProvider),
+  );
+});
+
+final orderCommandControllerProvider = Provider<OrderCommandController?>((ref) {
+  final repository = ref.watch(orderRepositoryProvider);
+  if (repository == null) return null;
+  return OrderCommandController(
+    repository: repository,
+    store: ref.watch(pendingOrderCommandStoreProvider),
+    scope: ref.watch(featureSessionScopeProvider),
+    readSession: () => ref.read(featureSessionScopeProvider),
+  );
+});
+
+/// Startup recovery only queries OP-O08, never automatically submits a command.
+final orderPendingRecoveryProvider = FutureProvider.autoDispose((ref) async {
+  final scope = ref.watch(featureSessionScopeProvider);
+  if (!scope.canReadPrivateData ||
+      !{'customer', 'manager'}.contains(scope.role)) {
+    return;
+  }
+  final controller = ref.watch(orderCommandControllerProvider);
+  if (controller == null) return;
+  final results = await controller.recoverPending();
+  if (!ref.mounted || ref.read(featureSessionScopeProvider) != scope) return;
+  if (results.any((result) => !result.isNotFound)) {
+    ref.read(epochCacheProvider).invalidatePrefix('orders/');
+    ref.read(epochCacheProvider).invalidatePrefix('notifications/');
+  }
+}, retry: (count, error) => null);
 
 final orderDetailsFoundationProvider = AsyncNotifierProvider.autoDispose
     .family<

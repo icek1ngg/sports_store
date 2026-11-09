@@ -3,6 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../view_models/catalog_providers.dart';
 
+/// Production URLs retain the normal network image path. Device adapters may
+/// return bundled assets or in-memory image data without creating a transport.
+ImageProvider catalogImageSource(String url) {
+  if (url.startsWith('assets/')) return AssetImage(url);
+  if (url.startsWith('data:image/')) {
+    return MemoryImage(UriData.parse(url).contentAsBytes());
+  }
+  return NetworkImage(url);
+}
+
 /// Displays a product image from the private, signed image URL provider.
 ///
 /// The catalog deliberately has a neutral placeholder for products without
@@ -65,8 +75,8 @@ class CatalogProductImage extends ConsumerWidget {
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
-      child: Image.network(
-        url,
+      child: Image(
+        image: catalogImageSource(url),
         width: width,
         height: height,
         fit: fit,

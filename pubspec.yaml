@@ -37,6 +37,7 @@ flutter:
   assets:
     - config/supabase.json
     - assets/images/
+    - assets/data/hanoi_boundary_source.geojson
     - assets/fonts/Inter-OFL.txt
     - assets/fonts/BarlowCondensed-OFL.txt
   fonts:

@@ -64,4 +64,4 @@ Riverpod DI/ViewModels, central go_router, shared Supabase client/theme reused. 
 
 ## Decision closure và hồ sơ còn mở
 
-AUD-01 FIXED owned design; AUD-03 FIXED owned contract ambiguity; AUD-02/05/07 PARTIALLY FIXED due Shared implementation/fixture acceptance. AUD-04/06/08/09/10 FIXED documentation, not tests PASS. [Readiness1.2](Implementation_Readiness_v1.2.md) phân biệt owned coding vs end-to-end runtime. [Cross contracts](Cross_Module_Integration_Contracts.md) là exact handoff chưa accepted; không supersede external owner contracts âm thầm. Historical DR logs preserved with supersession pointer.
+AUD-01 FIXED owned design; AUD-03 FIXED owned contract ambiguity; AUD-02/05/07 PARTIALLY FIXED due Shared implementation/fixture acceptance. AUD-04/06/08/09/10 FIXED documentation, not tests PASS. [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](FINAL_REPORT_MH07_MH08_MH09_MH17.md) phân biệt owned coding vs end-to-end runtime. [Cross contracts](Cross_Module_Integration_Contracts.md) là exact handoff chưa accepted; không supersede external owner contracts âm thầm. Historical DR logs preserved with supersession pointer.

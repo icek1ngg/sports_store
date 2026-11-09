@@ -1,5 +1,16 @@
 # Ánh xạ màn hình Sports Store
 
+Cập nhật tích hợp 07/11/2026: router production gắn MH07 `/customer/orders`,
+MH08 `/manager/orders`, MH09 `/manager/orders/:orderId` (UUID nghiêm ngặt) và
+MH17 `/notifications`. MH08 giữ shell/navigation quản lý; push MH09 rồi Back về
+MH08. MH07 có callbacks sang MH13/MH14; MH09 có callbacks COD và chi tiết trả
+hàng của manager. Các đích vẫn kiểm quyền bằng guard và backend của owner.
+MH17 dùng `SupabaseNotificationRepository` qua composition production.
+`NotificationTargetResolver` vẫn chưa có binding nên link đích báo unavailable.
+Orders repository/OP-O01–08 chưa có adapter triển khai trong main; màn Orders
+giữ trạng thái dependency unavailable thay vì đọc/ghi giả. Các ghi chú "chưa
+gắn route"/slot MH17 bên dưới là lịch sử trước lần tích hợp này.
+
 ## Callback xác nhận email — 07/11/2026
 
 `/auth/confirm-email` là trang trạng thái kỹ thuật của MH01/MH02, không tăng số
@@ -10,6 +21,7 @@ trang khi session/profile cập nhật để người dùng đọc được kế
 hạn/đã sử dụng hoặc không hợp lệ hiển thị trạng thái tương ứng và nút về đăng
 nhập. Link cũ về root cũng được nhận diện trước khi hash router xử lý URL.
 Xem [cấu hình callback Web](supabase_setup.md#xác-nhận-email-đăng-ký-trên-web).
+
 
 Cập nhật 02/11/2026: MH11 giữ người nhận, hàng hóa và COD khi xem lại nhiệm vụ
 đã giao/thất bại của chính shipper. Quyền xem độc lập với quyền thao tác.
@@ -190,7 +202,7 @@ biến thể và bộ chọn vị trí trong màn đặt hàng là thành phần
 
 ## Orders/Notifications owned design revision1.2 — chưa triển khai
 
-Owner Bảo đã ủy quyền chốt kỹ thuật phạm vi MH07/08/09/17. [Main Specification](technical_specification_mh07_mh08_mh09_mh17.md), [Data/API normative](technical_specification_mh07_mh08_mh09_mh17_data_api.md), [Final Decisions](Final_Technical_Decisions.md), [Cross Contracts](Cross_Module_Integration_Contracts.md) và [Readiness](Implementation_Readiness_v1.2.md). Owned shapes/RPC/receipt/metadata/query/UI design OWNER DECIDED — PROPOSED IMPLEMENTATION; không ghi tables/RPC mới là existing, không thay enum hay grants hiện tại. FullUUID/no humanordercode, snapshotplaceholder, safeCustomerprojection không mở rawtasks/events RLS; main4role routes proposed centralrouter. CIN01–09 external contractoffers NOT ACCEPTED/NOT IMPLEMENTED; recommendedtask2samecustody/inspection cần ownerDelivery/Inventory xác nhận. Businesslost/partialclosure/transferafterpickup/7dayedge chưa quyết. Nội dung baseline của module khác giữ nguyên; currentowned definitions ở revision1.2, schema/runtime baseline vẫn three existingmigrations.
+Owner Bảo đã ủy quyền chốt kỹ thuật phạm vi MH07/08/09/17. [Main Specification](technical_specification_mh07_mh08_mh09_mh17.md), [Data/API normative](technical_specification_mh07_mh08_mh09_mh17_data_api.md), [Final Decisions](Final_Technical_Decisions.md), [Cross Contracts](Cross_Module_Integration_Contracts.md) và [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](FINAL_REPORT_MH07_MH08_MH09_MH17.md). Owned shapes/RPC/receipt/metadata/query/UI design OWNER DECIDED — PROPOSED IMPLEMENTATION; không ghi tables/RPC mới là existing, không thay enum hay grants hiện tại. FullUUID/no humanordercode, snapshotplaceholder, safeCustomerprojection không mở rawtasks/events RLS; main4role routes proposed centralrouter. CIN01–09 external contractoffers NOT ACCEPTED/NOT IMPLEMENTED; recommendedtask2samecustody/inspection cần ownerDelivery/Inventory xác nhận. Businesslost/partialclosure/transferafterpickup/7dayedge chưa quyết. Nội dung baseline của module khác giữ nguyên; currentowned definitions ở revision1.2, schema/runtime baseline vẫn three existingmigrations.
 
 ## P00.1 — Điểm thao tác theo hợp đồng trạng thái
 

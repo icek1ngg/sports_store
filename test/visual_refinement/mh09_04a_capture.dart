@@ -7,7 +7,10 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-const mh09AuditDirectory = 'docs/features/mh09/artifacts/visual_04a';
+const mh09AuditDirectory = String.fromEnvironment(
+  'MH09_AUDIT_OUTPUT',
+  defaultValue: 'docs/features/mh09/artifacts/visual_04a',
+);
 bool _fontsLoaded = false;
 Future<void> loadMh09AuditFonts() async {
   if (_fontsLoaded) return;

@@ -9,8 +9,8 @@ Không sửa HTML, không copy local JS read/filter logic vào Flutter.
 Chromium155.0.8059.85, viewport390×844 logical pixels, DPR1; full page390×1243.
 7 font load specifications PASS: Inter400/500/600/700, Barlow Condensed600/700, Material Symbols400.
 Request failures0; `document.fonts.status=loaded`; images0, không có bitmap image để decode/so sánh.
-[Manifest](artifacts/html_reference/render_manifest.json) ghi source/renderer/image SHA, fonts, computed dimensions/colors.
-[Primary](artifacts/html_reference/primary_390x844.png), [full page](artifacts/html_reference/full_page_390.png).
+[Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md) ghi source/renderer/image SHA, fonts, computed dimensions/colors.
+[Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md), [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md).
 Ảnh primary/full được render mới; không phải ảnh Flutter/Android và không chứng minh visual parity.
 
 ## HTML → Flutter mapping
@@ -46,7 +46,7 @@ Những khác biệt trên là audit observations/plan inputs, chưa có user qu
 
 ## Components và async states
 
-Header title/badge, All/Unread filters, tile, feed và pagination states là responsibilities; xem [architecture](ARCHITECTURE_PLAN.md).
+Header title/badge, All/Unread filters, tile, feed và pagination states là responsibilities; xem [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md).
 Giữ tile/badge hiện có; chỉ extract phần đang embedded trong page khi giúp page rõ responsibility.
 
 | State | Current implementation | Yêu cầu visual/behavior kế tiếp |
@@ -76,7 +76,7 @@ HTML không cung cấp empty/loading/error/load-more/stale/session examples. Cá
 - Empty/error/status updates cần accessible announcement phù hợp; không coi widget semantics test là audio PASS.
 - `notification_only` sheet: focus/Close/Back/session-clear cần runtime review, không tạo thêm màn chính.
 
-Không có fresh Android/Flutter screenshot comparison trong task01; [manual review](MANUAL_REVIEW.md) ghi rõ evidence lịch sử.
+Không có fresh Android/Flutter screenshot comparison trong task01; [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md) ghi rõ evidence lịch sử.
 
 ## Isolated implementation02
 

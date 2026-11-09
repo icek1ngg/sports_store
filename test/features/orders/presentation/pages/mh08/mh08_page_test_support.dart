@@ -25,6 +25,9 @@ ProviderContainer createMh08Container(
           ? featureSessionScopeProvider.overrideWithValue(mh08ManagerScope)
           : featureSessionScopeProvider.overrideWith((_) => scopeFactory()),
       orderRepositoryProvider.overrideWithValue(repository),
+      // Page fixtures explicitly model an unavailable command composition.
+      // Real transport/recovery is covered by the B2 adapter/controller tests.
+      orderCommandControllerProvider.overrideWithValue(null),
     ],
   );
 }

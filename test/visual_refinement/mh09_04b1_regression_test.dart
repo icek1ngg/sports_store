@@ -13,7 +13,10 @@ import '../../tool/ui_preview/mh09_preview_scenario.dart';
 import '../features/orders/presentation/widgets/mh09/mh09_02b_test_support.dart';
 import 'mh09_04a_test_support.dart';
 
-const _artifactDirectory = 'docs/features/mh09/artifacts/visual_04b1';
+const _artifactDirectory = String.fromEnvironment(
+  'MH09_B1_OUTPUT',
+  defaultValue: 'docs/features/mh09/artifacts/visual_04b1',
+);
 const _rejectKey = ValueKey<String>('mh09-action-reject');
 const _confirmKey = ValueKey<String>('mh09-action-confirm');
 const _cancelKey = ValueKey<String>('mh09-action-manager-cancel');

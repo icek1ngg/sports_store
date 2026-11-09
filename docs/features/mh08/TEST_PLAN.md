@@ -1,8 +1,8 @@
 # MH08 — Test plan
 
-Task hiện tại MH08-04B3,16/10/2026; fresh100 affected/276 full PASS. Android cases xem [ANDROID_ACCEPTANCE](ANDROID_ACCEPTANCE.md).
+Task hiện tại MH08-04B3,16/10/2026; fresh100 affected/276 full PASS. Android cases xem [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md).
 Baseline186 PASS/analyze PASS là lịch sử do người dùng cung cấp, cũng có log MH07 cũ; không tái gắn là lượt hiện tại.
-Kết quả focused hiện tại xem Verification trong [HANDOFF](HANDOFF.md).
+Kết quả focused hiện tại xem Verification trong [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md).
 Phần audit/component lưu lịch sử01/02; kết quả page integration03A ở cuối tài liệu.
 
 ## Audit và existing coverage
@@ -53,7 +53,7 @@ Expected: không RenderFlex overflow, không exception, list/actions còn truy c
 
 ## Android manual
 
-Checklist15 bước và lệnh chạy nằm trong [MANUAL_REVIEW](MANUAL_REVIEW.md).
+Checklist15 bước và lệnh chạy nằm trong [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md).
 Task01/02 chưa chạy Android Emulator; user sẽ review sau task04.
 Không đổi approval từ NOT YET APPROVED chỉ vì tests PASS.
 
@@ -69,7 +69,7 @@ Final MH08-04: format changed Dart files, analyze/full tests/diff-check/LOC gate
 ## MH08-02 — component checkpoint
 
 **45 component tests + 10 existing MH08 page tests = 55 PASS**, không sửa page/test cũ.
-Artifact xuất bản: [verification](artifacts/mh08_02_verification.json); focused/analyze .log giữ local theo .gitignore, không cần để chạy tests.
+Artifact xuất bản: [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md); focused/analyze .log giữ local theo .gitignore, không cần để chạy tests.
 4 test files mới và helper nằm trong `test/features/orders/presentation/widgets/mh08/`.
 
 | ID | Test group / expected behavior | Status |
@@ -147,7 +147,7 @@ Android TalkBack, full320–412/landscape/text scaling và so ảnh viewport390�
 
 ## MH08-04A — visual audit checkpoint
 
-Fresh evidence: [VISUAL_AUDIT](VISUAL_AUDIT.md), `artifacts/visual_04a/`; HTML/Flutter390×844 font-loaded, DPR1.
+Fresh evidence: [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md), `artifacts/visual_04a/`; HTML/Flutter390×844 font-loaded, DPR1.
 Production UI/source, Preview03B/MH07 fixtures và HTML không thay đổi.
 
 | ID | Thực sự đã chạy / expected | Result |
