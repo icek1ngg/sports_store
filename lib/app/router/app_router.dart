@@ -161,11 +161,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/',
         builder: (context, state) =>
             ref.read(landingPageBuilderProvider)?.call(context) ??
-            const DungAnRoutePage(key: ValueKey('app-entry')),
+            DungAnRoutePage(
+              key: const ValueKey('app-entry'),
+              path: state.uri.path,
+            ),
       ),
       GoRoute(
         path: '/login',
-        builder: (context, state) => const DungAnRoutePage(),
+        builder: (context, state) => DungAnRoutePage(path: state.uri.path),
       ),
       GoRoute(
         path: '/register',
@@ -177,7 +180,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/manager/products',
-        builder: (context, state) => const DungAnRoutePage(),
+        builder: (context, state) => DungAnRoutePage(path: state.uri.path),
       ),
       GoRoute(
         path: '/manager/orders',
@@ -243,7 +246,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/chat',
-        builder: (context, state) => const DungAnRoutePage(inbox: true),
+        builder: (context, state) =>
+            DungAnRoutePage(path: state.uri.path, inbox: true),
         routes: [
           GoRoute(
             path: ':conversationId',
@@ -257,6 +261,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 );
               }
               return DungAnRoutePage(
+                path: state.uri.path,
                 inbox: true,
                 detailBuilder: (_) =>
                     ConversationDetailScreen(conversationId: id),

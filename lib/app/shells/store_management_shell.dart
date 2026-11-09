@@ -12,18 +12,21 @@ class StoreManagementShell extends ConsumerWidget {
     super.key,
     required this.profile,
     required this.inbox,
+    required this.path,
     required this.child,
   });
 
   final AppProfile profile;
   final bool inbox;
+
+  /// The active route path, captured by the GoRoute builder.
+  final String path;
   final Widget child;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final form = ref.watch(authViewModelProvider);
     final manager = profile.role == AppRole.manager;
-    final path = GoRouterState.of(context).uri.path;
     final locations = manager
         ? managerDestinations
         : ['/customer/products', '/chat'];

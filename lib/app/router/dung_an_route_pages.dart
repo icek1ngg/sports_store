@@ -14,7 +14,16 @@ import '../shells/store_management_shell.dart';
 
 /// This boundary discards old data immediately when an auth epoch changes.
 class DungAnRoutePage extends ConsumerWidget {
-  const DungAnRoutePage({super.key, this.inbox = false, this.detailBuilder});
+  const DungAnRoutePage({
+    super.key,
+    required this.path,
+    this.inbox = false,
+    this.detailBuilder,
+  });
+
+  /// Supplied by the GoRoute builder so auth-driven rebuilds do not depend
+  /// on a route-state context lookup while navigation is changing.
+  final String path;
   final bool inbox;
   final WidgetBuilder? detailBuilder;
 
@@ -49,11 +58,13 @@ class DungAnRoutePage extends ConsumerWidget {
     }
     final profile = profileState.requireValue!;
     if (profile.id != session.requireValue.userId) return const _AccessStatus();
-    final path = GoRouterState.of(context).uri.path;
     if (profile.role == AppRole.shipper) {
-      final path = GoRouterState.of(context).uri.path;
       if (path == '/' || path == '/login') {
-        return _ShipperEntry(key: ValueKey(profile.id), userId: profile.id);
+        return _ShipperEntry(
+          key: ValueKey(profile.id),
+          userId: profile.id,
+          path: path,
+        );
       }
       return _AccessStatus(
         message: 'Tài khoản giao hàng',
@@ -108,14 +119,16 @@ class DungAnRoutePage extends ConsumerWidget {
       key: ObjectKey(session.requireValue),
       profile: profile,
       inbox: showInbox,
+      path: path,
       child: content,
     );
   }
 }
 
 class _ShipperEntry extends ConsumerStatefulWidget {
-  const _ShipperEntry({super.key, required this.userId});
+  const _ShipperEntry({super.key, required this.userId, required this.path});
   final String userId;
+  final String path;
 
   @override
   ConsumerState<_ShipperEntry> createState() => _ShipperEntryState();
@@ -129,13 +142,12 @@ class _ShipperEntryState extends ConsumerState<_ShipperEntry> {
       if (!mounted) return;
       final session = ref.read(authSessionProvider);
       final profile = ref.read(currentProfileProvider);
-      final path = GoRouterState.of(context).uri.path;
       if (!session.isLoading &&
           !profile.isLoading &&
           session.asData?.value.userId == widget.userId &&
           profile.asData?.value?.id == widget.userId &&
           profile.asData?.value?.role == AppRole.shipper &&
-          (path == '/' || path == '/login')) {
+          (widget.path == '/' || widget.path == '/login')) {
         context.go('/shipper/tasks');
       }
     });

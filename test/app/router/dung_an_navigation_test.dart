@@ -28,6 +28,46 @@ Future<void> until(WidgetTester tester, bool Function() ready) async {
 }
 
 void main() {
+  testWidgets(
+    'manager session arriving on login opens orders without GoError',
+    (tester) async {
+      final client = (await tester.runAsync(
+        () => fixtureClient((request) async {
+          if (request.url.path.endsWith('/profiles')) {
+            return jsonResponse(request, [
+              {'id': manager, 'role': 'manager', 'full_name': 'Manager'},
+            ]);
+          }
+          throw StateError('Unexpected request ${request.url.path}');
+        }, userId: null),
+      ))!;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [supabaseClientProvider.overrideWithValue(client)],
+          child: const SportsStoreApp(),
+        ),
+      );
+      final router = ProviderScope.containerOf(
+        tester.element(find.byType(SportsStoreApp)),
+      ).read(appRouterProvider);
+      router.go('/login');
+      await until(tester, () => find.text('Đăng nhập').evaluate().isNotEmpty);
+      await tester.runAsync(() => recoverFixtureSession(client, manager));
+      await until(
+        tester,
+        () => find
+            .text('Dịch vụ quản lý đơn hàng chưa được tích hợp.')
+            .evaluate()
+            .isNotEmpty,
+      );
+      expect(router.state.uri.path, '/manager/orders');
+      expect(find.byKey(const ValueKey('manager-navigation')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      await tester.runAsync(client.dispose);
+    },
+  );
+
   testWidgets('revoked shipper role refreshes profile without redirect loop', (
     tester,
   ) async {
