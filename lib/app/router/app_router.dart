@@ -19,6 +19,7 @@ import '../../features/auth/presentation/view_models/auth_providers.dart';
 import '../../features/chat/presentation/pages/conversation_detail_screen.dart';
 import '../../features/cod/presentation/view_models/cod_providers.dart';
 import '../../features/deliveries/data/repositories/operational_providers.dart';
+import '../../features/deliveries/data/repositories/operational_read_access.dart';
 import '../../features/deliveries/presentation/pages/delivery_route_pages.dart';
 import '../../features/deliveries/presentation/view_models/delivery_providers.dart';
 import '../../features/notifications/presentation/pages/notifications_page.dart';
@@ -243,7 +244,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             body: CustomerOrdersPage(
               onOpenCatalog: () => context.go('/customer/products'),
               onCreateReturn: (id) {
-                if (isStrictUuid(id)) context.push('/customer/orders/$id/return');
+                if (isStrictUuid(id)) {
+                  context.push('/customer/orders/$id/return');
+                }
               },
               onOpenReturn: (id) {
                 if (isStrictUuid(id)) context.push('/customer/returns/$id');
@@ -537,6 +540,32 @@ class _OperationalRouteBoundaryState
   String? _authorizedCustomerId;
   Object? _authorizedOperationalSession;
   String? _operationalRole;
+  Object? _selfCheckSession;
+  Uri? _selfCheckLocation;
+
+  /// go_router re-runs redirect on the *base* URI of an imperative stack after
+  /// a session refresh (e.g. returning from the MH13 video picker). When that
+  /// base is outside this guard (such as `/customer/orders`), the guard clears
+  /// its decision and nothing rechecks the visible customer page, leaving it on
+  /// "Đang tải màn hình…". Ask the guard to check this page's own URI once per
+  /// session/location; repositories and RPCs still authorize every read/write.
+  void _ensureCustomerDecision(OperationalSession session) {
+    if (identical(_selfCheckSession, session) &&
+        _selfCheckLocation == widget.location) {
+      return;
+    }
+    _selfCheckSession = session;
+    _selfCheckLocation = widget.location;
+    final location = widget.location;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          widget.location != location ||
+          widget.guard.decisionFor(location) != null) {
+        return;
+      }
+      unawaited(widget.guard.redirectLocation(location));
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -547,6 +576,12 @@ class _OperationalRouteBoundaryState
     final decision = widget.guard.decisionFor(widget.location);
     final customerOnly = OperationalRouteLocation.parse(widget.location)
         .customerOnly;
+    if (customerOnly &&
+        decision == null &&
+        session != null &&
+        session.failure == null) {
+      _ensureCustomerDecision(session);
+    }
     final allowed =
         session != null &&
         decision?.allowed == true &&
