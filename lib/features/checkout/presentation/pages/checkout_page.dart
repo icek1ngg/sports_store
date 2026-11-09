@@ -8,10 +8,11 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/theme/storefront_theme.dart';
 import '../../../../core/utils/display_formatters.dart'
     show formatHanoiDateTime;
-import '../../../catalog/domain/models/product_variant.dart';
 
 import '../../../catalog/presentation/widgets/catalog_formatters.dart';
 import '../../../orders/domain/models/order_status.dart';
+import '../../../orders/presentation/widgets/order_item_image.dart'
+    show orderItemImagePath;
 import '../../domain/models/checkout_failure.dart';
 import '../../presentation/view_models/checkout_providers.dart';
 import '../../presentation/view_models/checkout_state.dart';
@@ -557,15 +558,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                             variantLabel: item.variantLabel,
                             quantity: item.quantity,
                             amountVnd: item.lineTotalVnd,
-                            imagePath: ProductVariant(
-                              id: item.variantId,
-                              productId: item.productId,
-                              sku: '',
-                              label: item.variantLabel,
-                              attributes: item.attributes,
-                              priceVnd: item.unitPriceVnd,
-                              availableQuantity: 0,
-                            ).imagePaths.firstOrNull,
+                            imagePath: orderItemImagePath(item),
                           ),
                           if (item != result.items.last)
                             const Divider(height: 20),

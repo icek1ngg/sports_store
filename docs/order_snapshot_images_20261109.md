@@ -1,0 +1,47 @@
+# Ảnh snapshot trong đơn và biên nhận — 09/11/2026
+
+Đơn áo Hà Nội FC có ảnh sản phẩm trong `order_items.product_image_url`,
+nhưng hai helper trả item JSON bỏ sót trường này. Attributes của biến thể
+chỉ chứa màu/cỡ nên UI không có đường dẫn để hiển thị. Đây là lỗi projection
+và hiển thị ảnh; không cần đặt lại đơn hoặc sửa dữ liệu lịch sử.
+
+## Hợp đồng và cách hiển thị
+
+- Danh sách/chi tiết dùng `private.orders_read_items`; checkout placement,
+  lookup và replay dùng `private.checkout_items_json`. Cả hai thêm duy nhất
+  trường ảnh đã lưu, giữ ACL/configuration/order cũ.
+- DTO/model có `productImageUrl` tùy chọn; response cũ hoặc metadata ảnh
+  sai vẫn đọc được. Không đổi snapshot sản phẩm, số lượng hay tổng tiền.
+- Ảnh chính xác theo màu trong attributes được ưu tiên; thiếu mới lấy ảnh
+  sản phẩm của chính đơn. Không đọc catalog hiện tại để thay ảnh quá khứ.
+- Card, chi tiết và receipt dùng chung resolver; ảnh chung có mô tả ảnh mẫu,
+  không khẳng định đúng màu. Ảnh thiếu hoặc không tải được có placeholder.
+
+Migration local được tạo bằng Supabase CLI 3.0.0, tên
+`20261109155043_expose_order_snapshot_product_images.sql`. Áp dụng qua MCP
+được cloud ghi version `20261109160242`. Không sửa trực tiếp history.
+
+## Kiểm chứng
+
+- 38 kiểm thử ảnh/DTO/receipt và 63 hồi quy tương thích đạt; log
+  `build/order_product_snapshot_fallback_tests.log` và
+  `build/order_product_snapshot_regression_tests.log`.
+- `flutter analyze` toàn dự án sạch; log
+  `build/orders_snapshot_image_global_analyze.log`.
+- Fixture PostgreSQL 17 mới chạy 38 migration trước đó: owner/manager nhận
+  ảnh, khách khác/shipper/anon bị chặn; legacy null tương thích; đặt hàng,
+  lookup, replay và đọc chi tiết cùng ảnh. Catalog sửa sau đó không đổi ảnh
+  đơn; migration lặp giữ ACL/OID và hash toàn bộ hàng nghiệp vụ. Log đạt:
+  `build/orders_snapshot_image_pg_low_memory_verified.log`.
+- Một lượt khởi động fixture trước đó thiếu bộ nhớ Windows; lượt kiểm chứng
+  trên dùng shared_buffers 16MB và đã hoàn tất mọi assertion.
+- Cloud smoke trong transaction read-only rồi rollback: đúng chủ nhận URL
+  đã lưu, khách khác bị từ chối và không đọc được item; hash item không đổi.
+- URL ảnh của đơn Hà Nội FC trả HTTP 200, Content-Type image/jpeg.
+- Security advisor trước sửa có các cảnh báo RPC SECURITY DEFINER hiện hữu
+  và leaked-password protection; hai helper sửa ở đây đều SECURITY INVOKER,
+  không thêm grant. Health advisor không có mục cảnh báo.
+
+Phần upload 52 ảnh màu lên private Storage là công việc riêng còn chờ CLI
+đăng nhập. Không thay các snapshot asset cũ bằng catalog mới; cần resolver
+tương thích sau khi upload thật. Xem [trạng thái Storage](storage_color_images_20261109.md).

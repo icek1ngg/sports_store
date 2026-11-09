@@ -22,14 +22,19 @@ import '../../../../fixtures/order_list_page_fixtures.dart';
 
 const _navy = 'asset:assets/images/order-snapshot-navy.png';
 
-OrderItem _item(Map<String, Object?> attributes) => OrderItem(
+OrderItem _item(
+  Map<String, Object?> attributes, {
+  String? productImageUrl,
+  String variantLabel = 'Xanh navy / M',
+}) => OrderItem(
   id: listFixtureItemId,
   orderId: listFixtureOrderId,
   productId: listFixtureProductId,
   variantId: listFixtureVariantId,
   productName: 'Áo chạy bộ Kalenji',
-  variantLabel: 'Xanh navy / M',
+  variantLabel: variantLabel,
   attributes: attributes,
+  productImageUrl: productImageUrl,
   unitPriceVnd: 3450000,
   quantity: 1,
   lineTotalVnd: 3450000,
@@ -40,6 +45,8 @@ OrderSummary _summary(
   Map<String, Object?> attributes, {
   OrderStatus status = OrderStatus.pendingConfirmation,
   bool canCancel = false,
+  String? productImageUrl,
+  String variantLabel = 'Xanh navy / M',
 }) {
   final base = listFixtureSummary(
     status: status,
@@ -47,7 +54,13 @@ OrderSummary _summary(
   );
   return OrderSummary(
     order: base.order,
-    itemPreview: [_item(attributes)],
+    itemPreview: [
+      _item(
+        attributes,
+        productImageUrl: productImageUrl,
+        variantLabel: variantLabel,
+      ),
+    ],
     itemLineCount: 1,
     itemQuantityTotal: 1,
     customerDisplayName: base.customerDisplayName,
@@ -146,6 +159,104 @@ void main() {
       expect(total.style!.fontFamily, 'BarlowCondensed');
       expect(find.text('₫3.480.000'), findsNothing);
       expect(find.text('Xanh navy / M'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'legacy product snapshot renders with an honest generic-image label',
+    (tester) async {
+      const snapshot =
+          'https://encrypted-tbn0.gstatic.com/images?q=order-snapshot-test';
+      final bytes = (await tester.runAsync(_bluePixel))!;
+      final requested = <String>[];
+      await _mount(
+        tester,
+        Mh07OrderCard(
+          summary: _summary(
+            const {'color': 'Tím', 'size': 'L'},
+            productImageUrl: snapshot,
+            variantLabel: 'Tím / L',
+          ),
+          onDetails: () {},
+        ),
+        requested: requested,
+        bytes: bytes,
+      );
+      expect(requested, [snapshot]);
+      expect(find.byType(OrderItemImagePlaceholder), findsNothing);
+      expect(find.text('Tím / L'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(RegExp('Ảnh mẫu sản phẩm khi đặt hàng')),
+        findsWidgets,
+      );
+      expect(
+        find.byTooltip(
+          'Ảnh mẫu sản phẩm khi đặt hàng; không xác nhận màu biến thể',
+        ),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'exact navy snapshot remains primary over a generic blue product snapshot',
+    (tester) async {
+      final bytes = (await tester.runAsync(_bluePixel))!;
+      final requested = <String>[];
+      await _mount(
+        tester,
+        Mh07OrderCard(
+          summary: _summary(const {
+            'color': 'Xanh navy',
+            'image_path': _navy,
+          }, productImageUrl: 'https://example.test/generic-blue.jpg'),
+          onDetails: () {},
+        ),
+        requested: requested,
+        bytes: bytes,
+      );
+      expect(requested, [_navy]);
+      expect(find.byTooltip('Ảnh màu của sản phẩm trong đơn'), findsOneWidget);
+      expect(
+        find.byTooltip(
+          'Ảnh mẫu sản phẩm khi đặt hàng; không xác nhận màu biến thể',
+        ),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'detail rows render their captured product photo when variant photo is absent',
+    (tester) async {
+      const snapshot = 'https://example.test/captured-product.jpg';
+      final bytes = (await tester.runAsync(_bluePixel))!;
+      final requested = <String>[];
+      await _mount(
+        tester,
+        OrderItemsSection(
+          items: [
+            _item(
+              const {'color': 'Tím'},
+              productImageUrl: snapshot,
+              variantLabel: 'Tím / L',
+            ),
+          ],
+        ),
+        requested: requested,
+        bytes: bytes,
+      );
+      expect(requested, [snapshot]);
+      expect(find.byType(OrderItemImagePlaceholder), findsNothing);
+      expect(
+        tester
+            .widget<CatalogProductImage>(find.byType(CatalogProductImage))
+            .width,
+        64,
+      );
       expect(tester.takeException(), isNull);
     },
   );

@@ -2158,7 +2158,18 @@ và snapshot đơn. Xem [quy trình upload và trạng thái](storage_color_imag
 Sau khi placement/lookup committed đã xác minh receipt và phiên còn hiện
 hành, chỉ EpochCache có `canRead` và `scope.userId` đúng khách đặt mới bị
 invalidate prefix `orders/`/`notifications/`. Danh sách tiếp tục refetch RPC
-chuẩn; không dùng receipt thay aggregate. `OrderItemImage` chỉ lấy đường
-ảnh từ attributes snapshot qua chuẩn hóa hiện có, dùng chung cho card MH07
-và dòng chi tiết. Không join dữ liệu catalog để thay lịch sử đơn.
+chuẩn; không dùng receipt thay aggregate. `OrderItemImage` ưu tiên đường
+ảnh trong attributes snapshot, sau đó `OrderItem.productImageUrl` đã lưu
+cùng đơn. Card MH07, dòng chi tiết và receipt dùng cùng quy tắc. Không join
+dữ liệu catalog để thay lịch sử đơn.
 Xem [chẩn đoán và kiểm chứng](van_duc_customer_orders_sync_20261109.md).
+
+## Ảnh sản phẩm đã lưu cùng đơn — 09/11/2026
+
+Item JSON của danh sách/chi tiết đơn và placement/lookup/replay bổ sung
+`product_image_url` nullable từ chính `order_items.product_image_url` hiện
+có. `OrderItemDto` chấp nhận response cũ không có trường này; metadata ảnh
+sai được bỏ qua, không làm hỏng toàn bộ đơn. Ảnh màu trong attributes có
+độ ưu tiên cao hơn ảnh cấp sản phẩm; ảnh chung chỉ được mô tả là ảnh mẫu.
+Nếu ảnh màu đã khai báo nhưng tải thất bại, UI giữ trạng thái lỗi ảnh thay
+vì âm thầm đổi sang màu khác. Xem [kiểm chứng API và UI](order_snapshot_images_20261109.md).
