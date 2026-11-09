@@ -12,6 +12,9 @@ import 'package:sports_store/features/deliveries/domain/repositories/outbound_co
 import 'package:sports_store/features/deliveries/presentation/view_models/outbound_completion_providers.dart';
 import 'package:sports_store/features/deliveries/presentation/widgets/outbound_completion_action.dart';
 
+import 'package:sports_store/features/deliveries/presentation/view_models/outbound_failure_providers.dart';
+import 'package:sports_store/features/deliveries/presentation/widgets/outbound_failure_action.dart';
+
 import 'fixtures/delivery_dtos.dart';
 
 const _taskId = taskId;
@@ -59,6 +62,9 @@ _harness() {
     retry: (_, _) => null,
     overrides: [
       operationalSessionProvider.overrideWith((ref) => sessions.stream),
+      outboundFailureDetailsReloadProvider.overrideWithValue(
+        (_) async => _current(),
+      ),
       outboundCompletionRepositoryProvider.overrideWithValue(repository),
       outboundCompletionRequestIdProvider.overrideWithValue(() => _requestId),
       outboundCompletionDetailsReloadProvider.overrideWithValue(
@@ -97,6 +103,49 @@ Widget _app(ProviderContainer container, {bool routed = false}) =>
     );
 
 void main() {
+  testWidgets('returning from a covering map restores both idle actions', (
+    tester,
+  ) async {
+    final h = _harness();
+    addTearDown(() async {
+      h.container.dispose();
+      await h.sessions.close();
+    });
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: h.container,
+        child: const MaterialApp(
+          home: Scaffold(
+            body: Column(
+              children: [
+                OutboundCompletionAction(taskId: _taskId),
+                OutboundFailureAction(taskId: _taskId),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    h.sessions.add(
+      const OperationalSession(userId: 'shipper-a', generation: 1),
+    );
+    final submit = find.byKey(const ValueKey('completion-open'));
+    await _pumpUntil(tester, submit);
+    await _pumpUntil(tester, find.byKey(const ValueKey('failure-open')));
+    final navigator = Navigator.of(tester.element(submit));
+    unawaited(
+      navigator.push<void>(
+        MaterialPageRoute(builder: (_) => const Scaffold(body: Text('Map'))),
+      ),
+    );
+    await tester.pumpAndSettle();
+    navigator.pop();
+    await tester.pumpAndSettle();
+    await _pumpUntil(tester, submit);
+    await _pumpUntil(tester, find.byKey(const ValueKey('failure-open')));
+    expect(h.repository.commands, isEmpty);
+  });
+
   testWidgets('shows server amount and requires both confirmations', (
     tester,
   ) async {

@@ -79,15 +79,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       popCheckScheduled = false;
       if (!ref.mounted || suppressPopRecheck) return;
       // Refresh redirects the base URI of an imperative stack in go_router 18.
-      // go_router refreshes the base URI of an imperative stack. Preserve the
-      // actual revealed leaf for the router-owned redirect below so the stack
-      // remains mounted while that leaf is reauthorized.
-      pendingPopLocation = router.state.uri;
+      // Preserve the actual revealed leaf for the router-owned redirect below
+      // so the stack remains mounted while that leaf is reauthorized.
+      final revealedLocation = router.state.uri;
+      pendingPopLocation = revealedLocation;
       // AppBar/Navigator.maybePop updates the delegate before the route
       // information provider reports the revealed stack. Refreshing that
       // provider here can restore the page that was just popped. Restore the
       // delegate's current stack explicitly, as GoRouter.pop itself does.
-      router.restore(router.routerDelegate.currentConfiguration);
+      if (router.state.uri != revealedLocation) {
+        router.restore(router.routerDelegate.currentConfiguration);
+      }
     });
   }
 
@@ -101,7 +103,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     overridePlatformDefaultLocation: confirmation != null || oauthError != null,
     navigatorKey: navigatorKey,
     observers: [_RecheckOnPop(recheckAfterPop)],
-    refreshListenable: guard,
+    // Do not feed the guard's session epoch directly into go_router's refresh
+    // pipeline. In go_router 18 a refresh reparses an imperative RouteMatchList
+    // and recreates its completer; an awaited context.push then never resumes
+    // when the pushed page is popped (notably MH18 after returning from Maps).
+    // The operational boundary watches the same session and rechecks the
+    // currently visible leaf in place, preserving the imperative stack.
     redirect: (context, state) async {
       if (state.uri.path == EmailConfirmationCallback.path) return null;
       final checkedLocation = pendingPopLocation ?? state.uri;
@@ -545,7 +552,7 @@ class _OperationalRouteBoundary extends ConsumerStatefulWidget {
 class _OperationalRouteBoundaryState
     extends ConsumerState<_OperationalRouteBoundary> {
   String? _authorizedCustomerId;
-  Object? _authorizedOperationalSession;
+  String? _authorizedOperationalUserId;
   String? _operationalRole;
   Object? _selfCheckSession;
   Uri? _selfCheckLocation;
@@ -555,8 +562,8 @@ class _OperationalRouteBoundaryState
   /// base is outside this guard (such as `/customer/orders`), the guard clears
   /// its decision and nothing rechecks the visible customer page, leaving it on
   /// "Đang tải màn hình…". Ask the guard to check this page's own URI once per
-  /// session/location; repositories and RPCs still authorize every read/write.
-  void _ensureCustomerDecision(OperationalSession session) {
+  /// session/location. Task maps also require an exact leaf decision when the base list is rechecked.
+  void _ensureVisibleRouteDecision(OperationalSession session) {
     if (identical(_selfCheckSession, session) &&
         _selfCheckLocation == widget.location) {
       return;
@@ -570,7 +577,25 @@ class _OperationalRouteBoundaryState
           widget.guard.decisionFor(location) != null) {
         return;
       }
-      unawaited(widget.guard.redirectLocation(location));
+      unawaited(
+        widget.guard.redirectLocation(location).then((destination) {
+          if (!mounted || widget.location != location || destination == null) {
+            return;
+          }
+          // The router no longer refreshes for every session epoch because
+          // reparsing an imperative stack drops the completer returned by
+          // context.push. A failed in-place recheck still needs to leave the
+          // protected page, so perform the explicit guard destination here.
+          if (destination == '/' &&
+              widget.guard.decisionFor(location)?.failure != null) {
+            // The cached trusted profile may still carry the old role. Match
+            // the top-level redirect path and force the root role resolver to
+            // read the current server-managed profile before choosing a home.
+            ref.invalidate(currentProfileProvider);
+          }
+          context.go(destination);
+        }),
+      );
     });
   }
 
@@ -583,11 +608,19 @@ class _OperationalRouteBoundaryState
     final decision = widget.guard.decisionFor(widget.location);
     final customerOnly = OperationalRouteLocation.parse(widget.location)
         .customerOnly;
-    if (customerOnly &&
+    final protectedRoute = OperationalRouteLocation.parse(widget.location)
+        .protected;
+    // A root-level push (for example MH17) leaves the shell boundary mounted
+    // underneath it. Only the boundary whose ModalRoute is current may start
+    // the shared guard recheck; otherwise hidden pages race and invalidate
+    // each other's single route decision.
+    final isCurrentRoute = ModalRoute.of(context)?.isCurrent ?? true;
+    if (protectedRoute &&
+        isCurrentRoute &&
         decision == null &&
         session != null &&
         session.failure == null) {
-      _ensureCustomerDecision(session);
+      _ensureVisibleRouteDecision(session);
     }
     final allowed =
         session != null &&
@@ -602,6 +635,10 @@ class _OperationalRouteBoundaryState
     }
     if (customerOnly && allowed) _authorizedCustomerId = session.userId;
 
+    if (allowed) {
+      _selfCheckSession = null;
+      _selfCheckLocation = null;
+    }
     final status = _status(decision);
     if (customerOnly) {
       // Keep an already authorized customer's Navigator mounted while the
@@ -639,21 +676,24 @@ class _OperationalRouteBoundaryState
         ],
       );
     }
-    if (!identical(session, _authorizedOperationalSession) ||
+    if (session?.userId != _authorizedOperationalUserId ||
         session?.failure != null ||
         decision?.failure != null ||
         decision?.invalidId == true) {
-      _authorizedOperationalSession = null;
+      _authorizedOperationalUserId = null;
       _operationalRole = null;
     }
     if (allowed) {
-      _authorizedOperationalSession = session;
+      // Keep the same user's shell mounted across a session epoch refresh.
+      // Re-keying it by the session object would unmount MH11 while MH18 is
+      // open, so the awaited map push could not refresh detail on return.
+      _authorizedOperationalUserId = session.userId;
       _operationalRole = decision.role;
     }
     return Stack(
       fit: StackFit.expand,
       children: [
-        if (_authorizedOperationalSession != null)
+        if (_authorizedOperationalUserId != null)
           Offstage(
             offstage: !allowed,
             child: TickerMode(
@@ -661,7 +701,7 @@ class _OperationalRouteBoundaryState
               child: ExcludeFocus(
                 excluding: !allowed,
                 child: ShipperShell(
-                  key: ValueKey(_authorizedOperationalSession),
+                  key: ValueKey(_authorizedOperationalUserId),
                   role: _operationalRole!,
                   shipperId: session?.userId,
                   location: widget.location,
