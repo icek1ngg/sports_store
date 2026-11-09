@@ -10,6 +10,7 @@ import 'package:sports_store/features/cart/presentation/view_models/cart_state.d
 import 'package:sports_store/features/deliveries/data/repositories/operational_providers.dart';
 import 'package:sports_store/features/deliveries/data/repositories/operational_read_access.dart';
 import 'package:sports_store/features/catalog/domain/models/catalog_page.dart';
+import 'package:sports_store/features/catalog/domain/models/catalog_query.dart';
 import 'package:sports_store/features/catalog/domain/models/category.dart';
 import 'package:sports_store/features/catalog/domain/models/product.dart';
 import 'package:sports_store/features/catalog/domain/models/product_variant.dart';
@@ -104,6 +105,29 @@ Future<void> _settle(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('catalog filter sheet applies stock and sort options', (
+    tester,
+  ) async {
+    final container = ProviderContainer(overrides: _overrides());
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: ProductListPage()),
+      ),
+    );
+    await _settle(tester);
+    await tester.tap(find.byKey(const ValueKey('catalog-filter')));
+    await _settle(tester);
+    await tester.tap(find.text('Mới nhất'));
+    await tester.tap(find.byKey(const ValueKey('catalog-filter-in-stock')));
+    await tester.tap(find.byKey(const ValueKey('catalog-filter-apply')));
+    await _settle(tester);
+    expect(container.read(catalogQueryProvider).sort, CatalogSort.newest);
+    expect(container.read(catalogQueryProvider).inStockOnly, isTrue);
+    expect(container.read(catalogQueryProvider).page, 0);
+    expect(find.text('Còn hàng'), findsOneWidget);
+  });
   testWidgets('MH04 submits search and changes category without fake data', (
     tester,
   ) async {

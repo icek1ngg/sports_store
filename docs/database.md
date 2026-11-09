@@ -996,3 +996,67 @@ chỉ writer), helper chỉ trả boolean/JSON có kiểm tra role
 `sports_store_return_management_writer` (cập nhật tồn kho chỉ qua movement
 `return_received` không âm, gói hoàn tiền, phản hồi của khách). Không đổi bảng
 hay enum hiện có. Chưa áp dụng lên cloud.
+
+## Seed quần áo/giày STRIDE — 08/11/2026
+
+Đã thêm bằng `supabase/seeds/stride_apparel_shoes_20261108.sql`: 8 sản phẩm
+quần áo (80 biến thể), 5 giày (45 biến thể), 112 ledger khởi tạo tồn. Tổng
+cloud xác nhận 23 sản phẩm/135 biến thể cùng 10 dụng cụ có sẵn. SKU/mô tả ghi
+rõ demo; giá/tồn minh họa. Chạy lại không đặt lại tồn hoặc giá. Không thay
+schema/RLS. Xem [kiểm chứng và nguồn ảnh](van_duc_catalog_redesign_20261108.md).
+
+### Bổ sung màu/cỡ MH05 — 08/11/2026
+
+Đã áp dụng `supabase/seeds/stride_color_expansion_20261108.sql` lên project
+`bqoyfytmrtvjwrpshuhh`: thêm 215 biến thể và 215 movement `adjustment`.
+13 sản phẩm demo hiện có 4 màu/mẫu: 5 giày × 4 màu × 9 cỡ (36–44) = 180;
+8 quần áo × 4 màu × 5 cỡ (S, M, L, XL, XXL) = 160. Tổng catalog gồm
+10 dụng cụ có sẵn là 23 sản phẩm/350 biến thể.
+
+Không đổi schema, RPC, RLS, đơn hàng hoặc sản phẩm dụng cụ. Seed dùng cùng
+transaction advisory lock với seed gốc; xác minh SKU thuộc đúng sản phẩm,
+màu và cỡ; chỉ bổ sung `color_hex` nếu thiếu. Giá/on_hand/reserved/damaged
+và trạng thái của 125 biến thể gốc được đối chiếu hash trước/sau, không đổi.
+Chạy lại không đặt lại tồn hoặc nhân đôi movement. JSON nguồn nằm cạnh SQL.
+
+Đây là dữ liệu demo, không xác nhận bảng màu thực tế của các hãng. Không
+gán ảnh khác màu làm ảnh thật. `attributes.image_path/image_paths` tùy chọn
+được MH05 hỗ trợ qua signed-URL provider chung; khi thiếu, UI ghi ảnh mẫu.
+
+Fixture `supabase/tests/run_stride_color_fixture.mjs` đã PASS PostgreSQL 17
+cục bộ: đủ ma trận màu–cỡ, chạy lặp, giữ giá/reservation/metadata, collision
+rollback cả insert, khách đọc được nhưng không sửa tồn, shipper không đọc
+catalog. Các kiểm thử quyền này chạy trên fixture, không giả danh tài khoản
+thật trên cloud.
+
+## Đồng bộ trừ giỏ tại checkout — 09/11/2026
+
+Chẩn đoán thực tế phát hiện cloud thiếu `private.consume_purchased_cart_items`
+và trigger trên `private.checkout_placements`. Đã áp dụng nguyên SQL file
+local `20261103152927_consume_purchased_cart_items.sql` qua MCP, được cloud
+đăng ký version **20261108153641** với tên `consume_purchased_cart_items`.
+Hàm `SECURITY INVOKER`, `search_path=''`, không cấp execute cho public/
+anon/authenticated; chạy trong transaction tạo đơn để chỉ trừ đúng hàng đã
+mua của khách. Không đổi giá, tồn hoặc các đơn cũ.
+
+`checkout_cloud_smoke.sql` mở rộng đã PASS trên cloud và rollback toàn bộ:
+trừ giỏ một phần, xóa dòng mua hết, giữ món bỏ chọn/giỏ khách khác, replay
+không trừ lại, giữ tồn/ledger/thông báo, từ chối ngoài Hà Nội và đọc chéo.
+Sau thử vẫn 8 đơn thật và không còn user/product/cart fixture.
+
+Không sửa trực tiếp migration history sau khi bộ duyệt tự động từ chối đổi
+version. Hai timestamp local/cloud cần được đối chiếu trước lần dùng CLI
+đồng bộ tiếp theo; không áp lại cùng `CREATE FUNCTION/TRIGGER` trùng. Chi
+tiết và giới hạn scheduler tại [biên bản MH16](van_duc_checkout_completion_20261109.md).
+
+## Ảnh biến thể demo — 09/11/2026
+
+Đã chạy `supabase/seeds/stride_color_images_20261109.sql` trên project
+`bqoyfytmrtvjwrpshuhh`: 340 biến thể của 13 mẫu có đủ 52 đường dẫn màu
+(40 AI, 12 tham khảo). Chỉ cập nhật `attributes.image_path/image_paths`,
+`image_source/image_color` và đúng câu mô tả ảnh demo cũ; giữ nguyên thuộc
+tính khác, giá/tồn/trạng thái, SKU, đơn hàng, schema và quyền. Hash giá/tồn
+trước/sau đều `1dc713f548b492ef960db45b8dd72626`; không có màu ánh xạ sai.
+URI `asset:assets/images/...` trỏ vào ảnh đóng gói trong client, không phải
+object Storage. Phải dùng bản ứng dụng có đủ asset tương ứng. Chi tiết seed,
+tính lặp và kiểm chứng tại [bản cập nhật](van_duc_color_images_20261109.md).

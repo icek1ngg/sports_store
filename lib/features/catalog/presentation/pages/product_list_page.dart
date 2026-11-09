@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/storefront_theme.dart';
-import '../../../auth/presentation/widgets/logout_button.dart';
+import '../widgets/catalog_storefront_chrome.dart';
 import '../../domain/models/catalog_page.dart';
 import '../../domain/models/catalog_query.dart';
 import '../../domain/models/product.dart';
@@ -23,6 +23,8 @@ class ProductListPage extends ConsumerStatefulWidget {
 class _ProductListPageState extends ConsumerState<ProductListPage> {
   late final TextEditingController _searchController;
   String? _lastAppliedQuerySearch;
+  final _searchFocus = FocusNode();
+  final _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -33,6 +35,8 @@ class _ProductListPageState extends ConsumerState<ProductListPage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocus.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -92,74 +96,90 @@ class _ProductListPageState extends ConsumerState<ProductListPage> {
     return StorefrontTheme(
       child: Scaffold(
         key: const ValueKey('catalog-product-list'),
-        appBar: AppBar(
-          title: const Text('STRIDE  /  SẢN PHẨM'),
-          actions: [
-            IconButton(
-              key: const ValueKey('catalog-open-account'),
-              onPressed: () => context.push('/chat'),
-              tooltip: 'Tài khoản và hỗ trợ',
-              icon: const Icon(Icons.account_circle_outlined),
-            ),
-            IconButton(
-              key: const ValueKey('catalog-open-cart'),
-              onPressed: () => context.push('/customer/cart'),
-              tooltip: 'Giỏ hàng',
-              icon: const Icon(Icons.shopping_bag_outlined),
-            ),
-            const LogoutButton(),
-            const SizedBox(width: 4),
-          ],
-        ),
         body: SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-                child: TextField(
-                  key: const ValueKey('catalog-search-field'),
-                  controller: _searchController,
-                  textInputAction: TextInputAction.search,
-                  onChanged: (_) => setState(() {}),
-                  onSubmitted: _submitSearch,
-                  decoration: InputDecoration(
-                    hintText: 'Tìm sản phẩm thể thao',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _searchController.text.isEmpty
-                        ? null
-                        : IconButton(
-                            key: const ValueKey('catalog-search-clear'),
-                            tooltip: 'Xóa tìm kiếm',
-                            onPressed: _clearSearch,
-                            icon: const Icon(Icons.clear),
-                          ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(18),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1120),
+              child: Column(
+                children: [
+                  if (MediaQuery.viewInsetsOf(context).bottom == 0)
+                    CatalogStorefrontHeader(
+                      onSearch: () => _searchFocus.requestFocus(),
                     ),
-                    filled: true,
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 2, 20, 6),
+                    child: TextField(
+                      key: const ValueKey('catalog-search-field'),
+                      controller: _searchController,
+                      focusNode: _searchFocus,
+                      textInputAction: TextInputAction.search,
+                      onChanged: (_) => setState(() {}),
+                      onSubmitted: _submitSearch,
+                      decoration: InputDecoration(
+                        hintText: 'Tìm kiếm sản phẩm',
+                        prefixIcon: const Icon(Icons.search, size: 20),
+                        suffixIcon: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (_searchController.text.isNotEmpty)
+                              IconButton(
+                                key: const ValueKey('catalog-search-clear'),
+                                tooltip: 'Xóa tìm kiếm',
+                                onPressed: _clearSearch,
+                                icon: const Icon(Icons.close, size: 18),
+                              ),
+                            IconButton(
+                              key: const ValueKey('catalog-filter'),
+                              tooltip: 'Bộ lọc sản phẩm',
+                              onPressed: () =>
+                                  showCatalogFilters(context, ref, query),
+                              icon: Badge(
+                                isLabelVisible: query.inStockOnly,
+                                smallSize: 6,
+                                child: const Icon(Icons.tune, size: 19),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: CategoryFilterChips(
+                      categories: categories,
+                      selectedCategoryId: query.categoryId,
+                      onSelected: (id) => ref
+                          .read(catalogQueryProvider.notifier)
+                          .setCategory(id),
+                      onRetry: _retryCategories,
+                    ),
+                  ),
+                  if (query.inStockOnly)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 20),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: InputChip(
+                          label: const Text('Còn hàng'),
+                          onDeleted: () => ref
+                              .read(catalogQueryProvider.notifier)
+                              .setOptions(sort: query.sort, inStockOnly: false),
+                        ),
+                      ),
+                    ),
+                  Expanded(
+                    child: _CatalogResults(
+                      scrollController: _scrollController,
+                      page: page,
+                      query: query,
+                      onRefresh: _refreshCatalog,
+                      onRetry: _retryProducts,
+                    ),
+                  ),
+                ],
               ),
-              Padding(
-                padding: const EdgeInsets.only(left: 16, right: 16, bottom: 4),
-                child: CategoryFilterChips(
-                  categories: categories,
-                  selectedCategoryId: query.categoryId,
-                  onSelected: (categoryId) => ref
-                      .read(catalogQueryProvider.notifier)
-                      .setCategory(categoryId),
-                  onRetry: _retryCategories,
-                ),
-              ),
-              Expanded(
-                child: _CatalogResults(
-                  page: page,
-                  query: query,
-                  onRefresh: _refreshCatalog,
-                  onRetry: _retryProducts,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -169,6 +189,7 @@ class _ProductListPageState extends ConsumerState<ProductListPage> {
 
 class _CatalogResults extends ConsumerWidget {
   const _CatalogResults({
+    required this.scrollController,
     required this.page,
     required this.query,
     required this.onRefresh,
@@ -176,6 +197,7 @@ class _CatalogResults extends ConsumerWidget {
   });
 
   final AsyncValue<CatalogPage> page;
+  final ScrollController scrollController;
   final CatalogQuery query;
   final Future<void> Function() onRefresh;
   final VoidCallback onRetry;
@@ -197,6 +219,7 @@ class _CatalogResults extends ConsumerWidget {
       return RefreshIndicator(
         onRefresh: onRefresh,
         child: ListView(
+          controller: scrollController,
           key: const ValueKey('catalog-products-empty-scroll'),
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
@@ -216,65 +239,54 @@ class _CatalogResults extends ConsumerWidget {
     return RefreshIndicator(
       onRefresh: onRefresh,
       child: CustomScrollView(
+        controller: scrollController,
         key: const ValueKey('catalog-products-scroll'),
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
           SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: Wrap(
-                crossAxisAlignment: WrapCrossAlignment.end,
-                spacing: 12,
-                runSpacing: 4,
-                children: [
-                  Text(
-                    'BỘ SƯU TẬP',
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  Text(
-                    '${data.products.length} sản phẩm trên trang',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-              ),
+            child: CatalogCollectionHeading(
+              count: data.products.length,
+              query: query,
             ),
           ),
+          if (data.products.every(
+            (p) =>
+                p.variants.isNotEmpty &&
+                p.variants.every((v) => v.sku.startsWith('DEMO-')),
+          ))
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
+                child: Text(
+                  'BỘ SƯU TẬP DEMO · Giá và tồn kho minh họa',
+                  style: TextStyle(fontSize: 10, color: StorefrontTheme.muted),
+                ),
+              ),
+            ),
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
             sliver: SliverLayoutBuilder(
               builder: (context, constraints) {
                 final width = constraints.crossAxisExtent;
-                final columns = width >= 760
+                final largeText =
+                    MediaQuery.textScalerOf(context).scale(14) > 23;
+                final columns = width >= 980
                     ? 4
-                    : width >= 540
+                    : width >= 700
                     ? 3
-                    : width >= 360
-                    ? 2
-                    : 1;
-                if (columns == 1) {
-                  return SliverList.builder(
-                    itemCount: data.products.length,
-                    itemBuilder: (context, index) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _buildProductCard(
-                        context,
-                        ref,
-                        data.products[index],
-                      ),
-                    ),
-                  );
-                }
+                    : largeText && width < 420
+                    ? 1
+                    : 2;
                 return SliverGrid.builder(
                   itemCount: data.products.length,
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: columns,
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 12,
-                    // Leave room for the user's text scale up to 2.0.
                     mainAxisExtent:
-                        (width - 12 * (columns - 1)) / columns / 1.12 +
-                        80 +
-                        MediaQuery.textScalerOf(context).scale(115),
+                        (width - 12 * (columns - 1)) / columns +
+                        MediaQuery.textScalerOf(context).scale(86) +
+                        18,
                   ),
                   itemBuilder: (context, index) {
                     return _buildProductCard(
@@ -295,7 +307,20 @@ class _CatalogResults extends ConsumerWidget {
                 isLoading: page.isLoading,
               ),
             ),
-          const SliverPadding(padding: EdgeInsets.only(bottom: 20)),
+          SliverToBoxAdapter(
+            child: CatalogMovementCard(
+              onExplore: () {
+                ref.read(catalogQueryProvider.notifier).reset();
+                if (scrollController.hasClients) {
+                  scrollController.animateTo(
+                    0,
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeOut,
+                  );
+                }
+              },
+            ),
+          ),
         ],
       ),
     );

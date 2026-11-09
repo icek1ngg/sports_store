@@ -43,7 +43,15 @@ void main() {
       ))!;
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [supabaseClientProvider.overrideWithValue(client)],
+          overrides: [
+            supabaseClientProvider.overrideWithValue(client),
+            featureSessionScopeProvider.overrideWith(
+              (ref) => ref.watch(trustedFeatureSessionProvider),
+            ),
+            orderRepositoryProvider.overrideWithValue(
+              OrderListFixtureRepository(),
+            ),
+          ],
           child: const SportsStoreApp(),
         ),
       );
@@ -55,10 +63,7 @@ void main() {
       await tester.runAsync(() => recoverFixtureSession(client, manager));
       await until(
         tester,
-        () => find
-            .text('Dịch vụ quản lý đơn hàng chưa được tích hợp.')
-            .evaluate()
-            .isNotEmpty,
+        () => find.byType(ManagerOrdersPage).evaluate().isNotEmpty,
       );
       expect(router.state.uri.path, '/manager/orders');
       expect(find.byKey(const ValueKey('manager-navigation')), findsOneWidget);

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +12,7 @@ import 'package:sports_store/app/sports_store_app.dart';
 import 'package:sports_store/core/supabase/supabase_providers.dart';
 import 'package:sports_store/features/checkout/data/repositories/pending_placement_store.dart';
 import 'package:sports_store/features/checkout/presentation/view_models/checkout_providers.dart';
+import 'package:sports_store/features/checkout/presentation/view_models/checkout_address_providers.dart';
 import 'package:sports_store/features/deliveries/data/repositories/operational_providers.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -21,8 +23,22 @@ import '../../features/support/operational_supabase_fixture.dart';
 const _recipient = '[THỬ NGHIỆM] Khách hàng A';
 const _phone = '0901234567';
 const _address = 'Số 1 phố Tràng Tiền, Hoàn Kiếm, Hà Nội';
+const _addressDetail = 'Số 1 phố Tràng Tiền';
+const _addressLabel = 'Hoàn Kiếm, Hà Nội';
 const _latitude = 21.03;
 const _longitude = 105.85;
+
+class _AddressRepository implements AddressSearchRepository {
+  @override
+  Future<List<AddressSuggestion>> search(String query) async => const [
+    AddressSuggestion(
+      id: 'session-refresh-place',
+      label: _addressLabel,
+      latitude: _latitude,
+      longitude: _longitude,
+    ),
+  ];
+}
 
 /// Isolated SDK transport; the application uses its production router,
 /// ViewModels and repositories. No cloud sessions, orders or stock are changed.
@@ -170,6 +186,7 @@ Future<_App> _openCheckout(WidgetTester tester) async {
           InMemoryPendingPlacementStore(),
         ),
         checkoutMapTilesEnabledProvider.overrideWithValue(false),
+        addressSearchRepositoryProvider.overrideWithValue(_AddressRepository()),
       ],
       child: const SportsStoreApp(),
     ),
@@ -194,18 +211,21 @@ Future<_App> _openCheckout(WidgetTester tester) async {
   expect(router.state.uri.path, '/customer/checkout');
   await _enter(tester, 'checkout-name', _recipient);
   await _enter(tester, 'checkout-phone', _phone);
-  await _enter(tester, 'checkout-address', _address);
+  await _enter(tester, 'checkout-address', _addressDetail);
   FocusManager.instance.primaryFocus?.unfocus();
   await tester.pump();
   return _App(fixture, container, router);
 }
 
 Future<void> _selectLocation(WidgetTester tester) async {
-  await _tap(tester, 'checkout-location');
-  await _until(tester, () => _visible('checkout-location-confirm'));
-  await _enter(tester, 'checkout-location-latitude', '$_latitude');
-  await _enter(tester, 'checkout-location-longitude', '$_longitude');
-  await _tap(tester, 'checkout-location-confirm');
+  await _enter(tester, 'checkout-address-search', 'Hoàn Kiếm');
+  await _tap(tester, 'checkout-address-search-button');
+  await _until(
+    tester,
+    () => _visible('checkout-address-suggestion-session-refresh-place'),
+  );
+  await _tap(tester, 'checkout-address-suggestion-session-refresh-place');
+  await _tap(tester, 'checkout-address-confirm');
   await tester.pumpAndSettle();
 }
 
@@ -267,7 +287,7 @@ void main() {
       expect(app.router.state.uri.path, '/customer/checkout');
       await _expectField(tester, 'checkout-name', _recipient);
       await _expectField(tester, 'checkout-phone', _phone);
-      await _expectField(tester, 'checkout-address', _address);
+      await _expectField(tester, 'checkout-address', _addressDetail);
       await _tap(tester, 'checkout-submit');
       await _until(tester, () => _visible('checkout-success'));
       expect(app.fixture.placements, hasLength(1));
@@ -282,6 +302,7 @@ void main() {
       ]);
       final backToCart = find.text('Quay lại giỏ hàng');
       await tester.ensureVisible(backToCart);
+      await tester.pumpAndSettle();
       await tester.tap(backToCart);
       await _until(tester, () => _visible('cart-empty'));
       expect(tester.takeException(), isNull);
@@ -331,7 +352,7 @@ void main() {
       expect(app.router.state.uri.path, '/customer/checkout');
       await _expectField(tester, 'checkout-name', _recipient);
       await _expectField(tester, 'checkout-phone', _phone);
-      await _expectField(tester, 'checkout-address', _address);
+      await _expectField(tester, 'checkout-address', _addressDetail);
       expect(tester.takeException(), isNull);
     },
   );
@@ -358,7 +379,7 @@ void main() {
     expect(app.router.state.uri.path, '/customer/checkout');
     await _expectField(tester, 'checkout-name', _recipient);
     await _expectField(tester, 'checkout-phone', _phone);
-    await _expectField(tester, 'checkout-address', _address);
+    await _expectField(tester, 'checkout-address', _addressDetail);
     expect(app.fixture.placements, isEmpty);
     expect(tester.takeException(), isNull);
   });
@@ -406,12 +427,9 @@ void main() {
     tester,
   ) async {
     final app = await _openCheckout(tester);
+    await _selectLocation(tester);
     await _tap(tester, 'checkout-location');
     await _until(tester, () => _visible('checkout-location-confirm'));
-    await _enter(tester, 'checkout-location-latitude', '$_latitude');
-    await _enter(tester, 'checkout-location-longitude', '$_longitude');
-    FocusManager.instance.primaryFocus?.unfocus();
-    await tester.pump();
 
     final gate = Completer<void>();
     app.fixture.profileGate = gate;
@@ -444,29 +462,22 @@ void main() {
     gate.complete();
     await _until(tester, () => _visible('checkout-location-confirm'));
     expect(app.router.state.uri.path, '/customer/checkout');
-    expect(
-      tester
-          .widget<TextField>(
-            find.byKey(const ValueKey('checkout-location-latitude')),
-          )
-          .controller!
-          .text,
-      '$_latitude',
+    final map = tester.widget<FlutterMap>(
+      find.byKey(const ValueKey('checkout-location-map')),
     );
     expect(
-      tester
-          .widget<TextField>(
-            find.byKey(const ValueKey('checkout-location-longitude')),
-          )
-          .controller!
-          .text,
-      '$_longitude',
+      map.mapController!.camera.center.latitude,
+      closeTo(_latitude, .000001),
     );
+    expect(
+      map.mapController!.camera.center.longitude,
+      closeTo(_longitude, .000001),
+    );
+    expect(find.text(_address), findsOneWidget);
     await _tap(tester, 'checkout-location-confirm');
     await _until(tester, () => _visible('checkout-form'));
-    await _show(tester, 'checkout-location');
-    expect(find.text('21.030000'), findsOneWidget);
-    expect(find.text('105.850000'), findsOneWidget);
+    await _tap(tester, 'checkout-address-confirm');
+    expect(find.text('Đã xác nhận địa chỉ nhận hàng.'), findsOneWidget);
     await _expectField(tester, 'checkout-name', _recipient);
     expect(tester.takeException(), isNull);
   });
@@ -516,10 +527,20 @@ void main() {
       await _expectField(tester, 'checkout-name', '');
       await _expectField(tester, 'checkout-phone', '');
       await _expectField(tester, 'checkout-address', '');
-      await _show(tester, 'checkout-location');
-      expect(find.text('21.030000'), findsNothing);
-      expect(find.text('105.850000'), findsNothing);
-      expect(find.text('Chưa chọn'), findsNWidgets(2));
+      await _expectField(tester, 'checkout-address-search', '');
+      expect(
+        find.byKey(const ValueKey('checkout-selected-address')),
+        findsNothing,
+      );
+      await _show(tester, 'checkout-address-confirm');
+      expect(
+        tester
+            .widget<FilledButton>(
+              find.byKey(const ValueKey('checkout-address-confirm')),
+            )
+            .onPressed,
+        isNull,
+      );
       expect(tester.takeException(), isNull);
     });
   }

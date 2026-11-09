@@ -58,6 +58,7 @@ class CartViewModel extends AsyncNotifier<CartState> {
       final items = await repository.getItems();
       if (!_current(epoch)) throw const _SupersededCart();
       final snapshot = CartState(
+        userId: _userId,
         items: items,
         isMutating: _running,
         hasPendingMutation: _pending != null,
@@ -75,6 +76,7 @@ class CartViewModel extends AsyncNotifier<CartState> {
         // The known snapshot is visibly uncertain and checkout remains
         // blocked. Authorization/invalid-data errors never use this fallback.
         return CartState(
+          userId: _userId,
           items: previous.items,
           isMutating: _running,
           hasPendingMutation: true,
@@ -97,6 +99,7 @@ class CartViewModel extends AsyncNotifier<CartState> {
       final items = await ref.read(cartRepositoryProvider).getItems();
       if (!_current(epoch)) return;
       final snapshot = CartState(
+        userId: _userId,
         items: items,
         hasPendingMutation: _pending != null,
         mutationError: _pending != null ? previous?.mutationError : null,
@@ -108,6 +111,7 @@ class CartViewModel extends AsyncNotifier<CartState> {
       if (previous != null && _pending != null) {
         state = AsyncData(
           CartState(
+            userId: _userId,
             items: previous.items,
             hasPendingMutation: true,
             mutationError: mapCartFailure(error),
@@ -175,6 +179,7 @@ class CartViewModel extends AsyncNotifier<CartState> {
     try {
       state = AsyncData(
         CartState(
+          userId: _userId,
           items: previous.items,
           isMutating: true,
           hasPendingMutation: _pending != null,
@@ -198,7 +203,7 @@ class CartViewModel extends AsyncNotifier<CartState> {
       final items = await repository.getItems();
       if (!_current(epoch)) return false;
       _pending = null;
-      final snapshot = CartState(items: items);
+      final snapshot = CartState(items: items, userId: _userId);
       _lastSnapshot = snapshot;
       state = AsyncData(snapshot);
       return true;
@@ -215,6 +220,7 @@ class CartViewModel extends AsyncNotifier<CartState> {
       }
       state = AsyncData(
         CartState(
+          userId: _userId,
           items: previous.items,
           mutationError: failure,
           hasPendingMutation: _pending != null,
@@ -242,6 +248,7 @@ class CartViewModel extends AsyncNotifier<CartState> {
     // or its uncertain absolute target; the customer can now retry explicitly.
     state = AsyncData(
       CartState(
+        userId: _userId,
         items: current.items,
         mutationError: current.mutationError,
         hasPendingMutation: _pending != null,

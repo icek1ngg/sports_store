@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../domain/models/app_profile.dart';
@@ -74,6 +75,28 @@ class SupabaseAuthRepository implements AuthRepository {
       );
       if (result.session == null) {
         throw const AuthenticationFailure('Không thể tạo phiên đăng nhập.');
+      }
+    } catch (error) {
+      throw _failure(error);
+    }
+  }
+
+  @override
+  Future<void> loginWithGoogle() async {
+    try {
+      final launched = await _client.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: kIsWeb
+            ? Uri.base.origin
+            : 'com.example.sportsstore://login-callback',
+        authScreenLaunchMode: kIsWeb
+            ? LaunchMode.platformDefault
+            : LaunchMode.externalApplication,
+      );
+      if (!launched) {
+        throw const AuthenticationFailure(
+          'Không mở được trang đăng nhập Google. Vui lòng thử lại.',
+        );
       }
     } catch (error) {
       throw _failure(error);

@@ -32,10 +32,18 @@ final pendingPlacementStoreProvider =
 /// to false so map interactions remain deterministic and offline.
 final checkoutMapTilesEnabledProvider = Provider<bool>((ref) => true);
 
+/// A route-owned snapshot of checked cart variants. Null preserves the legacy
+/// all-cart route; an explicitly empty set must never expand to the whole cart.
+final selectedCheckoutVariantIdsProvider = Provider<Set<String>?>(
+  (ref) => null,
+  dependencies: const [],
+);
+
 final checkoutProvider =
     AsyncNotifierProvider.autoDispose<CheckoutViewModel, CheckoutState>(
       CheckoutViewModel.new,
       retry: (count, error) => null,
+      dependencies: [selectedCheckoutVariantIdsProvider],
     );
 
 class CheckoutViewModel extends AsyncNotifier<CheckoutState> {
@@ -43,6 +51,8 @@ class CheckoutViewModel extends AsyncNotifier<CheckoutState> {
   bool _running = false;
   String? _userId;
   PlacementRequest? _pending;
+  Set<String>? _selection;
+  List<CartItem> _cartItems = const [];
   ProviderSubscription<Future<CartState>>? _cartChanges;
 
   @override
@@ -51,6 +61,14 @@ class CheckoutViewModel extends AsyncNotifier<CheckoutState> {
     _running = false;
     _pending = null;
     _userId = null;
+    final selectedIds = ref.watch(selectedCheckoutVariantIdsProvider);
+    final selection = selectedIds == null
+        ? null
+        : Set<String>.unmodifiable(
+            selectedIds.map((id) => id.trim().toLowerCase()),
+          );
+    _selection = selection;
+    _cartItems = const [];
 
     final session = await ref.watch(operationalSessionProvider.future);
     if (!_current(epoch)) throw const _SupersededCheckout();
@@ -68,13 +86,14 @@ class CheckoutViewModel extends AsyncNotifier<CheckoutState> {
       (_, _) => ref.invalidateSelf(),
     );
     final cart = await ref.read(cartProvider.future);
-    final items = cart.items;
     if (!_current(epoch)) throw const _SupersededCheckout();
+    _cartItems = cart.items;
 
     final store = ref.read(pendingPlacementStoreProvider);
     final pending = await store.read(userId);
     if (!_current(epoch)) throw const _SupersededCheckout();
     if (pending == null) {
+      final items = _selectedCartItems(cart.items, selection);
       if (cart.isMutating || cart.hasPendingMutation) {
         throw const CheckoutFailure(
           CheckoutFailureCode.invalidArgument,
@@ -84,6 +103,9 @@ class CheckoutViewModel extends AsyncNotifier<CheckoutState> {
       return CheckoutState(items: items, userId: userId);
     }
 
+    // Recovery belongs to the persisted request, even when its rows have been
+    // consumed or this route now contains a different/stale selection.
+    final items = _pendingCartItems(cart.items, pending.request);
     _pending = pending.request;
     try {
       final lookup = await ref
@@ -168,10 +190,11 @@ class CheckoutViewModel extends AsyncNotifier<CheckoutState> {
       // sent because the app could not guarantee idempotent recovery.
       try {
         await store.write(userId, request);
+      } on CheckoutFailure {
+        rethrow;
       } catch (_) {
         throw CheckoutFailure(
-          CheckoutFailureCode.invalidData,
-          message: 'Không thể lưu yêu cầu đặt hàng để thử lại an toàn.',
+          CheckoutFailureCode.localStorageUnavailable,
           definitiveNoCommit: true,
         );
       }
@@ -338,13 +361,28 @@ class CheckoutViewModel extends AsyncNotifier<CheckoutState> {
   ) async {
     if (!_current(epoch)) return false;
     final definitive = failure.canClearPending;
+    var next = previous;
     if (definitive) {
+      final hadSubmittedRequest = _pending != null;
       _pending = null;
-      await _clearPendingQuietly(userId, epoch);
+      // Local persistence/validation can fail before this notifier ever sends
+      // a request. Do not delete an unreadable or another route's journal.
+      if (hadSubmittedRequest) await _clearPendingQuietly(userId, epoch);
+      if (!_current(epoch)) return false;
+      // A retry may have recovered a request from a different selection.
+      // Once rejected definitively, a NEW request belongs to this route again.
+      try {
+        next = previous.copyWith(
+          items: _selectedCartItems(_cartItems, _selection),
+        );
+      } on CheckoutFailure catch (selectionFailure) {
+        state = AsyncError(selectionFailure, stack);
+        return false;
+      }
     }
     if (!_current(epoch)) return false;
     state = AsyncData(
-      previous.copyWith(
+      next.copyWith(
         isSubmitting: false,
         isRecovering: !definitive,
         recoveryNotFound: false,
@@ -382,6 +420,41 @@ class CheckoutViewModel extends AsyncNotifier<CheckoutState> {
   static String _newRequestId() {
     return const Uuid().v4();
   }
+}
+
+List<CartItem> _selectedCartItems(
+  List<CartItem> items,
+  Set<String>? selection,
+) {
+  if (selection == null) return items;
+  final selected = items
+      .where((item) => selection.contains(item.variantId.trim().toLowerCase()))
+      .toList(growable: false);
+  if (selection.isEmpty || selected.length != selection.length) {
+    throw const CheckoutFailure(
+      CheckoutFailureCode.invalidArgument,
+      message: 'Lựa chọn sản phẩm đã thay đổi hoặc không còn trong giỏ. Hãy quay lại giỏ hàng để chọn lại.',
+    );
+  }
+  return selected;
+}
+
+List<CartItem> _pendingCartItems(
+  List<CartItem> cartItems,
+  PlacementRequest request,
+) {
+  final byId = {
+    for (final item in cartItems) item.variantId.trim().toLowerCase(): item,
+  };
+  return [
+    for (final item in request.items)
+      CartItem(
+        variantId: item.variantId,
+        quantity: item.quantity,
+        product: byId[item.variantId]?.product,
+        variant: byId[item.variantId]?.variant,
+      ),
+  ];
 }
 
 CheckoutFailure _checkoutFromOperational(OperationalFailure failure) =>

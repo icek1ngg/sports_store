@@ -138,6 +138,13 @@ class _Repository implements CheckoutRepository {
 class _Store extends InMemoryPendingPlacementStore {
   Completer<void>? writeGate;
   bool rejectWrite = false;
+  int clears = 0;
+  @override
+  Future<void> clear(String userId) async {
+    clears++;
+    await super.clear(userId);
+  }
+
   @override
   Future<void> write(String userId, PlacementRequest request) async {
     if (rejectWrite) throw StateError('device store unavailable');
@@ -223,6 +230,15 @@ void main() {
     expect(await h.submit(), isFalse);
     expect(h.repository.requests, isEmpty);
     expect(h.container.read(checkoutProvider).requireValue.isSuccess, isFalse);
+    expect(
+      h.container.read(checkoutProvider).requireValue.failure?.code,
+      CheckoutFailureCode.localStorageUnavailable,
+    );
+    expect(
+      h.store.clears,
+      0,
+      reason: 'A failed local write must not erase an unknown journal',
+    );
   });
 
   test(

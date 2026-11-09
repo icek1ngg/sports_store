@@ -1,11 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../domain/models/product_variant.dart' show catalogAssetPath;
 import '../view_models/catalog_providers.dart';
 
-/// Production URLs retain the normal network image path. Device adapters may
-/// return bundled assets or in-memory image data without creating a transport.
+/// Shared image source for production URLs, bundled color previews and device
+/// upload adapters. No additional HTTP transport or Supabase client is created.
 ImageProvider catalogImageSource(String url) {
+  final assetPath = catalogAssetPath(url);
+  if (assetPath != null) return AssetImage(assetPath);
+  if (Uri.tryParse(url)?.scheme == 'asset' ||
+      url.toLowerCase().startsWith('asset:')) {
+    throw const FormatException('Invalid catalog asset path');
+  }
+  // These two formats are also supplied by the team's local device adapters.
   if (url.startsWith('assets/')) return AssetImage(url);
   if (url.startsWith('data:image/')) {
     return MemoryImage(UriData.parse(url).contentAsBytes());
@@ -13,7 +21,7 @@ ImageProvider catalogImageSource(String url) {
   return NetworkImage(url);
 }
 
-/// Displays a product image from the private, signed image URL provider.
+/// Displays authenticated catalog images from the shared image provider.
 ///
 /// The catalog deliberately has a neutral placeholder for products without
 /// an image. It also turns signed URL and network failures into a customer
@@ -73,23 +81,37 @@ class CatalogProductImage extends ConsumerWidget {
       );
     }
 
+    Widget imageError() => _CatalogImageState(
+      width: width,
+      height: height,
+      borderRadius: borderRadius,
+      message: 'Không tải được ảnh',
+      compact: compact,
+      isError: true,
+      onRetry: () => ref.invalidate(productImageProvider(path)),
+    );
+    final assetPath = catalogAssetPath(url);
+    final isAsset =
+        Uri.tryParse(url)?.scheme == 'asset' ||
+        url.toLowerCase().startsWith('asset:');
+    if (isAsset && assetPath == null) return imageError();
+
+    final ImageProvider source;
+    try {
+      source = catalogImageSource(url);
+    } on FormatException {
+      return imageError();
+    }
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
       child: Image(
-        image: catalogImageSource(url),
+        image: source,
         width: width,
         height: height,
         fit: fit,
         semanticLabel: 'Ảnh sản phẩm',
-        errorBuilder: (context, error, stackTrace) => _CatalogImageState(
-          width: width,
-          height: height,
-          borderRadius: borderRadius,
-          message: 'Không tải được ảnh',
-          compact: compact,
-          isError: true,
-          onRetry: () => ref.invalidate(productImageProvider(path)),
-        ),
+        errorBuilder: (context, error, stackTrace) => imageError(),
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) return child;
           return _CatalogImageState(
@@ -129,6 +151,7 @@ class _CatalogImageState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final compactState = compact || (height != null && height! < 140);
     return Container(
       width: width,
       height: height,
@@ -148,7 +171,7 @@ class _CatalogImageState extends StatelessWidget {
                 color: scheme.primary,
               ),
             )
-          : compact
+          : compactState
           ? Semantics(
               image: true,
               label: message,

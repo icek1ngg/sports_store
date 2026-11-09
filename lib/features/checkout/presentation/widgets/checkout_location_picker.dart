@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
-import 'package:url_launcher/url_launcher.dart';
+
+import 'checkout_location_map.dart';
 
 const _hanoiLatitude = 21.0285;
 const _hanoiLongitude = 105.8542;
@@ -13,7 +12,6 @@ class CheckoutLocation {
   final double longitude;
 }
 
-/// A compact MH16 button that opens the map picker dialog.
 class CheckoutLocationPicker extends StatelessWidget {
   const CheckoutLocationPicker({
     required this.onPicked,
@@ -21,6 +19,8 @@ class CheckoutLocationPicker extends StatelessWidget {
     this.initialLongitude = _hanoiLongitude,
     this.showTiles = true,
     this.enabled = true,
+    this.hasInitialSelection = false,
+    this.addressLabel,
     this.buttonKey,
     super.key,
   });
@@ -30,30 +30,32 @@ class CheckoutLocationPicker extends StatelessWidget {
   final double initialLongitude;
   final bool showTiles;
   final bool enabled;
+  final bool hasInitialSelection;
+  final String? addressLabel;
   final Key? buttonKey;
 
   @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        key: buttonKey,
-        onPressed: enabled
-            ? () async {
-                final selected = await showCheckoutLocationPicker(
-                  context,
-                  initialLatitude: initialLatitude,
-                  initialLongitude: initialLongitude,
-                  showTiles: showTiles,
-                );
-                if (selected != null) onPicked(selected);
-              }
-            : null,
-        icon: const Icon(Icons.location_on_outlined),
-        label: const Text('Chọn vị trí giao hàng trên bản đồ'),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => SizedBox(
+    width: double.infinity,
+    child: OutlinedButton.icon(
+      key: buttonKey,
+      onPressed: enabled
+          ? () async {
+              final selected = await showCheckoutLocationPicker(
+                context,
+                initialLatitude: initialLatitude,
+                initialLongitude: initialLongitude,
+                showTiles: showTiles,
+                hasInitialSelection: hasInitialSelection,
+                addressLabel: addressLabel,
+              );
+              if (selected != null && context.mounted) onPicked(selected);
+            }
+          : null,
+      icon: const Icon(Icons.location_on_outlined),
+      label: const Text('Chọn vị trí giao hàng trên bản đồ'),
+    ),
+  );
 }
 
 Future<CheckoutLocation?> showCheckoutLocationPicker(
@@ -61,31 +63,37 @@ Future<CheckoutLocation?> showCheckoutLocationPicker(
   double initialLatitude = _hanoiLatitude,
   double initialLongitude = _hanoiLongitude,
   bool showTiles = true,
-}) {
-  return showDialog<CheckoutLocation>(
-    context: context,
-    // Keep the picker inside the protected customer Navigator so session
-    // rechecks hide/disable the dialog together with the checkout form.
-    useRootNavigator: false,
-    builder: (context) => CheckoutLocationDialog(
-      initialLatitude: initialLatitude,
-      initialLongitude: initialLongitude,
-      showTiles: showTiles,
-    ),
-  );
-}
+  bool hasInitialSelection = false,
+  String? addressLabel,
+}) => showDialog<CheckoutLocation>(
+  context: context,
+  // Keep the large picker in the protected customer Navigator. It is a dialog,
+  // not an additional business screen or a separate navigation system.
+  useRootNavigator: false,
+  builder: (context) => CheckoutLocationDialog(
+    initialLatitude: initialLatitude,
+    initialLongitude: initialLongitude,
+    showTiles: showTiles,
+    hasInitialSelection: hasInitialSelection,
+    addressLabel: addressLabel,
+  ),
+);
 
 class CheckoutLocationDialog extends StatefulWidget {
   const CheckoutLocationDialog({
     this.initialLatitude = _hanoiLatitude,
     this.initialLongitude = _hanoiLongitude,
     this.showTiles = true,
+    this.hasInitialSelection = false,
+    this.addressLabel,
     super.key,
   });
 
   final double initialLatitude;
   final double initialLongitude;
   final bool showTiles;
+  final bool hasInitialSelection;
+  final String? addressLabel;
 
   @override
   State<CheckoutLocationDialog> createState() => _CheckoutLocationDialogState();
@@ -94,206 +102,132 @@ class CheckoutLocationDialog extends StatefulWidget {
 class _CheckoutLocationDialogState extends State<CheckoutLocationDialog> {
   late double _latitude;
   late double _longitude;
-  late final TextEditingController _latitudeController;
-  late final TextEditingController _longitudeController;
+  late bool _hasSelection;
+  late bool _mapReady;
 
   @override
   void initState() {
     super.initState();
-    _latitude = _validOrDefault(widget.initialLatitude, _hanoiLatitude);
-    _longitude = _validOrDefault(widget.initialLongitude, _hanoiLongitude);
-    _latitudeController = TextEditingController(
-      text: _formatCoordinate(_latitude),
+    final validInitial = _isValid(
+      widget.initialLatitude,
+      widget.initialLongitude,
     );
-    _longitudeController = TextEditingController(
-      text: _formatCoordinate(_longitude),
-    );
-  }
-
-  @override
-  void dispose() {
-    _latitudeController.dispose();
-    _longitudeController.dispose();
-    super.dispose();
+    _latitude = validInitial ? widget.initialLatitude : _hanoiLatitude;
+    _longitude = validInitial ? widget.initialLongitude : _hanoiLongitude;
+    _hasSelection = widget.hasInitialSelection && validInitial;
+    _mapReady = !widget.showTiles;
   }
 
   @override
   Widget build(BuildContext context) {
-    final point = LatLng(_latitude, _longitude);
-    final enteredLatitude = double.tryParse(
-      _latitudeController.text.replaceAll(',', '.'),
-    );
-    final enteredLongitude = double.tryParse(
-      _longitudeController.text.replaceAll(',', '.'),
-    );
-    final validInput =
-        enteredLatitude != null &&
-        enteredLongitude != null &&
-        _isValid(enteredLatitude, enteredLongitude);
-    return AlertDialog(
-      title: const Text('Chọn vị trí giao hàng'),
-      content: SizedBox(
-        width: 560,
-        child: SingleChildScrollView(
+    final canConfirm =
+        _hasSelection && _mapReady && _isValid(_latitude, _longitude);
+    final address = widget.addressLabel?.trim();
+    return Dialog.fullscreen(
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            key: const ValueKey('checkout-location-cancel'),
+            tooltip: 'Hủy chọn vị trí',
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back),
+          ),
+          title: const Text('Vị trí nhận hàng'),
+        ),
+        body: SafeArea(
+          top: false,
           child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'Chạm vào bản đồ để đặt ghim. Máy chủ sẽ kiểm tra lại khu vực Hà Nội khi đặt đơn.',
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 12, 16, 12),
+                child: Text(
+                  'Kéo bản đồ để đưa ghim đến đúng nơi nhận hàng',
+                  key: ValueKey('checkout-location-instruction'),
+                ),
               ),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 260,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: FlutterMap(
-                    key: const ValueKey('checkout-location-map'),
-                    options: MapOptions(
-                      initialCenter: point,
-                      initialZoom: 12,
-                      onTap: (_, selected) =>
-                          _select(selected.latitude, selected.longitude),
-                    ),
-                    children: [
-                      if (widget.showTiles)
-                        TileLayer(
-                          urlTemplate: const String.fromEnvironment(
-                            'CHECKOUT_TILE_URL',
-                            defaultValue: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                          ),
-                          userAgentPackageName: 'com.example.sports_store',
-                        ),
-                      if (!widget.showTiles)
-                        const ColoredBox(
-                          color: Color(0xffe3eef3),
-                          child: Center(
-                            child: Text(
-                              'Bản đồ tắt tile để kiểm thử ngoại tuyến',
-                            ),
-                          ),
-                        ),
-                      MarkerLayer(
-                        markers: [
-                          Marker(
-                            point: point,
-                            width: 42,
-                            height: 42,
-                            alignment: Alignment.topCenter,
-                            child: const Icon(
-                              Icons.location_pin,
-                              color: Colors.red,
-                              size: 38,
-                            ),
-                          ),
-                        ],
-                      ),
-                      RichAttributionWidget(
-                        showFlutterMapAttribution: false,
-                        attributions: [
-                          TextSourceAttribution(
-                            '© Cộng đồng OpenStreetMap',
-                            onTap: () => launchUrl(
-                              Uri.parse('https://openstreetmap.org/copyright'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) => CheckoutLocationMap(
+                    latitude: _latitude,
+                    longitude: _longitude,
+                    showTiles: widget.showTiles,
+                    hasSelection: _hasSelection,
+                    centerPin: true,
+                    height: constraints.maxHeight,
+                    mapKey: const ValueKey('checkout-location-map'),
+                    onPicked: (point) {
+                      if (!mounted ||
+                          !_isValid(point.latitude, point.longitude)) {
+                        return;
+                      }
+                      setState(() {
+                        _latitude = point.latitude;
+                        _longitude = point.longitude;
+                        _hasSelection = true;
+                      });
+                    },
+                    onReadyChanged: (ready) {
+                      if (mounted && ready != _mapReady) {
+                        setState(() => _mapReady = ready);
+                      }
+                    },
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: TextField(
-                      key: const ValueKey('checkout-location-latitude'),
-                      controller: _latitudeController,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                        signed: true,
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (address != null && address.isNotEmpty) ...[
+                      Text(
+                        address,
+                        key: const ValueKey('checkout-location-address-label'),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
-                      decoration: const InputDecoration(
-                        labelText: 'Vĩ độ',
-                        border: OutlineInputBorder(),
-                      ),
-                      onChanged: (value) => _updateFromText(value, true),
+                      const SizedBox(height: 8),
+                    ],
+                    Text(
+                      !_hasSelection
+                          ? 'Kéo bản đồ để chọn điểm nhận hàng.'
+                          : !_mapReady
+                          ? 'Đang kiểm tra bản đồ tại ghim…'
+                          : 'Vị trí đã được chọn',
+                      key: const ValueKey('checkout-location-selection-status'),
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: TextField(
-                      key: const ValueKey('checkout-location-longitude'),
-                      controller: _longitudeController,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                        signed: true,
-                      ),
-                      decoration: const InputDecoration(
-                        labelText: 'Kinh độ',
-                        border: OutlineInputBorder(),
-                      ),
-                      onChanged: (value) => _updateFromText(value, false),
+                    const SizedBox(height: 12),
+                    FilledButton(
+                      key: const ValueKey('checkout-location-confirm'),
+                      onPressed: canConfirm
+                          ? () => Navigator.of(context).pop(
+                              CheckoutLocation(
+                                latitude: _latitude,
+                                longitude: _longitude,
+                              ),
+                            )
+                          : null,
+                      child: const Text('Xác nhận vị trí'),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Hủy'),
-        ),
-        FilledButton(
-          key: const ValueKey('checkout-location-confirm'),
-          onPressed: validInput
-              ? () => Navigator.of(context).pop(
-                  CheckoutLocation(latitude: _latitude, longitude: _longitude),
-                )
-              : null,
-          child: const Text('Dùng vị trí này'),
-        ),
-      ],
     );
   }
-
-  void _select(double latitude, double longitude) {
-    if (!_isValid(latitude, longitude)) return;
-    setState(() {
-      _latitude = latitude;
-      _longitude = longitude;
-      _latitudeController.text = _formatCoordinate(latitude);
-      _longitudeController.text = _formatCoordinate(longitude);
-    });
-  }
-
-  void _updateFromText(String value, bool latitude) {
-    final parsed = double.tryParse(value.replaceAll(',', '.'));
-    setState(() {
-      if (parsed == null || !parsed.isFinite) return;
-      if (latitude && parsed >= -90 && parsed <= 90) {
-        _latitude = parsed;
-      } else if (!latitude && parsed >= -180 && parsed <= 180) {
-        _longitude = parsed;
-      }
-    });
-  }
 }
-
-double _validOrDefault(double value, double fallback) =>
-    value.isFinite ? value : fallback;
 
 bool _isValid(double latitude, double longitude) =>
     latitude.isFinite &&
     longitude.isFinite &&
-    latitude >= -90 &&
-    latitude <= 90 &&
+    latitude >= -85.05112878 &&
+    latitude <= 85.05112878 &&
     longitude >= -180 &&
     longitude <= 180;
-
-String _formatCoordinate(double value) => value.toStringAsFixed(6);

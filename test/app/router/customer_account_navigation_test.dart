@@ -53,6 +53,7 @@ void main() {
           if (path.endsWith('/categories') ||
               path.endsWith('/products') ||
               path.endsWith('/product_variants') ||
+              path.endsWith('/cart_items') ||
               path.endsWith('/list_chat_conversations')) {
             return jsonResponse(request, const <Object>[]);
           }
@@ -86,7 +87,16 @@ void main() {
         description: 'empty customer catalog',
       );
 
-      await tester.tap(find.byKey(const ValueKey('catalog-open-account')));
+      await tester.tap(find.byKey(const ValueKey('customer-tab-3')));
+      await _until(
+        tester,
+        () => find.text('Liên hệ cửa hàng').evaluate().isNotEmpty,
+        description: 'customer account sheet',
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Liên hệ cửa hàng'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Liên hệ cửa hàng'));
       await _until(
         tester,
         () =>
@@ -113,7 +123,8 @@ void main() {
         description: 'login after customer logout',
       );
       expect(_hasKey('catalog-product-list'), isFalse);
-      expect(_hasKey('catalog-open-account'), isFalse);
+      expect(_hasKey('customer-tab-3'), isFalse);
+      expect(router.canPop(), isFalse);
       expect(
         requests.any((request) => request.url.path.endsWith('/logout')),
         isTrue,

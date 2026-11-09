@@ -19,6 +19,7 @@ class DungAnRoutePage extends ConsumerWidget {
     required this.path,
     this.inbox = false,
     this.detailBuilder,
+    this.initialError,
   });
 
   /// Supplied by the GoRoute builder so auth-driven rebuilds do not depend
@@ -26,6 +27,7 @@ class DungAnRoutePage extends ConsumerWidget {
   final String path;
   final bool inbox;
   final WidgetBuilder? detailBuilder;
+  final String? initialError;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -41,6 +43,7 @@ class DungAnRoutePage extends ConsumerWidget {
       return Scaffold(
         body: SafeArea(
           child: LoginScreen(
+            initialError: initialError,
             onRegister: () => context.go('/register'),
             onAuthenticated: () => context.go('/'),
           ),

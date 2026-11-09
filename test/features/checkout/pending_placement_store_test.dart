@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:sports_store/features/checkout/data/repositories/pending_placement_store.dart';
 import 'package:sports_store/features/checkout/domain/models/checkout_failure.dart';
@@ -17,6 +18,33 @@ PlacementRequest _request() => PlacementRequest(
   latitude: 21.0285,
   longitude: 105.8542,
 );
+
+class _UnavailableStorage implements FlutterSecureStorage {
+  _UnavailableStorage({this.failure, this.loseWrite = false});
+  final Object? failure;
+  final bool loseWrite;
+  String? value;
+  int deletes = 0;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) {
+    if (invocation.memberName == #write) {
+      if (failure != null) return Future<void>.error(failure!);
+      value = invocation.namedArguments[#value] as String?;
+      return Future<void>.value();
+    }
+    if (invocation.memberName == #read) {
+      if (failure != null) return Future<String?>.error(failure!);
+      return Future<String?>.value(loseWrite ? null : value);
+    }
+    if (invocation.memberName == #delete) {
+      deletes++;
+      value = null;
+      return Future<void>.value();
+    }
+    return super.noSuchMethod(invocation);
+  }
+}
 
 void main() {
   test('Protected store round-trips only the normalized payload', () async {
@@ -64,5 +92,94 @@ void main() {
     await store.write(_userId, _request());
     expect(await store.read('BBBBBBBB-BBBB-4BBB-8BBB-BBBBBBBBBBBB'), isNull);
     expect((await store.read(_userId))!.request.requestId, _requestId);
+  });
+
+  test(
+    'missing native plugin is actionable and cannot report a saved request',
+    () async {
+      final native = _UnavailableStorage(
+        failure: MissingPluginException('private details'),
+      );
+      final store = SecurePendingPlacementStore(storage: native);
+      await expectLater(
+        store.write(_userId, _request()),
+        throwsA(
+          isA<CheckoutFailure>()
+              .having(
+                (e) => e.code,
+                'code',
+                CheckoutFailureCode.localStorageUnavailable,
+              )
+              .having(
+                (e) => e.definitiveNoCommit,
+                'never sent to server',
+                isTrue,
+              )
+              .having(
+                (e) => e.userMessage,
+                'restart guidance',
+                contains('bản cài mới'),
+              )
+              .having(
+                (e) => e.userMessage,
+                'private native detail',
+                isNot(contains('private details')),
+              ),
+        ),
+      );
+      expect(native.deletes, 0);
+    },
+  );
+
+  test(
+    'successful native reply without a readable durable value is rejected',
+    () async {
+      final native = _UnavailableStorage(loseWrite: true);
+      final store = SecurePendingPlacementStore(storage: native);
+      await expectLater(
+        store.write(_userId, _request()),
+        throwsA(
+          isA<CheckoutFailure>().having(
+            (e) => e.code,
+            'code',
+            CheckoutFailureCode.localStorageUnavailable,
+          ),
+        ),
+      );
+      expect(native.value, isNotNull);
+      expect(native.deletes, 0);
+    },
+  );
+
+  test('native read failure keeps unknown pending data and is not a proven rollback', () async {
+    final native = _UnavailableStorage(
+      failure: PlatformException(
+        code: 'read',
+        message: 'private native detail',
+      ),
+    );
+    final store = SecurePendingPlacementStore(storage: native);
+    await expectLater(
+      store.read(_userId),
+      throwsA(
+        isA<CheckoutFailure>()
+            .having(
+              (e) => e.code,
+              'code',
+              CheckoutFailureCode.localStorageUnavailable,
+            )
+            .having(
+              (e) => e.definitiveNoCommit,
+              'could already be committed',
+              isFalse,
+            )
+            .having(
+              (e) => e.userMessage,
+              'no native detail',
+              isNot(contains('private native detail')),
+            ),
+      ),
+    );
+    expect(native.deletes, 0);
   });
 }

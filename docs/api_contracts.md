@@ -2023,3 +2023,132 @@ cùng giao dịch tạo đơn. Dòng hết số lượng được xóa. Món ngo
 thêm dư vẫn ở trong giỏ. Đơn thất bại giữ nguyên giỏ. Gửi lại cùng yêu cầu
 trả về đơn cũ và chỉ trừ giỏ một lần. Khi nhận hoặc khôi phục biên nhận,
 ứng dụng tải lại giỏ từ máy chủ.
+
+## Catalog và customer navigation — 08/11/2026
+
+`CatalogQuery` bổ sung `sort` (`nameAscending`, `nameDescending`, `newest`)
+và `inStockOnly`. Adapter áp dụng sắp xếp/bộ lọc tại server trước offset/limit;
+còn hàng nghĩa là tồn khả dụng > 0 của biến thể active. Không đổi contract
+giá, đơn hàng, snapshot hoặc reservation. Production Orders dùng
+`SupabaseOrderRepository` nối RPC/DTO v1.2 hiện có, không tạo API song song.
+Chi tiết tại [bản chỉnh catalog](van_duc_catalog_redesign_20261108.md).
+
+## MH05 — lựa chọn màu/cỡ (08/11/2026)
+
+Giữ nguyên ID biến thể và API giỏ hàng/đặt hàng. `ProductVariant.attributes`
+dùng `color`, `size` (chuỗi tùy chọn), `color_hex` (`#RRGGBB`, chỉ hiển thị
+swatch). Ảnh chính xác của phối màu dùng `image_path`, gallery dùng
+`image_paths` (mảng chuỗi); chấp nhận HTTPS hoặc object path trong bucket
+private `product-images`, qua provider ký URL chung. Getter bỏ qua metadata
+ảnh sai định dạng, loại trùng và trả gallery bất biến. MH03 giữ nguyên map
+attributes khi sửa biến thể; không tự tạo thuộc tính màu/ảnh.
+
+MH05 chọn màu trước rồi chọn cỡ; giữ cỡ đang chọn nếu màu mới có cỡ đó.
+Cỡ hết hàng vẫn xem được giá nhưng số lượng bằng 0 và không thêm giỏ.
+Biến thể thiếu `color` vẫn có đường chọn riêng. Chỉ gửi UUID biến thể đang
+chọn cùng số lượng tới `CartViewModel.addItem`; thêm giỏ không giữ tồn.
+Khóa lệnh chưa rõ kết quả, lỗi và kiểm tra phiên dùng nguyên luồng giỏ hiện có.
+
+Ảnh cấp sản phẩm chỉ là ảnh mẫu khi chưa có ảnh riêng cho màu đang chọn;
+UI ghi rõ điều này, không dùng ảnh mẫu để khẳng định màu thực tế. Bộ bổ sung
+4 màu là dữ liệu demo, không phải danh mục màu thương mại của nhà sản xuất.
+
+## MH06 → MH16 — đặt các dòng đã chọn (08/11/2026)
+
+`CartSelectionViewModel` quản lý lựa chọn cục bộ: mặc định chọn mọi dòng,
+bỏ chọn/chọn tất cả không ghi Supabase hoặc giữ tồn. Lựa chọn được giữ qua
+làm mới cùng tài khoản, bỏ ID đã xóa, reset khi `CartState.userId` thay đổi
+hoặc màn hình được hủy. Không đổi tổng số lượng của giỏ dùng cho badge.
+Khóa chỉnh lựa chọn/số lượng/xóa khi mutation đang chạy hoặc chưa rõ kết quả.
+
+MH06 truyền UUID đã chọn qua
+`/customer/checkout?variant=<uuid1>&variant=<uuid2>`; route inject một tập
+ID bất biến vào `selectedCheckoutVariantIdsProvider`, scope riêng cho trang
+đặt hàng. `checkoutProvider` lấy các dòng từ cart mới nhất, tính tiền và gọi
+`place_order` với đúng các dòng này. ID lạ/đã mất, lựa chọn rỗng tường minh
+báo lỗi yêu cầu quay lại giỏ; không tự chuyển thành toàn bộ giỏ. Route không
+có tham số giữ tương thích luồng đặt toàn bộ giỏ hiện có.
+
+Yêu cầu đang chờ trong secure store luôn được khôi phục trước khi kiểm tra
+lựa chọn route. Lookup/retry giữ nguyên request ID, UUID và số lượng đã lưu,
+kể cả giỏ đã bị trừ hoặc người dùng mở route có lựa chọn khác. Sau một từ
+chối chắc chắn không commit, yêu cầu mới quay về lựa chọn của route hiện tại.
+Không thêm trường persistence, RPC hoặc tham số `place_order` mới.
+
+Server tiếp tục giữ tồn nguyên tử, tạo snapshot đơn và chỉ trừ số lượng đã
+mua khỏi các dòng tương ứng trong giỏ. Dòng bỏ chọn giữ nguyên. Phí COD Hà
+Nội 30.000 đồng được cộng tại MH16; MH06 hiển thị tiền hàng, ghi rõ chưa gồm
+phí. Không áp dụng voucher hoặc miễn phí vận chuyển trong ảnh tham khảo.
+
+## MH16 — lưu yêu cầu Android và biên nhận (09/11/2026)
+
+`SecurePendingPlacementStore` dùng Android `resetOnError: false` và
+`migrateWithBackup: true`, giữ nguyên key theo tài khoản và mã hóa native.
+Sau ghi phải đọc lại đúng JSON request trước khi gửi `place_order`. Không
+fallback sang plaintext hoặc tự xóa journal lỗi. `localStorageUnavailable`
+là lỗi client mới, không phải mã lỗi RPC; phân biệt plugin chưa nạp với lỗi
+native và không đưa native exception/payload/địa chỉ vào UI hay log.
+
+Store lỗi trước RPC được coi là chưa gửi đơn; ViewModel giữ thông báo hướng
+dẫn của store, không gọi RPC và không xóa journal nếu chưa có `_pending`
+đã gửi. Lỗi đọc yêu cầu cũ không chứng minh rollback; phải khôi phục/lookup
+trước khi gửi đơn mới. Không thay đổi fingerprint, secure-store key, chữ ký
+RPC hoặc schema biên nhận.
+
+Màn thành công chỉ nhận `PlacementResult` đã đối chiếu chủ sở hữu, request,
+người nhận, địa chỉ/tọa độ và tập biến thể/số lượng. Hiện sản phẩm/giá từ
+OrderItem snapshot, tổng/phí/trạng thái/giờ từ Order server; không đọc catalog
+mới để thay lịch sử đơn. Sao chép UUID đầy đủ, mở danh sách đơn và trở lại
+giỏ. Xem [chẩn đoán và kiểm chứng](van_duc_checkout_completion_20261109.md).
+
+## MH05 — ảnh asset theo màu (09/11/2026)
+
+`attributes.image_path/image_paths` bổ sung URI dạng
+`asset:assets/images/<file>.png` (hoặc jpg/jpeg/webp). `catalogAssetPath`
+chỉ nhận đường dẫn chuẩn bên trong `assets/images/`, không authority,
+query/fragment, encoding, backslash hoặc traversal. Repository vẫn kiểm tra
+role và phiên tài khoản; URI asset không gọi Storage hay ký URL. Widget ảnh
+dùng `Image.asset`; HTTPS/private path giữ xử lý hiện có và lỗi ảnh không
+âm thầm thay bằng ảnh khác màu. Metadata `image_source=ai_color_preview`
+kích hoạt chú thích AI tại MH05. `image_color` khớp `color`; cùng màu khác cỡ
+dùng cùng ảnh. Không đổi repository/RPC đặt hàng hoặc snapshot đơn cũ.
+Xem [dữ liệu và kiểm chứng](van_duc_color_images_20261109.md).
+
+## MH16 — bản đồ chọn địa chỉ (09/11/2026)
+
+Preview và picker dùng chung `CheckoutLocationMap` qua
+`FlutterMapTileProvider` → `mapTileSourceProvider`; không tạo HTTP client,
+URL provider hoặc cache riêng trong checkout. Adapter không dispose nguồn
+Riverpod dùng chung; khóa ảnh gồm identity nguồn, URI và generation của lần
+thử lại. Có callback cả khi image-cache hit, lỗi ảnh đi qua TileLayer.
+
+`hasSelection`/`hasInitialSelection` phân biệt tâm bản đồ ban đầu với vị trí
+khách đã chọn. Chỉ xác nhận khi khách chọn/nhập tọa độ hợp lệ; tọa độ nhập
+di chuyển viewport cùng ghim. Loading/lỗi không cho chọn trên nền trống;
+thử lại tải mới và không tự thay địa chỉ. Không thay hợp đồng `place_order`,
+phí COD, điều kiện Hà Nội, bảo vệ request đang chờ hoặc snapshot đơn.
+`CheckoutMapPreview.onPicked` cho chọn ngay trên bản đồ nhỏ khi checkout
+chưa khóa. Nhấn đúp bị tắt để single tap cập nhật ghim trước khi xác nhận;
+kéo và pinch zoom vẫn hoạt động. Callback sau dialog kiểm tra mounted.
+Xem [chẩn đoán và cách chạy](van_duc_checkout_address_20261109.md).
+
+## MH16 — địa chỉ trước bản đồ (09/11/2026)
+
+Luồng hiện tại thay bản đồ nhỏ bằng tìm đường/khu vực → chọn gợi ý → nhập
+số nhà/ngõ → xác nhận địa chỉ. `AddressSearchRepository` và ViewModel riêng
+đọc Photon, không đổi `place_order`. Chi tiết/nhãn tối đa 500 ký tự và tọa
+độ chỉ được đưa vào draft đặt hàng sau xác nhận. Sửa query xóa điểm cũ;
+sửa toàn bộ địa chỉ thủ công cũng phải chọn lại điểm. Editor được giữ qua
+recheck cùng tài khoản nhưng snapshot pending mới luôn được ưu tiên nguyên
+bản. Bản đồ chỉnh vị trí là dialog toàn màn hình trong protected Navigator,
+ghim cố định ở center, chỉ xác nhận khi tile dưới ghim đã decode.
+Xem [hợp đồng, cách dùng và kiểm chứng](van_duc_address_first_checkout_20261109.md).
+
+## Bộ ảnh demo chuyển sang Storage riêng
+
+Theo yêu cầu không đưa 52 file ảnh màu vào Git, manifest hiện dùng private
+object paths `demo/stride-colors-20261109/<file>` trong `product-images`.
+Repository ký URL bằng quyền hiện có; UI không lưu URL ký sẵn. `local_source`
+trong manifest chỉ là đầu vào script upload, không được ghi vào attributes.
+SQL chỉ đổi metadata sau khi kiểm tra đủ 52 object thật; giữ nguyên giá/tồn
+và snapshot đơn. Xem [quy trình upload và trạng thái](storage_color_images_20261109.md).

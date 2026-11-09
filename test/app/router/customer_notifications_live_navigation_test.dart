@@ -48,6 +48,7 @@ void main() {
           if (path.endsWith('/categories') ||
               path.endsWith('/products') ||
               path.endsWith('/product_variants') ||
+              path.endsWith('/cart_items') ||
               path.endsWith('/list_chat_conversations') ||
               path.endsWith('/notifications')) {
             return jsonResponse(request, []);
@@ -71,12 +72,18 @@ void main() {
       });
       await _until(
         tester,
-        () => find
-            .byKey(const ValueKey('catalog-open-account'))
-            .evaluate()
-            .isNotEmpty,
+        () =>
+            find.byKey(const ValueKey('customer-tab-3')).evaluate().isNotEmpty,
       );
-      await tester.tap(find.byKey(const ValueKey('catalog-open-account')));
+      await tester.tap(find.byKey(const ValueKey('customer-tab-3')));
+      await _until(
+        tester,
+        () => find.text('Liên hệ cửa hàng').evaluate().isNotEmpty,
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Liên hệ cửa hàng'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Liên hệ cửa hàng'));
       await _until(
         tester,
         () => find.byType(ConversationListScreen).evaluate().isNotEmpty,
@@ -86,10 +93,10 @@ void main() {
         tester,
         () => find.byType(NotificationsPage).evaluate().isNotEmpty,
       );
-    await _until(
-      tester,
-      () => find.text('Chưa có thông báo').evaluate().isNotEmpty,
-    );
+      await _until(
+        tester,
+        () => find.text('Chưa có thông báo').evaluate().isNotEmpty,
+      );
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       final router = ProviderScope.containerOf(

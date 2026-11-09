@@ -85,6 +85,13 @@ class LocalAuthRepository extends ChangeNotifier implements AuthRepository {
   }
 
   @override
+  Future<void> loginWithGoogle() async {
+    throw const AuthenticationFailure(
+      'Đăng nhập Google chỉ khả dụng ở bản kết nối Supabase.',
+    );
+  }
+
+  @override
   Future<void> logout() async {
     store.suspendSession();
     _email = null;

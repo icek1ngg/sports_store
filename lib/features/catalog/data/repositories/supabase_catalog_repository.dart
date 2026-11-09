@@ -6,6 +6,7 @@ import '../../domain/models/catalog_page.dart';
 import '../../domain/models/catalog_query.dart';
 import '../../domain/models/category.dart';
 import '../../domain/models/product.dart';
+import '../../domain/models/product_variant.dart';
 import '../../domain/models/managed_product.dart';
 import '../../domain/repositories/catalog_repository.dart';
 import '../models/catalog_dto.dart';
@@ -84,7 +85,13 @@ class SupabaseCatalogRepository implements CatalogRepository {
       roles: const {'customer', 'manager'},
       action: (identity) async {
         identity.ensureCurrent();
-        var request = access.client.from('products').select(_productProjection);
+        var request = access.client
+            .from('products')
+            .select(
+              query.inStockOnly
+                  ? '$_productProjection,stock:product_variants!inner(id)'
+                  : _productProjection,
+            );
         // These filters are deliberate for customer reads even though RLS
         // also applies them. Managers need the same repository for catalog
         // maintenance and may inspect inactive rows as unavailable products.
@@ -101,8 +108,19 @@ class SupabaseCatalogRepository implements CatalogRepository {
         if (query.categoryId != null) {
           request = request.eq('category_id', query.categoryId!);
         }
+        if (query.inStockOnly) {
+          request = request
+              .eq('stock.is_active', true)
+              .gt('stock.available_quantity', 0);
+        }
+        final orderColumn = query.sort == CatalogSort.newest
+            ? 'created_at'
+            : 'name';
         final transformed = request
-            .order('name', ascending: true)
+            .order(
+              orderColumn,
+              ascending: query.sort == CatalogSort.nameAscending,
+            )
             .order('id', ascending: true)
             .range(
               query.page * query.pageSize,
@@ -198,7 +216,18 @@ class SupabaseCatalogRepository implements CatalogRepository {
       roles: const {'customer', 'manager'},
       action: (identity) async {
         identity.ensureCurrent();
-        final uri = Uri.tryParse(path);
+        final uri = Uri.tryParse(path.trim());
+        if (uri?.scheme == 'asset' ||
+            path.trim().toLowerCase().startsWith('asset:')) {
+          final assetPath = catalogAssetPath(path.trim());
+          if (assetPath == null) {
+            throw const OperationalFailure(OperationalFailureCode.invalidData);
+          }
+          // Bundle resolution still requires the same trusted catalog session.
+          // These immutable files never need a Storage signed URL.
+          identity.ensureCurrent();
+          return 'asset:$assetPath';
+        }
         if (uri != null && uri.scheme == 'https' && uri.host.isNotEmpty) {
           // MH03 accepts an HTTPS image URL as well as a private object path.
           // Customer cards must render the same saved image representation.

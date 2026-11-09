@@ -8,6 +8,7 @@ import '../../core/state/foundation_providers.dart';
 import '../../features/cod/presentation/pages/cod_route_page.dart';
 import '../../features/cart/presentation/pages/cart_page.dart';
 import '../../features/checkout/presentation/pages/checkout_page.dart';
+import '../../features/checkout/presentation/view_models/checkout_providers.dart';
 import '../../features/catalog/presentation/pages/product_list_page.dart';
 import '../../features/catalog/presentation/pages/product_details_page.dart';
 import '../../features/auth/presentation/pages/register_screen.dart';
@@ -29,6 +30,7 @@ import '../../features/returns/presentation/pages/manager_returns_page.dart';
 import '../../features/returns/presentation/pages/return_request_flow_page.dart';
 import '../../features/returns/presentation/pages/return_tracking_page.dart';
 import '../shells/shipper_shell.dart';
+import '../shells/customer_navigation_bar.dart';
 import '../shells/manager_navigation_bar.dart';
 import '../shells/store_management_shell.dart';
 import 'operational_route_guard.dart';
@@ -58,6 +60,7 @@ final operationalRouteGuardProvider = Provider<OperationalRouteGuard>((ref) {
 final appRouterProvider = Provider<GoRouter>((ref) {
   final guard = ref.watch(operationalRouteGuardProvider);
   final confirmation = ref.read(initialEmailConfirmationProvider);
+  final oauthError = ref.read(initialOAuthErrorProvider);
   final navigatorKey = GlobalKey<NavigatorState>();
   late final GoRouter router;
   var popCheckScheduled = false;
@@ -90,9 +93,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   router = GoRouter(
     initialLocation: confirmation != null
         ? EmailConfirmationCallback.path
+        : oauthError != null
+        ? '/login?oauth_error=1'
         : null,
     // Supabase's #access_token / #error fragment is not a Flutter hash route.
-    overridePlatformDefaultLocation: confirmation != null,
+    overridePlatformDefaultLocation: confirmation != null || oauthError != null,
     navigatorKey: navigatorKey,
     observers: [_RecheckOnPop(recheckAfterPop)],
     refreshListenable: guard,
@@ -168,7 +173,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/login',
-        builder: (context, state) => DungAnRoutePage(path: state.uri.path),
+        builder: (context, state) => DungAnRoutePage(
+          path: state.uri.path,
+          initialError: state.uri.queryParameters['oauth_error'] == '1'
+              ? ref.read(initialOAuthErrorProvider)
+              : null,
+        ),
       ),
       GoRoute(
         path: '/register',
@@ -233,14 +243,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         caseSensitive: true,
         builder: (context, state) => FourScreenRouteBoundary(
           roles: const {'customer'},
-          child: CustomerOrdersPage(
-            onOpenCatalog: () => context.go('/customer/products'),
-            onCreateReturn: (id) {
-              if (isStrictUuid(id)) context.push('/customer/orders/$id/return');
-            },
-            onOpenReturn: (id) {
-              if (isStrictUuid(id)) context.push('/customer/returns/$id');
-            },
+          child: Scaffold(
+            body: CustomerOrdersPage(
+              onOpenCatalog: () => context.go('/customer/products'),
+              onCreateReturn: (id) {
+                if (isStrictUuid(id)) {
+                  context.push('/customer/orders/$id/return');
+                }
+              },
+              onOpenReturn: (id) {
+                if (isStrictUuid(id)) context.push('/customer/returns/$id');
+              },
+            ),
+            bottomNavigationBar: const CustomerNavigationBar(
+              location: '/customer/orders',
+            ),
           ),
         ),
       ),
@@ -307,7 +324,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/customer/checkout',
             caseSensitive: true,
-            builder: (context, state) => const CheckoutPage(),
+            builder: (context, state) {
+              final variants = state.uri.queryParametersAll['variant'];
+              if (variants == null) return const CheckoutPage();
+              return ProviderScope(
+                key: ValueKey(state.uri.toString()),
+                overrides: [
+                  selectedCheckoutVariantIdsProvider.overrideWithValue(
+                    Set<String>.unmodifiable(variants),
+                  ),
+                ],
+                child: const CheckoutPage(),
+              );
+            },
           ),
           GoRoute(
             path: '/customer/orders/:orderId/return',
@@ -468,6 +497,7 @@ class _ManagerOrdersRouteShell extends ConsumerWidget {
       return StoreManagementShell(
         profile: profile!,
         inbox: false,
+        path: '/manager/orders',
         child: child,
       );
     }
@@ -559,22 +589,12 @@ class _OperationalRouteBoundaryState
                     child: Scaffold(
                       body: widget.child,
                       bottomNavigationBar:
-                          widget.location.path == '/customer/products'
-                          ? NavigationBar(
-                              selectedIndex: 0,
-                              onDestinationSelected: (index) => context.go(
-                                index == 0 ? '/customer/products' : '/chat',
-                              ),
-                              destinations: const [
-                                NavigationDestination(
-                                  icon: Icon(Icons.storefront_outlined),
-                                  label: 'Sản phẩm',
-                                ),
-                                NavigationDestination(
-                                  icon: Icon(Icons.chat_bubble_outline),
-                                  label: 'Hội thoại',
-                                ),
-                              ],
+                          const {
+                            '/customer/products',
+                            '/customer/cart',
+                          }.contains(widget.location.path)
+                          ? CustomerNavigationBar(
+                              location: widget.location.path,
                             )
                           : null,
                     ),
