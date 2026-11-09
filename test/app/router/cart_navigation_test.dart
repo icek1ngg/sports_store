@@ -49,7 +49,9 @@ void main() {
       router.go('/customer/cart');
       await _until(
         tester,
-        () => router.routeInformationProvider.value.uri.path == '/',
+        () =>
+            router.routeInformationProvider.value.uri.path ==
+            (role == 'signed-out' ? '/login' : '/'),
       );
       expect(find.byKey(const ValueKey('cart-page')), findsNothing);
       expect(cartReads, 0);
@@ -91,7 +93,14 @@ void main() {
     await tester.runAsync(() => recoverFixtureSession(client, shipperB));
     await _until(
       tester,
-      () => router.routeInformationProvider.value.uri.path == '/',
+      () =>
+          container
+              .read(appRouterProvider)
+              .routeInformationProvider
+              .value
+              .uri
+              .path ==
+          '/',
     );
     expect(find.byKey(const ValueKey('cart-page')), findsNothing);
   });

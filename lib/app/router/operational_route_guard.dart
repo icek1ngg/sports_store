@@ -63,6 +63,16 @@ class OperationalRouteLocation {
         invalidId: parts.length != 3 || !_uuid.hasMatch(parts[2]),
       );
     }
+    if (parts.length == 3 && parts[0] == 'customer' && parts[1] == 'orders') {
+      return OperationalRouteLocation(
+        // Orders uses FourScreenRouteBoundary and the canonical repository's
+        // ownership check. Do not add a competing operational decision whose
+        // base URL is the unprotected Orders list during imperative refresh.
+        protected: false,
+        customerOnly: true,
+        invalidId: !_uuid.hasMatch(parts[2]),
+      );
+    }
     // MH13: /customer/orders/<order UUID>/return. Ownership, delivery state
     // and the 7-day window are enforced by the return RPCs, not this guard.
     if (parts.length >= 3 && parts[0] == 'customer' && parts[1] == 'orders') {

@@ -5,7 +5,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
 import '../pages/mh17/mh17_page_test_support.dart';
-import '../../../../../tool/ui_preview/preview_app.dart';
+import '../../../../support/ui_preview/preview_app.dart';
 
 const captureSet = String.fromEnvironment('MH17_CAPTURE_SET');
 

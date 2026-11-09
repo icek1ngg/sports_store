@@ -10,7 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:sports_store/app/router/app_router.dart';
 import 'package:sports_store/app/sports_store_app.dart';
 
-import '../tool/catalog_live/main.dart' as live_app;
+import 'package:sports_store/main.dart' as live_app;
 
 const _demoProductId = '40000000-0000-4000-8000-000000000001';
 const _demoVariantId = '50000000-0000-4000-8000-000000000001';
@@ -297,6 +297,13 @@ Future<void> _login(WidgetTester tester, String email, String password) async {
   await tester.tap(signIn);
   await _waitFor(
     tester,
+    find.widgetWithText(NavigationDestination, 'Sản phẩm'),
+    timeout: const Duration(seconds: 60),
+    failure: 'Customer login did not reach the canonical app shell.',
+  );
+  await tester.tap(find.widgetWithText(NavigationDestination, 'Sản phẩm'));
+  await _waitFor(
+    tester,
     find.byKey(const ValueKey('catalog-product-list')),
     timeout: const Duration(minutes: 2),
     failure: 'Customer login did not reach the catalog.',
@@ -433,7 +440,7 @@ Future<void> _openCart(WidgetTester tester) async {
 }
 
 Future<void> _openCartFromRouter(WidgetTester tester, GoRouter router) async {
-  router.go('/customer/cart');
+  _currentRouter(tester).go('/customer/cart');
   await _waitFor(
     tester,
     find.byKey(const ValueKey('cart-page')),
@@ -463,7 +470,7 @@ Future<void> _refreshAndReopenCart(WidgetTester tester, GoRouter router) async {
     timeout: const Duration(minutes: 2),
     failure: 'Cart refresh did not restore the persisted row.',
   );
-  router.go('/customer/products');
+  _currentRouter(tester).go('/customer/products');
   await _waitForRoute(
     tester,
     router,
@@ -487,13 +494,13 @@ Future<void> _verifySecondaryAccountIsolation(
   String password,
   String primaryUserId,
 ) async {
-  router.go('/');
+  _currentRouter(tester).go('/customer/account');
   await _waitFor(
     tester,
-    find.text('Đăng xuất / Đổi tài khoản'),
+    find.byKey(const ValueKey('account-logout')),
     failure: 'Live session account switch action missing.',
   );
-  final primarySignOut = find.text('Đăng xuất / Đổi tài khoản');
+  final primarySignOut = find.byKey(const ValueKey('account-logout'));
   await _bringIntoView(tester, primarySignOut);
   await tester.tap(primarySignOut);
   await _waitFor(
@@ -509,7 +516,7 @@ Future<void> _verifySecondaryAccountIsolation(
   await _assertCartEmpty(tester, client, secondaryUserId);
   // RLS must hide the primary customer's row from the secondary customer.
   await _assertCartEmpty(tester, client, primaryUserId);
-  router.go('/customer/cart');
+  _currentRouter(tester).go('/customer/cart');
   await _waitFor(
     tester,
     find.byKey(const ValueKey('cart-empty')),
@@ -517,13 +524,13 @@ Future<void> _verifySecondaryAccountIsolation(
     failure: 'Secondary account did not see its own empty cart.',
   );
 
-  router.go('/');
+  _currentRouter(tester).go('/customer/account');
   await _waitFor(
     tester,
-    find.text('Đăng xuất / Đổi tài khoản'),
+    find.byKey(const ValueKey('account-logout')),
     failure: 'Secondary account switch action missing.',
   );
-  final secondarySignOut = find.text('Đăng xuất / Đổi tài khoản');
+  final secondarySignOut = find.byKey(const ValueKey('account-logout'));
   await _bringIntoView(tester, secondarySignOut);
   await tester.tap(secondarySignOut);
   await _waitFor(
@@ -767,7 +774,10 @@ Future<void> _waitForRoute(
 }) async {
   final deadline = DateTime.now().add(const Duration(minutes: 2));
   while (DateTime.now().isBefore(deadline)) {
-    if (router.routeInformationProvider.value.uri.path == path) return;
+    if (_currentRouter(tester).routeInformationProvider.value.uri.path ==
+        path) {
+      return;
+    }
     await tester.pump(const Duration(milliseconds: 100));
   }
   fail(failure);
@@ -779,3 +789,7 @@ class _StockSnapshot {
   final int onHand;
   final int reserved;
 }
+
+GoRouter _currentRouter(WidgetTester tester) =>
+    ProviderScope.containerOf(tester.element(find.byType(SportsStoreApp)))
+        .read(appRouterProvider);

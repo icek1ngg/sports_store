@@ -111,23 +111,3 @@ class SecurePendingPlacementStore implements PendingPlacementStore {
     );
   }
 }
-
-/// Lightweight fake useful for repository/ViewModel tests and offline UI
-/// previews. It follows the same user-scoped semantics as the protected device store.
-class InMemoryPendingPlacementStore implements PendingPlacementStore {
-  final Map<String, PendingPlacement> _values = {};
-
-  @override
-  Future<PendingPlacement?> read(String userId) async =>
-      _values[userId.trim().toLowerCase()];
-
-  @override
-  Future<void> write(String userId, PlacementRequest request) async {
-    _values[userId.trim().toLowerCase()] = PendingPlacement(request: request);
-  }
-
-  @override
-  Future<void> clear(String userId) async {
-    _values.remove(userId.trim().toLowerCase());
-  }
-}

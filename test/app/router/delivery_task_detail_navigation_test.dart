@@ -7,9 +7,13 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
+import 'package:sports_store/app/integration/production_feature_composition.dart';
 import 'package:sports_store/app/router/app_router.dart';
 import 'package:sports_store/app/sports_store_app.dart';
 import 'package:sports_store/core/supabase/supabase_providers.dart';
+import 'package:sports_store/core/state/foundation_providers.dart';
 
 import 'package:sports_store/features/deliveries/data/repositories/operational_providers.dart';
 
@@ -63,8 +67,17 @@ void main() {
         () => fixtureClient((request) async {
           if (request.url.path.endsWith('/profiles')) {
             return jsonResponse(request, [
-              {'role': 'shipper'},
+              {'id': shipperA, 'role': 'shipper', 'full_name': 'Shipper'},
             ]);
+          }
+          if (request.url.path.endsWith('/notifications') &&
+              request.method == 'HEAD') {
+            return http.Response(
+              '',
+              200,
+              request: request,
+              headers: {'content-range': '*/0'},
+            );
           }
           if (request.url.path.endsWith('/read_my_delivery_tasks')) {
             taskReads++;
@@ -72,11 +85,11 @@ void main() {
           }
           if (request.url.path.endsWith('/list_my_delivery_tasks')) {
             return jsonResponse(request, {
-              'items': [row],
+              'items': assigned ? [row] : <Object>[],
               'next_cursor': null,
-              'filtered_total': 1,
+              'filtered_total': assigned ? 1 : 0,
               'counts': {
-                'waiting': 1,
+                'waiting': assigned ? 1 : 0,
                 'in_transit': 0,
                 'completed': 0,
                 'ungrouped': 0,
@@ -112,7 +125,10 @@ void main() {
       ))!;
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [supabaseClientProvider.overrideWithValue(client)],
+          overrides: [
+            ...productionFeatureOverrides,
+            supabaseClientProvider.overrideWithValue(client),
+          ],
           child: const RepaintBoundary(
             key: ValueKey('mh11-preview'),
             child: SportsStoreApp(),
@@ -127,14 +143,17 @@ void main() {
       final container = ProviderScope.containerOf(
         tester.element(find.byType(SportsStoreApp)),
       );
-      final router = container.read(appRouterProvider);
-      router.go('/shipper/tasks');
+      _currentRouter(tester).go('/shipper/tasks');
       await _until(
         tester,
         () => find.byKey(const ValueKey('mh10-outlet')).evaluate().isNotEmpty,
       );
-      expect(find.text(shipperA), findsOneWidget);
-      unawaited(router.push('/shipper/tasks/$taskId'));
+      // The common shell uses a functional title, not the raw account UUID.
+      // Verify the trusted identity and role independently of its visual label.
+      expect(container.read(featureSessionScopeProvider).userId, shipperA);
+      expect(container.read(featureSessionScopeProvider).role, 'shipper');
+      expect(find.byKey(const ValueKey('shipper-navigation')), findsOneWidget);
+      unawaited(_currentRouter(tester).push('/shipper/tasks/$taskId'));
       await _until(
         tester,
         () => find.text('Người nhận fixture MH11').evaluate().isNotEmpty,
@@ -162,18 +181,23 @@ void main() {
         () =>
             taskReads > beforeMap &&
             (revokeBeforeMap
-                ? find.byKey(const ValueKey('app-entry')).evaluate().isNotEmpty
+                ? _currentRouter(tester).state.uri.path == '/shipper/tasks' &&
+                      find
+                          .byKey(const ValueKey('mh10-outlet'))
+                          .evaluate()
+                          .isNotEmpty
                 : find
                       .byKey(const ValueKey('mh18-outlet'))
                       .evaluate()
                       .isNotEmpty),
       );
       expect(
-        router.state.uri.path,
-        revokeBeforeMap ? '/' : '/shipper/tasks/$taskId/map',
+        _currentRouter(tester).state.uri.path,
+        revokeBeforeMap ? '/shipper/tasks' : '/shipper/tasks/$taskId/map',
       );
-      expect(router.state.uri.query, isEmpty);
+      expect(_currentRouter(tester).state.uri.query, isEmpty);
       if (revokeBeforeMap) {
+        await tester.pumpAndSettle();
         expect(find.text('Người nhận fixture MH11'), findsNothing);
         expect(find.byKey(const ValueKey('mh18-outlet')), findsNothing);
       } else {
@@ -190,7 +214,10 @@ void main() {
                   .evaluate()
                   .isEmpty,
         );
-        expect(router.state.uri.path, '/shipper/tasks/$taskId/map');
+        expect(
+          _currentRouter(tester).state.uri.path,
+          '/shipper/tasks/$taskId/map',
+        );
         expect(find.byType(BackButton), findsOneWidget);
         // A cancelled task is still a permitted historical task, so the
         // route guard alone cannot clear an old current-detail projection.
@@ -202,7 +229,7 @@ void main() {
           ..['snapshot_scope'] = 'history'
           ..['destination_name'] = 'Người nhận fixture MH11'
           ..['completed_at'] = '2026-10-24T04:00:00Z';
-        router.pop();
+        _currentRouter(tester).pop();
         await _until(
           tester,
           () =>
@@ -215,7 +242,7 @@ void main() {
                   .evaluate()
                   .isNotEmpty,
         );
-        expect(router.state.uri.path, '/shipper/tasks/$taskId');
+        expect(_currentRouter(tester).state.uri.path, '/shipper/tasks/$taskId');
         expect(find.text('Người nhận fixture MH11'), findsOneWidget);
         expect(find.text('0900000000'), findsOneWidget);
         expect(
@@ -227,3 +254,7 @@ void main() {
     });
   }
 }
+
+GoRouter _currentRouter(WidgetTester tester) =>
+    ProviderScope.containerOf(tester.element(find.byType(SportsStoreApp)))
+        .read(appRouterProvider);

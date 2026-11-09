@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:sports_store/app/integration/production_feature_composition.dart';
 import 'package:sports_store/app/router/app_router.dart';
 import 'package:sports_store/app/sports_store_app.dart';
-import 'package:sports_store/app/shells/store_management_shell.dart';
+import 'package:sports_store/app/shells/sports_store_shell.dart';
 import 'package:sports_store/core/supabase/supabase_providers.dart';
 import 'package:sports_store/features/chat/presentation/pages/conversation_list_screen.dart';
 
@@ -53,7 +54,6 @@ void main() {
           if (path.endsWith('/categories') ||
               path.endsWith('/products') ||
               path.endsWith('/product_variants') ||
-              path.endsWith('/cart_items') ||
               path.endsWith('/list_chat_conversations')) {
             return jsonResponse(request, const <Object>[]);
           }
@@ -64,14 +64,18 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [supabaseClientProvider.overrideWithValue(client)],
+          overrides: [
+            ...productionFeatureOverrides,
+            supabaseClientProvider.overrideWithValue(client),
+          ],
           child: const SportsStoreApp(),
         ),
       );
       await tester.pump();
-      final router = ProviderScope.containerOf(
+      final container = ProviderScope.containerOf(
         tester.element(find.byType(SportsStoreApp)),
-      ).read(appRouterProvider);
+      );
+      final router = container.read(appRouterProvider);
       addTearDown(() async {
         await tester.pumpWidget(const SizedBox());
         await tester.pump();
@@ -87,24 +91,21 @@ void main() {
         description: 'empty customer catalog',
       );
 
-      await tester.tap(find.byKey(const ValueKey('customer-tab-3')));
-      await _until(
-        tester,
-        () => find.text('Liên hệ cửa hàng').evaluate().isNotEmpty,
-        description: 'customer account sheet',
-      );
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Liên hệ cửa hàng'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Liên hệ cửa hàng'));
+      await tester.tap(find.widgetWithText(NavigationDestination, 'Tài khoản'));
       await _until(
         tester,
         () =>
-            router.state.uri.path == '/chat' &&
-            find.byType(StoreManagementShell).evaluate().isNotEmpty &&
-            find.byType(ConversationListScreen).evaluate().isNotEmpty &&
+            router.state.uri.path == '/customer/account' &&
+            find.byType(SportsStoreShell).evaluate().isNotEmpty &&
+            find.byType(SportsStoreAccountPage).evaluate().isNotEmpty &&
             find.text('Đăng xuất').evaluate().isNotEmpty,
-        description: 'customer account shell with chat and logout',
+        description: 'canonical customer account menu with logout',
+      );
+      await tester.tap(find.widgetWithText(ListTile, 'Hội thoại'));
+      await _until(
+        tester,
+        () => find.byType(ConversationListScreen).evaluate().isNotEmpty,
+        description: 'customer conversations reached from account menu',
       );
       expect(
         find.descendant(
@@ -113,18 +114,28 @@ void main() {
         ),
         findsOneWidget,
       );
-
-      await tester.tap(find.text('Đăng xuất'));
+      router.pop();
+      await _until(
+        tester,
+        () => find.byType(SportsStoreAccountPage).evaluate().isNotEmpty,
+        description: 'account menu after Back from conversations',
+      );
+      await tester.tap(find.byKey(const ValueKey('account-logout')));
       await _until(
         tester,
         () =>
-            router.state.uri.path == '/login' &&
+            container
+                    .read(appRouterProvider)
+                    .routeInformationProvider
+                    .value
+                    .uri
+                    .path ==
+                '/login' &&
             find.text('Đăng nhập').evaluate().isNotEmpty,
         description: 'login after customer logout',
       );
       expect(_hasKey('catalog-product-list'), isFalse);
-      expect(_hasKey('customer-tab-3'), isFalse);
-      expect(router.canPop(), isFalse);
+      expect(_hasKey('catalog-open-account'), isFalse);
       expect(
         requests.any((request) => request.url.path.endsWith('/logout')),
         isTrue,

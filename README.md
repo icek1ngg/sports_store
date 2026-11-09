@@ -37,22 +37,15 @@ khai đầy đủ. Các điểm chưa tích hợp được ghi ở
 [screen_mapping.md](docs/screen_mapping.md). Cấu hình Auth/OAuth và client xem
 [supabase_setup.md](docs/supabase_setup.md).
 
-## Chạy bản trình bày local trên Android
+## Ứng dụng thống nhất trên Android
+
+Chỉ dùng một runtime Supabase Auth/repositories và canonical router:
 
 ```powershell
-flutter run -d <device-id> -t lib/main_dev.dart --no-dds
+flutter run -d emulator-5554 -t lib/main.dart --no-dds
 ```
 
-Entrypoint này dùng `FullDevApp`, repository local và dữ liệu trong RAM,
-không khởi tạo Supabase. `DemoNetworkGuard` chặn mạng. Dữ liệu và kết quả demo
-không chứng minh RLS, transaction hoặc kết nối cloud hoạt động.
-Chi tiết phần Orders/Notifications xem
-[báo cáo trình bày local](docs/FINAL_REPORT_MH07_MH08_MH09_MH17.md).
-
-`tool/ui_preview/prm_main.dart` là entrypoint tương thích chuyển vào
-`lib/main.dart`; tên thư mục preview không có nghĩa entrypoint này dùng dữ
-liệu giả. `tool/catalog_live/main.dart` là công cụ chạy catalog/giỏ/checkout
-với Supabase; không thay thế composition toàn ứng dụng.
+Các fixtures chỉ phục vụ automated tests dưới test/support; không có app mode local riêng.
 
 ## Tài liệu dùng chung
 

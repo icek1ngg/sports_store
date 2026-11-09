@@ -122,8 +122,16 @@ class _Mh09DetailContentState extends ConsumerState<Mh09DetailContent> {
     };
   }
 
-  Future<void> _refresh(int ticket, SessionScope scope, EpochCache cache) {
-    if (!_authorized(ticket, scope, cache)) return Future.value();
+  Future<void> _refresh(
+    int ticket,
+    SessionScope scope,
+    EpochCache cache, {
+    bool decisionRecovery = false,
+  }) {
+    if (!_authorized(ticket, scope, cache) ||
+        (_dialogOpen && !decisionRecovery)) {
+      return Future.value();
+    }
     final provider = orderDetailsFoundationProvider(widget.orderId);
     final state = ref.read(provider);
     if (state.isLoading || state.asData?.value.loading == true) {
@@ -154,6 +162,7 @@ class _Mh09DetailContentState extends ConsumerState<Mh09DetailContent> {
       return;
     }
     final sourceOrderId = widget.orderId;
+    final sourceOrder = _current(ticket, scope, cache)!.order;
     setState(() => _dialogOpen = true);
     try {
       await showDialog<void>(
@@ -163,6 +172,17 @@ class _Mh09DetailContentState extends ConsumerState<Mh09DetailContent> {
           operation: operation,
           submittedScope: scope,
           sourceCache: cache,
+          sourceResourcePrefix: 'orders/detail/$sourceOrderId',
+          decisionChanges: orderDetailsFoundationProvider(sourceOrderId),
+          decisionUnchanged: () {
+            final current = _current(ticket, scope, cache);
+            if (current == null) return null;
+            return current.order.updatedAt == sourceOrder.updatedAt &&
+                current.order.status == sourceOrder.status &&
+                _allowed(operation, ticket, scope, cache);
+          },
+          onRefreshDecision: () =>
+              _refresh(ticket, scope, cache, decisionRecovery: true),
           isStillAllowed: () => _allowed(operation, ticket, scope, cache),
         ),
       );
@@ -215,7 +235,7 @@ class _Mh09DetailContentState extends ConsumerState<Mh09DetailContent> {
           );
         }
       }
-      await _refresh(ticket, scope, cache);
+      await _refresh(ticket, scope, cache, decisionRecovery: true);
     } finally {
       if (_owns(ticket)) setState(() => _dialogOpen = false);
     }
@@ -251,9 +271,10 @@ class _Mh09DetailContentState extends ConsumerState<Mh09DetailContent> {
             details.capabilities.canCancelExceptional);
 
     return ForegroundRefresh(
+      interval: const Duration(seconds: 30),
       enabled: widget.enablePolling,
       onRefresh: refresh,
-      canRefresh: () => _current(ticket, scope, cache) != null,
+      canRefresh: () => !_dialogOpen && _current(ticket, scope, cache) != null,
       child: Mh09PageLayout(
         footer: !hasActions
             ? null

@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sports_store/features/orders/presentation/pages/mh09/mh09_detail_body.dart';
 
-import '../../tool/ui_preview/mh08_preview_app.dart';
-import '../../tool/ui_preview/mh08_preview_environment.dart';
-import '../../tool/ui_preview/mh09_preview_scenario.dart';
+import '../support/ui_preview/mh08_preview_app.dart';
+import '../support/ui_preview/mh08_preview_environment.dart';
+import '../support/ui_preview/mh09_preview_scenario.dart';
 
 import 'mh09_04a_capture.dart';
 export 'mh09_04a_capture.dart' show mh09AuditDirectory;

@@ -11,6 +11,7 @@ import '../../../../core/utils/display_formatters.dart'
 
 import '../../../catalog/presentation/widgets/catalog_formatters.dart';
 import '../../../orders/domain/models/order_status.dart';
+import '../../../orders/presentation/view_models/order_providers.dart';
 import '../../../orders/presentation/widgets/order_item_image.dart'
     show orderItemImagePath;
 import '../../domain/models/checkout_failure.dart';
@@ -611,7 +612,10 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                   const SizedBox(height: 18),
                   FilledButton.icon(
                     key: const ValueKey('checkout-view-orders'),
-                    onPressed: () => context.go('/customer/orders'),
+                    onPressed: () {
+                      ref.invalidate(orderListFoundationProvider);
+                      context.go('/customer/orders');
+                    },
                     icon: const Icon(Icons.receipt_long_outlined),
                     label: const Text('Xem đơn hàng'),
                   ),

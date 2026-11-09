@@ -9,8 +9,8 @@ import 'package:sports_store/features/orders/presentation/widgets/mh08/mh08_paym
 import 'package:sports_store/features/orders/presentation/widgets/mh08/mh08_status_chips.dart';
 import 'package:sports_store/features/orders/presentation/widgets/order_feed.dart';
 
-import '../../tool/ui_preview/mh08_preview_app.dart';
-import '../../tool/ui_preview/mh08_preview_environment.dart';
+import '../support/ui_preview/mh08_preview_app.dart';
+import '../support/ui_preview/mh08_preview_environment.dart';
 import 'mh08_04a_capture_helper.dart' show loadMh08AuditFonts;
 import 'mh08_04b2_capture_helper.dart';
 

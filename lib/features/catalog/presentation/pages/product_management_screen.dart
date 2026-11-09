@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../shared/widgets/prm_preview_widgets.dart';
+import '../../../../shared/widgets/sports_store_widgets.dart';
 import '../../domain/models/managed_product.dart';
 import '../../domain/models/product_image.dart';
 import '../view_models/product_management_view_model.dart';

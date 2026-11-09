@@ -1,3 +1,5 @@
+import '../../support/fixtures/in_memory_pending_placement_store.dart';
+
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,7 +13,6 @@ import 'package:sports_store/features/cart/presentation/view_models/cart_state.d
 import 'package:sports_store/features/catalog/domain/models/product.dart';
 import 'package:sports_store/features/catalog/domain/models/product_variant.dart';
 import 'package:sports_store/features/checkout/data/models/checkout_envelope_dto.dart';
-import 'package:sports_store/features/checkout/data/repositories/pending_placement_store.dart';
 import 'package:sports_store/features/checkout/domain/models/checkout_failure.dart';
 import 'package:sports_store/features/checkout/domain/models/placement_request.dart';
 import 'package:sports_store/features/checkout/domain/models/placement_result.dart';

@@ -109,6 +109,7 @@ class OrderDetailsFoundationViewModel
   OrderDetailsFoundationViewModel(this.orderId);
   final String orderId;
   OrderMutationReceipt? _actionOutcome;
+  ({DateTime updatedAt, String status})? _acceptedVersion;
   OrderMutationReceipt? get actionOutcome => _actionOutcome;
 
   @override
@@ -122,6 +123,7 @@ class OrderDetailsFoundationViewModel
     final repository = ref.watch(orderRepositoryProvider);
     final scope = ref.watch(featureSessionScopeProvider);
     _actionOutcome = null;
+    _acceptedVersion = null;
     return () async {
       if (repository == null) {
         throw const AppFailure(code: AppFailure.externalDependencyUnavailable);
@@ -141,7 +143,14 @@ class OrderDetailsFoundationViewModel
 
   @override
   void onAccepted(OrderDetails data) {
-    ref.read(epochCacheProvider).invalidatePrefix('orders/list/');
+    final version = (
+      updatedAt: data.order.updatedAt,
+      status: data.order.status.name,
+    );
+    if (_acceptedVersion != version) {
+      ref.read(epochCacheProvider).invalidatePrefix('orders/list/');
+    }
+    _acceptedVersion = version;
   }
 
   /// Phase 1 outcome hook, not a command sender. Receipts never enter cache.

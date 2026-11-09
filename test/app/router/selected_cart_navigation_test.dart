@@ -10,7 +10,9 @@ import 'package:sports_store/features/cart/presentation/view_models/cart_provide
 import 'package:sports_store/features/cart/presentation/view_models/cart_state.dart';
 import 'package:sports_store/features/catalog/domain/models/product.dart';
 import 'package:sports_store/features/catalog/domain/models/product_variant.dart';
-import 'package:sports_store/features/checkout/data/repositories/pending_placement_store.dart';
+
+import '../../support/fixtures/in_memory_pending_placement_store.dart';
+
 import 'package:sports_store/features/checkout/presentation/pages/checkout_page.dart';
 import 'package:sports_store/features/checkout/presentation/view_models/checkout_providers.dart';
 

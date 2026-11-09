@@ -5,8 +5,8 @@ import 'package:sports_store/features/orders/presentation/pages/manager_order_de
 import 'package:sports_store/features/orders/presentation/widgets/mh08/mh08_order_card.dart';
 import 'package:sports_store/features/orders/presentation/widgets/mh08/mh08_status_chips.dart';
 
-import '../../tool/ui_preview/mh08_manager_repository.dart';
-import '../../tool/ui_preview/mh08_preview_environment.dart';
+import '../support/ui_preview/mh08_manager_repository.dart';
+import '../support/ui_preview/mh08_preview_environment.dart';
 import 'mh08_preview_test_support.dart';
 
 const _search = ValueKey('mh08-search-field');

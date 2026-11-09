@@ -66,6 +66,7 @@ void main() {
         generation: 1,
       );
       final repo = _Commands()..loseAck = lost;
+      var allowed = true;
       final container = ProviderContainer(
         overrides: [
           featureSessionScopeProvider.overrideWithValue(scope),
@@ -85,7 +86,7 @@ void main() {
                     builder: (_) => OrderActionDialog(
                       orderId: fixtureOrderId,
                       operation: OrderOperation.customerCancel,
-                      isStillAllowed: () => true,
+                      isStillAllowed: () => allowed,
                       submittedScope: scope,
                     ),
                   ),
@@ -102,6 +103,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(repo.sends, 1);
       if (lost) {
+        // Even a now-revoked action may reconcile its original outcome, but
+        // must never send that business mutation again.
+        allowed = false;
         expect(find.byType(OrderActionDialog), findsOneWidget);
         expect(
           await container.read(pendingOrderCommandStoreProvider).list(),

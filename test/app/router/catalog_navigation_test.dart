@@ -79,7 +79,7 @@ void main() {
     router.go('/customer/products');
     await _until(
       tester,
-      () => router.routeInformationProvider.value.uri.path == '/',
+      () => router.routeInformationProvider.value.uri.path == '/login',
     );
     expect(find.byKey(const ValueKey('catalog-product-list')), findsNothing);
     expect(reads, 0);
@@ -168,9 +168,19 @@ void main() {
     );
     role = 'shipper';
     await tester.runAsync(() => recoverFixtureSession(client, shipperB));
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(SportsStoreApp)),
+    );
     await _until(
       tester,
-      () => router.routeInformationProvider.value.uri.path == '/',
+      () =>
+          container
+              .read(appRouterProvider)
+              .routeInformationProvider
+              .value
+              .uri
+              .path ==
+          '/',
     );
     expect(find.byKey(const ValueKey('catalog-product-list')), findsNothing);
   });

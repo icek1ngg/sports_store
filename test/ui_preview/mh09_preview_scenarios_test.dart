@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sports_store/core/state/foundation_providers.dart';
 import 'package:sports_store/features/orders/presentation/pages/manager_order_details_page.dart';
@@ -6,7 +7,7 @@ import 'package:sports_store/features/orders/presentation/widgets/mh09/mh09_item
 import 'package:sports_store/features/orders/presentation/widgets/order_action_dialog.dart';
 import 'package:sports_store/shared/widgets/async_content.dart';
 
-import '../../tool/ui_preview/mh09_preview_scenario.dart';
+import '../support/ui_preview/mh09_preview_scenario.dart';
 import 'mh09_preview_test_support.dart';
 
 const _longRecipient =
@@ -15,6 +16,7 @@ const _largeLastItem =
     'Bộ dụng cụ thể thao chuyên nghiệp phiên bản minh họa MH09 40';
 
 void main() {
+  setUp(() => FlutterSecureStorage.setMockInitialValues({}));
   testWidgets(
     'MH09 selector renders the forty-row world and can reach its last item',
     (tester) async {
@@ -247,7 +249,10 @@ void main() {
           await tester.tap(find.byKey(const ValueKey('order-action-submit')));
           await tester.pump();
           expect(
-            find.text('Thao tác hiện chưa khả dụng. Vui lòng thử lại sau.'),
+            // A new reject cannot supersede the unresolved confirm command.
+            find.text(
+              'Chưa xác định được kết quả. Làm mới trạng thái trước khi tiếp tục.',
+            ),
             findsOneWidget,
           );
           await tester.tap(find.text('Đóng'));

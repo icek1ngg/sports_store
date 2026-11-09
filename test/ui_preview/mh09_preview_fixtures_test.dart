@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sports_store/features/orders/domain/models/order_status.dart';
 
-import '../../tool/ui_preview/mh08_manager_data.dart';
-import '../../tool/ui_preview/mh09_preview_fixtures.dart';
-import '../../tool/ui_preview/mh09_preview_scenario.dart';
+import '../support/ui_preview/mh08_manager_data.dart';
+import '../support/ui_preview/mh09_preview_fixtures.dart';
+import '../support/ui_preview/mh09_preview_scenario.dart';
 
 void main() {
   final records = buildMh08ManagerRecords();

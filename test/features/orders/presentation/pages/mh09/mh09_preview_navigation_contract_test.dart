@@ -8,7 +8,7 @@ import 'package:sports_store/features/orders/presentation/widgets/mh09/mh09_head
 import 'package:sports_store/features/orders/presentation/widgets/mh09/mh09_order_identity.dart';
 
 import '../../../../../ui_preview/mh08_preview_test_support.dart';
-import '../../../../../../tool/ui_preview/mh08_preview_environment.dart';
+import '../../../../../support/ui_preview/mh08_preview_environment.dart';
 
 void main() {
   testWidgets(

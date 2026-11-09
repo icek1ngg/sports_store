@@ -9,7 +9,7 @@ import 'package:sports_store/features/orders/presentation/pages/manager_orders_p
 import 'package:sports_store/features/orders/presentation/pages/manager_order_details_page.dart';
 import 'package:sports_store/features/notifications/presentation/pages/notifications_page.dart';
 
-import '../../tool/ui_preview/preview_app.dart';
+import '../support/ui_preview/preview_app.dart';
 import '../fixtures/order_list_page_fixtures.dart';
 
 void main() {

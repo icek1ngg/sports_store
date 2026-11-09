@@ -3,8 +3,8 @@ import 'package:sports_store/core/errors/app_failure.dart';
 import 'package:sports_store/features/orders/domain/models/order_query.dart';
 import 'package:sports_store/features/orders/domain/models/order_status.dart';
 
-import '../../tool/ui_preview/mh08_manager_data.dart';
-import '../../tool/ui_preview/mh08_manager_repository.dart';
+import '../support/ui_preview/mh08_manager_data.dart';
+import '../support/ui_preview/mh08_manager_repository.dart';
 
 void main() {
   test(

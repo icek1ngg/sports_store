@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:sports_store/app/integration/production_feature_composition.dart';
 import 'package:sports_store/app/router/app_router.dart';
 import 'package:sports_store/app/sports_store_app.dart';
+import 'package:sports_store/app/shells/sports_store_shell.dart';
 import 'package:sports_store/core/supabase/supabase_providers.dart';
 import 'package:sports_store/features/chat/presentation/pages/conversation_list_screen.dart';
 import 'package:sports_store/features/notifications/presentation/pages/notifications_page.dart';
@@ -48,7 +49,6 @@ void main() {
           if (path.endsWith('/categories') ||
               path.endsWith('/products') ||
               path.endsWith('/product_variants') ||
-              path.endsWith('/cart_items') ||
               path.endsWith('/list_chat_conversations') ||
               path.endsWith('/notifications')) {
             return jsonResponse(request, []);
@@ -70,25 +70,30 @@ void main() {
         await tester.pump();
         await tester.runAsync(client.dispose);
       });
+      final router = ProviderScope.containerOf(
+        tester.element(find.byType(SportsStoreApp)),
+      ).read(appRouterProvider);
+      router.go('/customer/products');
       await _until(
         tester,
-        () =>
-            find.byKey(const ValueKey('customer-tab-3')).evaluate().isNotEmpty,
+        () => find
+            .widgetWithText(NavigationDestination, 'Tài khoản')
+            .evaluate()
+            .isNotEmpty,
       );
-      await tester.tap(find.byKey(const ValueKey('customer-tab-3')));
+      await tester.tap(find.widgetWithText(NavigationDestination, 'Tài khoản'));
       await _until(
         tester,
-        () => find.text('Liên hệ cửa hàng').evaluate().isNotEmpty,
+        () => find.byType(SportsStoreAccountPage).evaluate().isNotEmpty,
       );
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Liên hệ cửa hàng'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Liên hệ cửa hàng'));
+      await tester.tap(find.widgetWithText(ListTile, 'Hội thoại'));
       await _until(
         tester,
         () => find.byType(ConversationListScreen).evaluate().isNotEmpty,
       );
-      await tester.tap(find.byTooltip('Thông báo'));
+      // Shared route pushes must preserve the current imperative chat stack;
+      // its old duplicate-shell toolbar no longer owns navigation.
+      router.push('/notifications');
       await _until(
         tester,
         () => find.byType(NotificationsPage).evaluate().isNotEmpty,
@@ -99,9 +104,6 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      final router = ProviderScope.containerOf(
-        tester.element(find.byType(SportsStoreApp)),
-      ).read(appRouterProvider);
       expect(router.state.uri.path, '/notifications');
       router.pop();
       await _until(

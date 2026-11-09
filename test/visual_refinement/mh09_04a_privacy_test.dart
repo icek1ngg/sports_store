@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sports_store/core/state/foundation_providers.dart';
 import 'package:sports_store/shared/widgets/async_content.dart';
 
-import '../../tool/ui_preview/mh09_preview_scenario.dart';
+import '../support/ui_preview/mh09_preview_scenario.dart';
 import 'mh09_04a_report.dart';
 import 'mh09_04a_test_support.dart';
 

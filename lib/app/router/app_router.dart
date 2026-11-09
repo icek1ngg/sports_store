@@ -22,30 +22,56 @@ import '../../features/deliveries/data/repositories/operational_providers.dart';
 import '../../features/deliveries/data/repositories/operational_read_access.dart';
 import '../../features/deliveries/presentation/pages/delivery_route_pages.dart';
 import '../../features/deliveries/presentation/view_models/delivery_providers.dart';
+import '../../features/deliveries/presentation/view_models/delivery_task_list_view_model.dart';
+import '../../features/deliveries/presentation/view_models/delivery_task_detail_view_model.dart';
 import '../../features/notifications/presentation/pages/notifications_page.dart';
+import '../../features/notifications/domain/models/notification_target.dart';
 import '../../features/orders/presentation/pages/customer_orders_page.dart';
+import '../../features/orders/presentation/view_models/order_providers.dart';
 import '../../features/orders/presentation/pages/manager_order_details_page.dart';
 import '../../features/orders/presentation/pages/manager_orders_page.dart';
 import '../../features/returns/presentation/pages/manager_return_detail_page.dart';
 import '../../features/returns/presentation/pages/manager_returns_page.dart';
 import '../../features/returns/presentation/pages/return_request_flow_page.dart';
 import '../../features/returns/presentation/pages/return_tracking_page.dart';
-import '../shells/shipper_shell.dart';
-import '../shells/customer_navigation_bar.dart';
-import '../shells/manager_navigation_bar.dart';
-import '../shells/store_management_shell.dart';
+import '../shells/sports_store_shell.dart';
 import 'operational_route_guard.dart';
-import 'dung_an_route_pages.dart';
+import 'authenticated_route_page.dart';
 import 'four_screen_route_boundary.dart';
 
 /// Production MH17 uses the shared router; tests can override this builder.
 final notificationRouteBuilderProvider = Provider<WidgetBuilder?>(
   (ref) =>
-      (_) => const NotificationsPage(key: ValueKey('mh17-production-screen')),
+      (context) => NotificationsPage(
+        key: const ValueKey('mh17-production-screen'),
+        onNavigate: (decision) async {
+          final id = decision.entityId;
+          if (!decision.available ||
+              id == null ||
+              !isStrictUuid(id) ||
+              !context.mounted) {
+            return false;
+          }
+          final scope = ref.read(featureSessionScopeProvider);
+          if (!scope.canReadPrivateData) return false;
+          final path = switch (decision.screen) {
+            NotificationTargetScreen.managerOrder
+                when scope.role == 'manager' =>
+              '/manager/orders/$id',
+            NotificationTargetScreen.customerOrder
+                when scope.role == 'customer' =>
+              '/customer/orders/$id',
+            _ => null,
+          };
+          if (path == null) return false;
+          unawaited(GoRouter.of(context).push(path));
+          return true;
+        },
+      ),
 );
 
-/// Temporary Auth integration slot. The live catalog tool supplies a login
-/// panel here; production remains owned by the central router/Auth feature.
+/// Test seam for public entry-route coverage. The application uses the
+/// canonical Auth boundary when no test builder is supplied.
 final landingPageBuilderProvider = Provider<WidgetBuilder?>((ref) => null);
 
 final operationalRouteGuardProvider = Provider<OperationalRouteGuard>((ref) {
@@ -58,12 +84,46 @@ final operationalRouteGuardProvider = Provider<OperationalRouteGuard>((ref) {
   return guard;
 });
 
-final appRouterProvider = Provider<GoRouter>((ref) {
+final appStartupFailureProvider = Provider<bool>((ref) => false);
+
+final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
+  if (ref.watch(appStartupFailureProvider)) {
+    final failedRouter = GoRouter(
+      initialLocation: '/startup-error',
+      routes: [
+        GoRoute(
+          path: '/startup-error',
+          builder: (_, _) => const Scaffold(
+            body: Center(
+              child: Text('Không thể khởi động ứng dụng. Vui lòng thử lại.'),
+            ),
+          ),
+        ),
+      ],
+    );
+    ref.onDispose(failedRouter.dispose);
+    return failedRouter;
+  }
   final guard = ref.watch(operationalRouteGuardProvider);
   final confirmation = ref.read(initialEmailConfirmationProvider);
   final oauthError = ref.read(initialOAuthErrorProvider);
   final navigatorKey = GlobalKey<NavigatorState>();
+  final branchNavigatorKeys = List.generate(
+    _branchPaths.length,
+    (_) => GlobalKey<NavigatorState>(),
+  );
   late final GoRouter router;
+  Uri activeLocation() {
+    try {
+      return router.routerDelegate.state.uri;
+    } on StateError {
+      return router.routerDelegate.currentConfiguration.uri;
+    }
+  }
+
+  var activeRedirects = 0;
+  var retired = false;
+  Completer<void>? redirectsDrained;
   var popCheckScheduled = false;
   var suppressPopRecheck = false;
   var profileRefreshPending = false;
@@ -77,20 +137,412 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     popCheckScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       popCheckScheduled = false;
-      if (!ref.mounted || suppressPopRecheck) return;
+      if (!ref.mounted || retired || suppressPopRecheck) return;
+      // A notification target is an imperative push across shell branches.
+      // Replaying its old leaf during pop can restore the detail just closed.
+      // Refresh the inbox base instead; its repository/session guard rechecks
+      // recipient access before rendering any inbox content.
+      final base = router.routerDelegate.currentConfiguration.uri;
+      if (base.path == '/notifications') {
+        pendingPopLocation = null;
+        router.go(base.toString());
+        return;
+      }
       // Refresh redirects the base URI of an imperative stack in go_router 18.
-      // Preserve the actual revealed leaf for the router-owned redirect below
-      // so the stack remains mounted while that leaf is reauthorized.
-      final revealedLocation = router.state.uri;
-      pendingPopLocation = revealedLocation;
+      // go_router refreshes the base URI of an imperative stack. Preserve the
+      // actual revealed leaf for the router-owned redirect below so the stack
+      // remains mounted while that leaf is reauthorized.
+      pendingPopLocation = activeLocation();
       // AppBar/Navigator.maybePop updates the delegate before the route
       // information provider reports the revealed stack. Refreshing that
       // provider here can restore the page that was just popped. Restore the
       // delegate's current stack explicitly, as GoRouter.pop itself does.
-      if (router.state.uri != revealedLocation) {
-        router.restore(router.routerDelegate.currentConfiguration);
+      router.restore(router.routerDelegate.currentConfiguration);
+      final parts = activeLocation().pathSegments;
+      if (parts.length == 3 &&
+          parts[0] == 'shipper' &&
+          parts[1] == 'tasks' &&
+          isStrictUuid(parts[2])) {
+        unawaited(
+          ref
+              .read(deliveryTaskDetailViewModelProvider(parts[2]).notifier)
+              .refresh()
+              .catchError((Object _) {}),
+        );
       }
     });
+  }
+
+  final applicationRoutes = <RouteBase>[
+    GoRoute(
+      path: EmailConfirmationCallback.path,
+      builder: (context, state) => EmailConfirmationPage(
+        result: confirmation ?? EmailConfirmationResult.invalid,
+      ),
+    ),
+    GoRoute(
+      path: '/',
+      builder: (context, state) =>
+          ref.read(landingPageBuilderProvider)?.call(context) ??
+          AuthenticatedRoutePage(
+            key: const ValueKey('app-entry'),
+            path: state.uri.path,
+          ),
+    ),
+    GoRoute(
+      path: '/login',
+      builder: (context, state) => AuthenticatedRoutePage(
+        path: state.uri.path,
+        initialError: state.uri.queryParameters['oauth_error'] == '1'
+            ? ref.read(initialOAuthErrorProvider)
+            : null,
+      ),
+    ),
+    GoRoute(
+      path: '/register',
+      builder: (context, state) => Scaffold(
+        body: SafeArea(
+          child: RegisterScreen(onLogin: () => context.go('/login')),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/customer/home',
+      builder: (c, s) => const FourScreenRouteBoundary(
+        roles: {'customer'},
+        child: SportsStoreHomePage(),
+      ),
+    ),
+    for (final role in ['customer', 'manager', 'shipper'])
+      GoRoute(
+        path: '/$role/account',
+        builder: (c, s) => FourScreenRouteBoundary(
+          roles: {role},
+          child: const SportsStoreAccountPage(),
+        ),
+      ),
+    GoRoute(
+      path: '/manager/products',
+      builder: (context, state) => AuthenticatedRoutePage(path: state.uri.path),
+    ),
+    GoRoute(
+      path: '/manager/orders',
+      caseSensitive: true,
+      builder: (context, state) => FourScreenRouteBoundary(
+        roles: const {'manager'},
+        child: ManagerOrdersPage(
+          onOpenOrder: (orderId) {
+            if (!isStrictUuid(orderId)) return;
+            context.push('/manager/orders/${Uri.encodeComponent(orderId)}');
+          },
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/manager/orders/:orderId',
+      caseSensitive: true,
+      builder: (context, state) {
+        final orderId = state.pathParameters['orderId'];
+        final valid = orderId != null && isStrictUuid(orderId);
+        return FourScreenRouteBoundary(
+          roles: const {'manager'},
+          invalidId: !valid,
+          child: valid
+              ? ManagerOrderDetailsPage(
+                  orderId: orderId,
+                  onOpenCod: (id) {
+                    if (!isStrictUuid(id)) return;
+                    context.push(
+                      Uri(
+                        path: '/cod',
+                        queryParameters: {'orderId': id},
+                      ).toString(),
+                    );
+                  },
+                  onOpenReturn: (id) {
+                    if (isStrictUuid(id)) {
+                      context.push('/manager/returns/$id');
+                    }
+                  },
+                )
+              : const SizedBox.shrink(),
+        );
+      },
+    ),
+    GoRoute(
+      path: '/customer/orders',
+      caseSensitive: true,
+      builder: (context, state) => FourScreenRouteBoundary(
+        roles: const {'customer'},
+        child: CustomerOrdersPage(
+          onOpenCatalog: () => context.go('/customer/products'),
+          onOpenOrder: (id) async {
+            await context.push('/customer/orders/$id');
+            if (context.mounted) {
+              ref.invalidate(orderListFoundationProvider);
+            }
+          },
+          onCreateReturn: (id) {
+            if (isStrictUuid(id)) {
+              context.push('/customer/orders/$id/return');
+            }
+          },
+          onOpenReturn: (id) {
+            if (isStrictUuid(id)) {
+              context.push('/customer/returns/$id');
+            }
+          },
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/customer/orders/:orderId',
+      builder: (c, s) => FourScreenRouteBoundary(
+        roles: const {'customer'},
+        invalidId: !isStrictUuid(s.pathParameters['orderId']!),
+        child: CustomerOrderDetailsPage(
+          orderId: s.pathParameters['orderId']!,
+          onCreateReturn: (id) => c.push('/customer/orders/$id/return'),
+          onOpenReturn: (id) => c.push('/customer/returns/$id'),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/chat',
+      builder: (context, state) =>
+          AuthenticatedRoutePage(path: state.uri.path, inbox: true),
+      routes: [
+        GoRoute(
+          path: ':conversationId',
+          builder: (context, state) {
+            final id = state.pathParameters['conversationId']!;
+            if (!RegExp(
+              r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+            ).hasMatch(id)) {
+              return const _NavigationStatusPage(
+                message: 'Mã hội thoại không hợp lệ.',
+              );
+            }
+            return AuthenticatedRoutePage(
+              path: state.uri.path,
+              inbox: true,
+              detailBuilder: (_) =>
+                  ConversationDetailScreen(conversationId: id),
+            );
+          },
+        ),
+      ],
+    ),
+    // MH17 is shared and can be opened from a root-level account/chat page
+    // above an existing customer shell. Keep its page on the root stack so
+    // that push does not add the same ShellRoute page key a second time.
+    // The operational redirect and boundary still verify current access.
+    GoRoute(
+      path: '/notifications',
+      caseSensitive: true,
+      builder: (context, state) => ListenableBuilder(
+        listenable: guard.decisionChanges,
+        builder: (context, _) => _OperationalRouteBoundary(
+          guard: guard,
+          location: state.uri,
+          child: Consumer(
+            builder: (context, ref, _) =>
+                ref.watch(notificationRouteBuilderProvider)?.call(context) ??
+                const Center(
+                  key: ValueKey('mh17-integration-unavailable'),
+                  child: Text('Màn thông báo chưa được tích hợp.'),
+                ),
+          ),
+        ),
+      ),
+    ),
+    ShellRoute(
+      observers: [_RecheckOnPop(recheckAfterPop)],
+      builder: (context, state, child) => ListenableBuilder(
+        listenable: guard.decisionChanges,
+        builder: (context, _) => _OperationalRouteBoundary(
+          guard: guard,
+          location: state.uri,
+          child: child,
+        ),
+      ),
+      routes: [
+        GoRoute(
+          path: '/customer/checkout',
+          caseSensitive: true,
+          builder: (context, state) {
+            final variants = state.uri.queryParametersAll['variant'];
+            if (variants == null) return const CheckoutPage();
+            return ProviderScope(
+              key: ValueKey(state.uri.toString()),
+              overrides: [
+                selectedCheckoutVariantIdsProvider.overrideWithValue(
+                  Set<String>.unmodifiable(variants),
+                ),
+              ],
+              child: const CheckoutPage(),
+            );
+          },
+        ),
+        GoRoute(
+          path: '/customer/orders/:orderId/return',
+          caseSensitive: true,
+          builder: (context, state) => ReturnRequestFlowPage(
+            orderId: state.pathParameters['orderId']!,
+            onExit: () => context.canPop()
+                ? context.pop()
+                : context.go('/customer/products'),
+            // Replace the form so "back" from tracking does not reopen it.
+            onOpenReturn: (returnId) =>
+                context.go('/customer/returns/$returnId'),
+          ),
+        ),
+        GoRoute(
+          path: '/customer/returns/:returnId',
+          caseSensitive: true,
+          builder: (context, state) => ReturnTrackingPage(
+            returnId: state.pathParameters['returnId']!,
+            onBack: () => context.canPop()
+                ? context.pop()
+                : context.go('/customer/products'),
+          ),
+        ),
+        GoRoute(
+          path: '/customer/cart',
+          caseSensitive: true,
+          builder: (context, state) => const CartPage(),
+        ),
+        GoRoute(
+          path: '/customer/products',
+          caseSensitive: true,
+          builder: (context, state) => const ProductListPage(),
+          routes: [
+            GoRoute(
+              path: ':productId',
+              caseSensitive: true,
+              builder: (context, state) => ProductDetailsPage(
+                productId: state.pathParameters['productId']!,
+              ),
+            ),
+          ],
+        ),
+        GoRoute(
+          path: '/shipper/tasks',
+          caseSensitive: true,
+          builder: (context, state) => const DeliveryTasksRoutePage(),
+          routes: [
+            GoRoute(
+              path: ':taskId',
+              caseSensitive: true,
+              builder: (context, state) => DeliveryTaskRoutePage(
+                taskId: state.pathParameters['taskId']!,
+              ),
+              routes: [
+                GoRoute(
+                  path: 'map',
+                  caseSensitive: true,
+                  builder: (context, state) => DeliveryTaskMapRoutePage(
+                    taskId: state.pathParameters['taskId']!,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        GoRoute(
+          path: '/manager/returns',
+          caseSensitive: true,
+          builder: (context, state) => ManagerReturnsPage(
+            onOpen: (id) => context.push<void>('/manager/returns/$id'),
+          ),
+          routes: [
+            GoRoute(
+              path: ':returnId',
+              caseSensitive: true,
+              builder: (context, state) => ManagerReturnDetailPage(
+                returnId: state.pathParameters['returnId']!,
+                onBack: () => context.canPop()
+                    ? context.pop()
+                    : context.go('/manager/returns'),
+              ),
+            ),
+          ],
+        ),
+        GoRoute(
+          path: '/cod',
+          caseSensitive: true,
+          builder: (context, state) => CodRoutePage(
+            orderId: OperationalRouteLocation.parse(state.uri).orderId,
+          ),
+        ),
+      ],
+    ),
+  ];
+
+  List<RouteBase> canonicalRoutes(List<RouteBase> entries) {
+    GoRoute authorized(GoRoute route) => GoRoute(
+      path: route.path,
+      name: route.name,
+      caseSensitive: route.caseSensitive,
+      redirect: route.redirect,
+      builder: (c, state) => ListenableBuilder(
+        listenable: guard.decisionChanges,
+        builder: (_, _) => _OperationalRouteBoundary(
+          guard: guard,
+          location: state.uri,
+          child: route.builder!(c, state),
+        ),
+      ),
+      routes: route.routes.map((r) => authorized(r as GoRoute)).toList(),
+    );
+    final routes = <GoRoute>[];
+    for (final entry in entries) {
+      if (entry is GoRoute) {
+        routes.add(entry);
+      } else if (entry is ShellRoute) {
+        routes.addAll(entry.routes.cast<GoRoute>().map(authorized));
+      }
+    }
+    final public = routes
+        .where(
+          (r) => const {
+            '/',
+            '/login',
+            '/register',
+            '/auth/confirm-email',
+          }.contains(r.path),
+        )
+        .toList();
+    final groups = List.generate(_branchPaths.length, (_) => <RouteBase>[]);
+    for (final route in routes.where((r) => !public.contains(r))) {
+      groups[_branchForPath(route.path)].add(route);
+    }
+    return [
+      ...public,
+      StatefulShellRoute.indexedStack(
+        branches: [
+          for (var i = 0; i < groups.length; i++)
+            StatefulShellBranch(
+              initialLocation: _branchPaths[i],
+              navigatorKey: branchNavigatorKeys[i],
+              observers: [_RecheckOnPop(recheckAfterPop)],
+              routes: groups[i],
+            ),
+        ],
+        builder: (c, state, shell) => _CanonicalAppShell(
+          location: activeLocation(),
+          guard: guard,
+          child: shell,
+          onDestinationSelected: (index) {
+            final role = ref.read(featureSessionScopeProvider).role;
+            final paths = _destinationsForRole(role);
+            if (index < paths.length) {
+              shell.goBranch(_branchForPath(paths[index]));
+            }
+          },
+        ),
+      ),
+    ];
   }
 
   router = GoRouter(
@@ -103,343 +555,85 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     overridePlatformDefaultLocation: confirmation != null || oauthError != null,
     navigatorKey: navigatorKey,
     observers: [_RecheckOnPop(recheckAfterPop)],
-    // Do not feed the guard's session epoch directly into go_router's refresh
-    // pipeline. In go_router 18 a refresh reparses an imperative RouteMatchList
-    // and recreates its completer; an awaited context.push then never resumes
-    // when the pushed page is popped (notably MH18 after returning from Maps).
-    // The operational boundary watches the same session and rechecks the
-    // currently visible leaf in place, preserving the imperative stack.
+    // Recheck visible route boundaries in place. Re-parsing an imperative
+    // stack replaces awaited push completers (Maps/file picker regression).
     redirect: (context, state) async {
-      if (state.uri.path == EmailConfirmationCallback.path) return null;
-      final checkedLocation = pendingPopLocation ?? state.uri;
-      pendingPopLocation = null;
-      final destination = await guard.redirectLocation(checkedLocation);
-      if (destination != null) {
-        suppressPopRecheck = true;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
+      activeRedirects++;
+      try {
+        if (retired) return null;
+        if (state.uri.path == EmailConfirmationCallback.path) return null;
+        final checkedLocation = pendingPopLocation ?? state.uri;
+        pendingPopLocation = null;
+        final destination = await guard.redirectLocation(checkedLocation);
+        if (destination != null) {
+          suppressPopRecheck = true;
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            suppressPopRecheck = false;
-            if (profileRefreshPending && ref.mounted) {
-              profileRefreshPending = false;
-              if (const {
-                '/',
-                '/login',
-                '/register',
-              }.contains(router.state.uri.path)) {
-                router.refresh();
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              suppressPopRecheck = false;
+              if (profileRefreshPending && ref.mounted) {
+                profileRefreshPending = false;
+                if (const {
+                  '/',
+                  '/login',
+                  '/register',
+                }.contains(activeLocation().path)) {
+                  router.refresh();
+                }
               }
-            }
+            });
           });
-        });
-        if (ref.mounted &&
-            destination == '/' &&
-            guard.decisionFor(checkedLocation)?.failure != null) {
-          // A live authorization rejection may mean the cached profile role was
-          // revoked. Refresh before the entry page chooses a role destination.
-          profileRefreshPending = true;
-          ref.invalidate(currentProfileProvider);
+          if (ref.mounted &&
+              destination == '/' &&
+              guard.decisionFor(checkedLocation)?.failure != null) {
+            // A live authorization rejection may mean the cached profile role was
+            // revoked. Refresh before the entry page chooses a role destination.
+            profileRefreshPending = true;
+            invalidateLegacyDeliveryTaskReads(ref);
+            unawaited(
+              ref.read(deliveryTaskListViewModelProvider.notifier).refresh(),
+            );
+            ref.invalidate(currentProfileProvider);
+          }
+          return destination;
         }
-        return destination;
-      }
-      if (!const {'/', '/login', '/register'}.contains(state.uri.path)) {
+        if (!const {'/', '/login', '/register'}.contains(state.uri.path)) {
+          return null;
+        }
+        if (state.uri.path == '/' &&
+            ref.read(landingPageBuilderProvider) != null) {
+          return null;
+        }
+        final session = ref.read(authSessionProvider);
+        final profile = ref.read(currentProfileProvider);
+        final identity = session.asData?.value;
+        final account = profile.asData?.value;
+        if (!session.isLoading &&
+            session.hasValue &&
+            identity?.signedIn != true &&
+            state.uri.path == '/') {
+          return '/login';
+        }
+        if (!session.isLoading &&
+            !profile.isLoading &&
+            identity?.signedIn == true &&
+            account != null &&
+            account.id == identity!.userId) {
+          return homeRouteForRole(account.role);
+        }
         return null;
+      } finally {
+        activeRedirects--;
+        if (retired &&
+            activeRedirects == 0 &&
+            redirectsDrained != null &&
+            !redirectsDrained!.isCompleted) {
+          redirectsDrained!.complete();
+        }
       }
-      if (state.uri.path == '/' &&
-          ref.read(landingPageBuilderProvider) != null) {
-        return null;
-      }
-      final session = ref.read(authSessionProvider);
-      final profile = ref.read(currentProfileProvider);
-      final identity = session.asData?.value;
-      final account = profile.asData?.value;
-      if (!session.isLoading &&
-          !profile.isLoading &&
-          identity?.signedIn == true &&
-          account != null &&
-          account.id == identity!.userId) {
-        return homeRouteForRole(account.role);
-      }
-      return null;
     },
     errorBuilder: (context, state) =>
         const _NavigationStatusPage(message: 'Không tìm thấy trang.'),
-    routes: [
-      GoRoute(
-        path: EmailConfirmationCallback.path,
-        builder: (context, state) => EmailConfirmationPage(
-          result: confirmation ?? EmailConfirmationResult.invalid,
-        ),
-      ),
-      GoRoute(
-        path: '/',
-        builder: (context, state) =>
-            ref.read(landingPageBuilderProvider)?.call(context) ??
-            DungAnRoutePage(
-              key: const ValueKey('app-entry'),
-              path: state.uri.path,
-            ),
-      ),
-      GoRoute(
-        path: '/login',
-        builder: (context, state) => DungAnRoutePage(
-          path: state.uri.path,
-          initialError: state.uri.queryParameters['oauth_error'] == '1'
-              ? ref.read(initialOAuthErrorProvider)
-              : null,
-        ),
-      ),
-      GoRoute(
-        path: '/register',
-        builder: (context, state) => Scaffold(
-          body: SafeArea(
-            child: RegisterScreen(onLogin: () => context.go('/login')),
-          ),
-        ),
-      ),
-      GoRoute(
-        path: '/manager/products',
-        builder: (context, state) => DungAnRoutePage(path: state.uri.path),
-      ),
-      GoRoute(
-        path: '/manager/orders',
-        caseSensitive: true,
-        builder: (context, state) => FourScreenRouteBoundary(
-          roles: const {'manager'},
-          child: _ManagerOrdersRouteShell(
-            child: ManagerOrdersPage(
-              onOpenOrder: (orderId) {
-                if (!isStrictUuid(orderId)) return;
-                context.push('/manager/orders/${Uri.encodeComponent(orderId)}');
-              },
-            ),
-          ),
-        ),
-      ),
-      GoRoute(
-        path: '/manager/orders/:orderId',
-        caseSensitive: true,
-        builder: (context, state) {
-          final orderId = state.pathParameters['orderId'];
-          final valid = orderId != null && isStrictUuid(orderId);
-          return FourScreenRouteBoundary(
-            roles: const {'manager'},
-            invalidId: !valid,
-            child: valid
-                ? ManagerOrderDetailsPage(
-                    orderId: orderId,
-                    onOpenCod: (id) {
-                      if (!isStrictUuid(id)) return;
-                      context.push(
-                        Uri(
-                          path: '/cod',
-                          queryParameters: {'orderId': id},
-                        ).toString(),
-                      );
-                    },
-                    onOpenReturn: (id) {
-                      if (isStrictUuid(id)) {
-                        context.push('/manager/returns/$id');
-                      }
-                    },
-                  )
-                : const SizedBox.shrink(),
-          );
-        },
-      ),
-      GoRoute(
-        path: '/customer/orders',
-        caseSensitive: true,
-        builder: (context, state) => FourScreenRouteBoundary(
-          roles: const {'customer'},
-          child: Scaffold(
-            body: CustomerOrdersPage(
-              onOpenCatalog: () => context.go('/customer/products'),
-              onCreateReturn: (id) {
-                if (isStrictUuid(id)) {
-                  context.push('/customer/orders/$id/return');
-                }
-              },
-              onOpenReturn: (id) {
-                if (isStrictUuid(id)) context.push('/customer/returns/$id');
-              },
-            ),
-            bottomNavigationBar: const CustomerNavigationBar(
-              location: '/customer/orders',
-            ),
-          ),
-        ),
-      ),
-      GoRoute(
-        path: '/chat',
-        builder: (context, state) =>
-            DungAnRoutePage(path: state.uri.path, inbox: true),
-        routes: [
-          GoRoute(
-            path: ':conversationId',
-            builder: (context, state) {
-              final id = state.pathParameters['conversationId']!;
-              if (!RegExp(
-                r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
-              ).hasMatch(id)) {
-                return const _NavigationStatusPage(
-                  message: 'Mã hội thoại không hợp lệ.',
-                );
-              }
-              return DungAnRoutePage(
-                path: state.uri.path,
-                inbox: true,
-                detailBuilder: (_) =>
-                    ConversationDetailScreen(conversationId: id),
-              );
-            },
-          ),
-        ],
-      ),
-      // MH17 is shared and can be opened from a root-level account/chat page
-      // above an existing customer shell. Keep its page on the root stack so
-      // that push does not add the same ShellRoute page key a second time.
-      // The operational redirect and boundary still verify current access.
-      GoRoute(
-        path: '/notifications',
-        caseSensitive: true,
-        builder: (context, state) => ListenableBuilder(
-          listenable: guard.decisionChanges,
-          builder: (context, _) => _OperationalRouteBoundary(
-            guard: guard,
-            location: state.uri,
-            child: Consumer(
-              builder: (context, ref, _) =>
-                  ref.watch(notificationRouteBuilderProvider)?.call(context) ??
-                  const Center(
-                    key: ValueKey('mh17-integration-unavailable'),
-                    child: Text('Màn thông báo chưa được tích hợp.'),
-                  ),
-            ),
-          ),
-        ),
-      ),
-      ShellRoute(
-        observers: [_RecheckOnPop(recheckAfterPop)],
-        builder: (context, state, child) => ListenableBuilder(
-          listenable: guard.decisionChanges,
-          builder: (context, _) => _OperationalRouteBoundary(
-            guard: guard,
-            location: state.uri,
-            child: child,
-          ),
-        ),
-        routes: [
-          GoRoute(
-            path: '/customer/checkout',
-            caseSensitive: true,
-            builder: (context, state) {
-              final variants = state.uri.queryParametersAll['variant'];
-              if (variants == null) return const CheckoutPage();
-              return ProviderScope(
-                key: ValueKey(state.uri.toString()),
-                overrides: [
-                  selectedCheckoutVariantIdsProvider.overrideWithValue(
-                    Set<String>.unmodifiable(variants),
-                  ),
-                ],
-                child: const CheckoutPage(),
-              );
-            },
-          ),
-          GoRoute(
-            path: '/customer/orders/:orderId/return',
-            caseSensitive: true,
-            builder: (context, state) => ReturnRequestFlowPage(
-              orderId: state.pathParameters['orderId']!,
-              onExit: () => context.canPop()
-                  ? context.pop()
-                  : context.go('/customer/products'),
-              // Replace the form so "back" from tracking does not reopen it.
-              onOpenReturn: (returnId) =>
-                  context.go('/customer/returns/$returnId'),
-            ),
-          ),
-          GoRoute(
-            path: '/customer/returns/:returnId',
-            caseSensitive: true,
-            builder: (context, state) => ReturnTrackingPage(
-              returnId: state.pathParameters['returnId']!,
-              onBack: () => context.canPop()
-                  ? context.pop()
-                  : context.go('/customer/products'),
-            ),
-          ),
-          GoRoute(
-            path: '/customer/cart',
-            caseSensitive: true,
-            builder: (context, state) => const CartPage(),
-          ),
-          GoRoute(
-            path: '/customer/products',
-            caseSensitive: true,
-            builder: (context, state) => const ProductListPage(),
-            routes: [
-              GoRoute(
-                path: ':productId',
-                caseSensitive: true,
-                builder: (context, state) => ProductDetailsPage(
-                  productId: state.pathParameters['productId']!,
-                ),
-              ),
-            ],
-          ),
-          GoRoute(
-            path: '/shipper/tasks',
-            caseSensitive: true,
-            builder: (context, state) => const DeliveryTasksRoutePage(),
-            routes: [
-              GoRoute(
-                path: ':taskId',
-                caseSensitive: true,
-                builder: (context, state) => DeliveryTaskRoutePage(
-                  taskId: state.pathParameters['taskId']!,
-                ),
-                routes: [
-                  GoRoute(
-                    path: 'map',
-                    caseSensitive: true,
-                    builder: (context, state) => DeliveryTaskMapRoutePage(
-                      taskId: state.pathParameters['taskId']!,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          GoRoute(
-            path: '/manager/returns',
-            caseSensitive: true,
-            builder: (context, state) => ManagerReturnsPage(
-              onOpen: (id) => context.push<void>('/manager/returns/$id'),
-            ),
-            routes: [
-              GoRoute(
-                path: ':returnId',
-                caseSensitive: true,
-                builder: (context, state) => ManagerReturnDetailPage(
-                  returnId: state.pathParameters['returnId']!,
-                  onBack: () => context.canPop()
-                      ? context.pop()
-                      : context.go('/manager/returns'),
-                ),
-              ),
-            ],
-          ),
-          GoRoute(
-            path: '/cod',
-            caseSensitive: true,
-            builder: (context, state) => CodRoutePage(
-              orderId: OperationalRouteLocation.parse(state.uri).orderId,
-            ),
-          ),
-        ],
-      ),
-    ],
+    routes: [...canonicalRoutes(applicationRoutes)],
   );
   // Role resolution completes independently of the Auth SDK event. Refresh the
   // redirect when the trusted profile becomes available, without recreating the
@@ -449,18 +643,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // Entry routes need role resolution to pick a home screen. Refreshing a
       // denied protected URL here restarts its guard while its redirect to '/'
       // is still pending, repeatedly invalidating the same profile.
-      if (!ref.mounted) return;
+      if (!ref.mounted || retired) return;
       if (suppressPopRecheck) {
         profileRefreshPending = true;
         return;
       }
-      if (const {'/', '/login', '/register'}.contains(router.state.uri.path)) {
+      if (const {'/', '/login', '/register'}.contains(activeLocation().path)) {
         router.refresh();
       }
     });
   });
-  var observedSession = false;
-  String? observedUserId;
+  var observedSession = ref.read(authSessionProvider).hasValue;
+  String? observedUserId = ref.read(authSessionProvider).asData?.value.userId;
   ref.listen(authSessionProvider, (previous, next) {
     if (!next.hasValue || next.isLoading) return;
     final userId = next.requireValue.userId;
@@ -471,52 +665,65 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       scheduleMicrotask(() {
         if (!ref.mounted) return;
         // Imperative editor sheets belong to the old account too.
+        for (final key in branchNavigatorKeys) {
+          key.currentState?.popUntil((route) => route.isFirst);
+        }
         navigatorKey.currentState?.popUntil((route) => route.isFirst);
-        if (router.state.uri.path == EmailConfirmationCallback.path) return;
-        router.go('/');
+        if (activeLocation().path == EmailConfirmationCallback.path) return;
+        // A different identity receives new branch Navigators, not hidden old tabs.
+        ref.invalidateSelf();
       });
     }
   });
+  String? observedRole = ref.read(featureSessionScopeProvider).role;
   ref.listen(featureSessionScopeProvider, (previous, next) {
+    if (next.canReadPrivateData) {
+      final changedRole = observedRole != null && observedRole != next.role;
+      observedRole = next.role;
+      if (changedRole) {
+        scheduleMicrotask(() {
+          if (ref.mounted) {
+            ref.invalidateSelf();
+          }
+        });
+        return;
+      }
+    }
     if (previous == null || previous == next) return;
     scheduleMicrotask(() {
       if (!ref.mounted) return;
       // Root dialogs contain account-scoped state outside the feature subtree.
+      for (final key in branchNavigatorKeys) {
+        key.currentState?.popUntil((route) => route is PageRoute<dynamic>);
+      }
       navigatorKey.currentState?.popUntil(
         (route) => route is PageRoute<dynamic>,
       );
-      router.refresh();
+      if (suppressPopRecheck) {
+        profileRefreshPending = true;
+        return;
+      }
+      if (const {'/', '/login', '/register'}.contains(activeLocation().path)) {
+        router.refresh();
+      }
     });
   });
-  ref.onDispose(router.dispose);
+  ref.onDispose(() {
+    retired = true;
+    void disposeAfterFrame() {
+      WidgetsBinding.instance.addPostFrameCallback((_) => router.dispose());
+      WidgetsBinding.instance.ensureVisualUpdate();
+    }
+
+    if (activeRedirects == 0) {
+      disposeAfterFrame();
+    } else {
+      redirectsDrained = Completer<void>();
+      unawaited(redirectsDrained!.future.then((_) => disposeAfterFrame()));
+    }
+  });
   return router;
 });
-
-/// Preserve the team shell around MH08; the outer feature gate owns access.
-class _ManagerOrdersRouteShell extends ConsumerWidget {
-  const _ManagerOrdersRouteShell({required this.child});
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final scope = ref.watch(featureSessionScopeProvider);
-    final profile = ref.watch(currentProfileProvider).asData?.value;
-    if (profile?.id == scope.userId && profile?.role == AppRole.manager) {
-      return StoreManagementShell(
-        profile: profile!,
-        inbox: false,
-        path: '/manager/orders',
-        child: child,
-      );
-    }
-    // Explicit feature-scope fixtures need no independent Auth identity.
-    // In production an unresolved profile is hidden by the outer scope gate.
-    return Scaffold(
-      bottomNavigationBar: const ManagerNavigationBar(selectedIndex: 0),
-      body: child,
-    );
-  }
-}
 
 // go_router 18.0.2 removes an imperative pop from its match list without
 // rerunning top-level redirect. Recheck the revealed page rather than reuse
@@ -553,7 +760,6 @@ class _OperationalRouteBoundaryState
     extends ConsumerState<_OperationalRouteBoundary> {
   String? _authorizedCustomerId;
   String? _authorizedOperationalUserId;
-  String? _operationalRole;
   Object? _selfCheckSession;
   Uri? _selfCheckLocation;
   bool _selfCheckRunning = false;
@@ -574,10 +780,15 @@ class _OperationalRouteBoundaryState
   /// Only the visible shell page may ask for a decision. A customer shell left
   /// below a root page (e.g. `/notifications`) must not supersede that page's
   /// own guard check.
+  bool get _isVisibleLeaf =>
+      TickerMode.valuesOf(context).enabled &&
+      ((ModalRoute.isCurrentOf(context) ?? true) ||
+          GoRouter.of(context).state.uri == widget.location);
+
   bool _shouldSelfCheck(Uri location) =>
       mounted &&
       widget.location == location &&
-      (ModalRoute.isCurrentOf(context) ?? true) &&
+      _isVisibleLeaf &&
       widget.guard.decisionFor(location) == null;
 
   void _ensureVisibleDecision(OperationalSession session) {
@@ -624,15 +835,8 @@ class _OperationalRouteBoundaryState
     final decision = widget.guard.decisionFor(widget.location);
     final customerOnly = OperationalRouteLocation.parse(widget.location)
         .customerOnly;
-    final protectedRoute = OperationalRouteLocation.parse(widget.location)
-        .protected;
-    // A root-level push (for example MH17) leaves the shell boundary mounted
-    // underneath it. Only the boundary whose ModalRoute is current may start
-    // the shared guard recheck; otherwise hidden pages race and invalidate
-    // each other's single route decision.
-    final isCurrentRoute = ModalRoute.of(context)?.isCurrent ?? true;
-    if (protectedRoute &&
-        isCurrentRoute &&
+    if (OperationalRouteLocation.parse(widget.location).protected &&
+        _isVisibleLeaf &&
         decision == null &&
         session != null &&
         session.failure == null) {
@@ -651,10 +855,6 @@ class _OperationalRouteBoundaryState
     }
     if (customerOnly && allowed) _authorizedCustomerId = session.userId;
 
-    if (allowed) {
-      _selfCheckSession = null;
-      _selfCheckLocation = null;
-    }
     final status = _status(decision);
     if (customerOnly) {
       // Keep an already authorized customer's Navigator mounted while the
@@ -672,18 +872,7 @@ class _OperationalRouteBoundaryState
                   excluding: !allowed,
                   child: KeyedSubtree(
                     key: ValueKey(_authorizedCustomerId),
-                    child: Scaffold(
-                      body: widget.child,
-                      bottomNavigationBar:
-                          const {
-                            '/customer/products',
-                            '/customer/cart',
-                          }.contains(widget.location.path)
-                          ? CustomerNavigationBar(
-                              location: widget.location.path,
-                            )
-                          : null,
-                    ),
+                    child: Scaffold(body: widget.child),
                   ),
                 ),
               ),
@@ -697,14 +886,9 @@ class _OperationalRouteBoundaryState
         decision?.failure != null ||
         decision?.invalidId == true) {
       _authorizedOperationalUserId = null;
-      _operationalRole = null;
     }
     if (allowed) {
-      // Keep the same user's shell mounted across a session epoch refresh.
-      // Re-keying it by the session object would unmount MH11 while MH18 is
-      // open, so the awaited map push could not refresh detail on return.
       _authorizedOperationalUserId = session.userId;
-      _operationalRole = decision.role;
     }
     return Stack(
       fit: StackFit.expand,
@@ -716,12 +900,9 @@ class _OperationalRouteBoundaryState
               enabled: allowed,
               child: ExcludeFocus(
                 excluding: !allowed,
-                child: ShipperShell(
+                child: KeyedSubtree(
                   key: ValueKey(_authorizedOperationalUserId),
-                  role: _operationalRole!,
-                  shipperId: session?.userId,
-                  location: widget.location,
-                  child: widget.child,
+                  child: Scaffold(body: widget.child),
                 ),
               ),
             ),
@@ -786,4 +967,94 @@ class _NavigationStatusPage extends StatelessWidget {
       ),
     ),
   );
+}
+
+class _CanonicalAppShell extends ConsumerWidget {
+  const _CanonicalAppShell({
+    required this.location,
+    required this.child,
+    required this.guard,
+    this.onDestinationSelected,
+  });
+  final Uri location;
+  final Widget child;
+  final OperationalRouteGuard guard;
+  final ValueChanged<int>? onDestinationSelected;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scope = ref.watch(featureSessionScopeProvider);
+    final entry = const {
+      '/',
+      '/login',
+      '/register',
+      '/auth/confirm-email',
+    }.contains(location.path);
+    // Keep the Navigator at the same element path while profile revalidation
+    // temporarily makes the trusted scope unresolved. Route gates hide PII.
+    final sessionState = ref.watch(operationalSessionProvider);
+    final session = sessionState.asData?.value;
+    return ListenableBuilder(
+      listenable: guard.decisionChanges,
+      builder: (context, _) {
+        final decision = guard.decisionFor(location);
+        final checking =
+            OperationalRouteLocation.parse(location).protected &&
+            (sessionState.isLoading ||
+                decision == null ||
+                !identical(session, decision.session));
+        return SportsStoreShell(
+          role: scope.role ?? '',
+          location: location,
+          showNavigation: !entry && scope.canReadPrivateData,
+          onDestinationSelected: onDestinationSelected,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Offstage(offstage: checking, child: child),
+              if (checking)
+                const _NavigationStatusPage(
+                  key: ValueKey('navigation-checking-access'),
+                  message: 'Đang tải màn hình…',
+                  loading: true,
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+const _branchPaths = <String>[
+  '/customer/home',
+  '/customer/products',
+  '/customer/cart',
+  '/customer/orders',
+  '/customer/account',
+  '/manager/orders',
+  '/manager/products',
+  '/manager/returns',
+  '/manager/account',
+  '/shipper/tasks',
+  '/cod',
+  '/shipper/account',
+  '/notifications',
+  '/chat',
+];
+List<String> _destinationsForRole(String? role) => switch (role) {
+  'customer' => _branchPaths.sublist(0, 5),
+  'manager' => _branchPaths.sublist(5, 9),
+  'shipper' => [_branchPaths[9], _branchPaths[10], _branchPaths[11]],
+  _ => const [],
+};
+int _branchForPath(String path) {
+  if (path == '/customer/checkout') return 2;
+  if (path.startsWith('/customer/returns/')) return 3;
+  final index = _branchPaths.indexWhere(
+    (p) => path == p || path.startsWith('$p/'),
+  );
+  if (index < 0) {
+    throw StateError('No navigation branch for ');
+  }
+  return index;
 }

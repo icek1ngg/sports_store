@@ -9,9 +9,9 @@ import 'package:sports_store/features/orders/presentation/widgets/mh08/mh08_paym
 import 'package:sports_store/features/orders/presentation/widgets/order_feed.dart';
 import 'package:sports_store/shared/widgets/async_content.dart';
 
-import '../../tool/ui_preview/mh08_preview_app.dart';
-import '../../tool/ui_preview/mh08_manager_repository.dart';
-import '../../tool/ui_preview/mh08_preview_environment.dart';
+import '../support/ui_preview/mh08_preview_app.dart';
+import '../support/ui_preview/mh08_manager_repository.dart';
+import '../support/ui_preview/mh08_preview_environment.dart';
 import 'mh08_04a_capture_helper.dart';
 
 Future<void> _settle(

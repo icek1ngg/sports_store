@@ -9,7 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sports_store/core/state/foundation_providers.dart';
 import 'package:sports_store/features/orders/presentation/widgets/order_action_dialog.dart';
 
-import '../../tool/ui_preview/mh07_preview_app.dart';
+import '../support/ui_preview/mh07_preview_app.dart';
 
 void main() {
   testWidgets(

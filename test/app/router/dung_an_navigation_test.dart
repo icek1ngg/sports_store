@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:sports_store/app/router/app_router.dart';
 import 'package:sports_store/app/integration/production_feature_composition.dart';
 import 'package:sports_store/app/sports_store_app.dart';
@@ -65,7 +66,7 @@ void main() {
         tester,
         () => find.byType(ManagerOrdersPage).evaluate().isNotEmpty,
       );
-      expect(router.state.uri.path, '/manager/orders');
+      expect(_currentRouter(tester).state.uri.path, '/manager/orders');
       expect(find.byKey(const ValueKey('manager-navigation')), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
@@ -208,7 +209,6 @@ void main() {
       );
       expect(container.read(featureSessionScopeProvider).userId, manager);
       expect(container.read(featureSessionScopeProvider).role, 'manager');
-      final router = container.read(appRouterProvider);
       tester
           .widget<ManagerOrdersPage>(find.byType(ManagerOrdersPage))
           .onOpenOrder!(listFixtureOrderId);
@@ -217,21 +217,37 @@ void main() {
         () => find.byType(ManagerOrderDetailsPage).evaluate().isNotEmpty,
       );
       await tester.pumpAndSettle();
-      expect(router.state.uri.path, '/manager/orders/$listFixtureOrderId');
+      expect(
+        _currentRouter(tester).state.uri.path,
+        '/manager/orders/$listFixtureOrderId',
+      );
       expect(find.byType(ManagerOrderDetailsPage), findsOneWidget);
-      router.pop();
+      _currentRouter(tester).pop();
       await until(
         tester,
         () => find.byType(ManagerOrdersPage).evaluate().isNotEmpty,
       );
-      expect(router.state.uri.path, '/manager/orders');
+      expect(_currentRouter(tester).state.uri.path, '/manager/orders');
       final originalScope = container.read(featureSessionScopeProvider);
-      await tester.tap(find.text('COD'));
+      await tester.tap(find.widgetWithText(NavigationDestination, 'Tài khoản'));
       await until(
         tester,
-        () => find.byKey(const ValueKey('manager-home')).evaluate().isNotEmpty,
+        () =>
+            find.widgetWithText(ListTile, 'Đối soát COD').evaluate().isNotEmpty,
       );
-      await tester.tap(find.byKey(const ValueKey('manager-home')));
+      await tester.tap(find.widgetWithText(ListTile, 'Đối soát COD'));
+      await until(
+        tester,
+        () => _currentRouter(tester).state.uri.path == '/cod',
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(BackButton), findsOneWidget);
+      await tester.tap(find.byType(BackButton));
+      await until(
+        tester,
+        () => _currentRouter(tester).state.uri.path == '/manager/account',
+      );
+      await tester.tap(find.widgetWithText(NavigationDestination, 'Đơn hàng'));
       await until(
         tester,
         () => find.byType(ManagerOrdersPage).evaluate().isNotEmpty,
@@ -313,17 +329,14 @@ void main() {
             .isNotEmpty,
       );
       expect(calls.any((p) => p.endsWith('/profiles')), isTrue);
-      final router = ProviderScope.containerOf(
-        tester.element(find.byType(SportsStoreApp)),
-      ).read(appRouterProvider);
-      expect(router.state.uri.path, '/manager/orders');
-      router.go('/manager/products');
+      expect(_currentRouter(tester).state.uri.path, '/manager/orders');
+      _currentRouter(tester).go('/manager/products');
       await until(
         tester,
         () => find.text('Không có sản phẩm phù hợp.').evaluate().isNotEmpty,
       );
       expect(calls.any((p) => p.endsWith('/products')), isTrue);
-      router.go('/chat');
+      _currentRouter(tester).go('/chat');
       await until(
         tester,
         () => find.text('Chưa có hội thoại phù hợp.').evaluate().isNotEmpty,
@@ -345,6 +358,14 @@ void main() {
       );
       // Restore the manager and exercise the real logout button separately.
       await tester.runAsync(() => recoverFixtureSession(client, manager));
+      await until(
+        tester,
+        () => find
+            .widgetWithText(NavigationDestination, 'Tài khoản')
+            .evaluate()
+            .isNotEmpty,
+      );
+      await tester.tap(find.widgetWithText(NavigationDestination, 'Tài khoản'));
       await until(tester, () => find.text('Đăng xuất').evaluate().isNotEmpty);
       await tester.tap(find.text('Đăng xuất'));
       await until(tester, () => find.text('Đăng nhập').evaluate().isNotEmpty);
@@ -392,22 +413,24 @@ void main() {
       );
       await until(
         tester,
+        () => find.text('Khám phá sản phẩm').evaluate().isNotEmpty,
+      );
+      await tester.tap(find.text('Khám phá sản phẩm'));
+      await until(
+        tester,
         () => find
             .byKey(const ValueKey('catalog-products-empty-scroll'))
             .evaluate()
             .isNotEmpty,
       );
-      final router = ProviderScope.containerOf(
-        tester.element(find.byType(SportsStoreApp)),
-      ).read(appRouterProvider);
-      expect(router.state.uri.path, '/customer/products');
-      router.go('/chat');
+      expect(_currentRouter(tester).state.uri.path, '/customer/products');
+      _currentRouter(tester).go('/chat');
       await until(
         tester,
         () => find.text('Liên hệ cửa hàng').evaluate().isNotEmpty,
       );
       final readsBeforeDenied = productReads;
-      router.go('/manager/products');
+      _currentRouter(tester).go('/manager/products');
       await until(
         tester,
         () => find
@@ -416,7 +439,7 @@ void main() {
             .isNotEmpty,
       );
       expect(productReads, readsBeforeDenied);
-      router.go('/chat/not-a-uuid');
+      _currentRouter(tester).go('/chat/not-a-uuid');
       await until(
         tester,
         () => find.text('Mã hội thoại không hợp lệ.').evaluate().isNotEmpty,
@@ -460,11 +483,18 @@ void main() {
     );
     await until(
       tester,
+      () => find.text('Khám phá sản phẩm').evaluate().isNotEmpty,
+    );
+    expect(_currentRouter(tester).state.uri.path, '/customer/home');
+    await tester.tap(find.text('Khám phá sản phẩm'));
+    await until(
+      tester,
       () => find
           .byKey(const ValueKey('catalog-products-empty-scroll'))
           .evaluate()
           .isNotEmpty,
     );
+    expect(_currentRouter(tester).state.uri.path, '/customer/products');
     expect(find.byType(ConversationListScreen), findsNothing);
     await tester.pumpWidget(const SizedBox());
     await tester.runAsync(client.dispose);
@@ -524,3 +554,7 @@ void main() {
     await tester.runAsync(client.dispose);
   });
 }
+
+GoRouter _currentRouter(WidgetTester tester) =>
+    ProviderScope.containerOf(tester.element(find.byType(SportsStoreApp)))
+        .read(appRouterProvider);

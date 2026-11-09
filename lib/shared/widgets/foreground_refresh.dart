@@ -10,12 +10,14 @@ class ForegroundRefresh extends StatefulWidget {
     required this.onRefresh,
     required this.canRefresh,
     this.enabled = true,
+    this.interval = const Duration(seconds: 3),
     super.key,
   });
   final Widget child;
   final VoidCallback onRefresh;
   final bool Function() canRefresh;
   final bool enabled;
+  final Duration interval;
 
   @override
   State<ForegroundRefresh> createState() => _ForegroundRefreshState();
@@ -26,6 +28,7 @@ class _ForegroundRefreshState extends State<ForegroundRefresh>
   Timer? _timer;
   bool _foreground = true;
   bool? _wasCurrent;
+  bool _visible = true;
 
   @override
   void initState() {
@@ -40,12 +43,16 @@ class _ForegroundRefreshState extends State<ForegroundRefresh>
   @override
   void didUpdateWidget(ForegroundRefresh oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.enabled != widget.enabled) _start();
+    if (oldWidget.enabled != widget.enabled ||
+        oldWidget.interval != widget.interval) {
+      _start();
+    }
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _visible = TickerMode.valuesOf(context).enabled;
     final current = ModalRoute.of(context)?.isCurrent ?? true;
     if (_wasCurrent == false && current) scheduleMicrotask(_refresh);
     _wasCurrent = current;
@@ -54,7 +61,7 @@ class _ForegroundRefreshState extends State<ForegroundRefresh>
   void _start() {
     _timer?.cancel();
     if (widget.enabled) {
-      _timer = Timer.periodic(const Duration(seconds: 3), (_) => _refresh());
+      _timer = Timer.periodic(widget.interval, (_) => _refresh());
     }
   }
 
@@ -62,6 +69,7 @@ class _ForegroundRefreshState extends State<ForegroundRefresh>
     if (!mounted ||
         !widget.enabled ||
         !_foreground ||
+        !_visible ||
         ModalRoute.of(context)?.isCurrent == false ||
         !widget.canRefresh()) {
       return;

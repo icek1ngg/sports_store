@@ -18,6 +18,7 @@ class Mh08FeedCoordinator {
   String? get nextCursor => _nextCursor;
   AppFailure? get moreFailure => _moreFailure;
   bool get loadingMore => _loadingMore;
+  bool get hasExtraPages => _processedNextPages.isNotEmpty;
 
   bool get canLoadMore =>
       _canonicalFresh && _nextCursor != null && !_loadingMore;

@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:sports_store/app/router/app_router.dart';
 import 'package:sports_store/app/sports_store_app.dart';
+import 'package:sports_store/app/integration/production_feature_composition.dart';
 import 'package:sports_store/core/supabase/supabase_providers.dart';
 import 'package:sports_store/features/deliveries/data/repositories/operational_providers.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -38,7 +39,7 @@ Future<SupabaseClient> _roleClient(
       if (request.url.path.endsWith('/profiles')) {
         final profileId = _profileId(request);
         return jsonResponse(request, [
-          {'role': roles[profileId]},
+          {'id': profileId, 'role': roles[profileId]},
         ]);
       }
       if (dataHandler != null) return dataHandler(request);
@@ -80,7 +81,16 @@ Future<GoRouter> _pumpApp(
   SupabaseClient client, {
   WidgetBuilder? notificationBuilder,
 }) async {
-  final overrides = [supabaseClientProvider.overrideWithValue(client)];
+  final overrides = [
+    ...productionFeatureOverrides,
+    supabaseClientProvider.overrideWithValue(client),
+    landingPageBuilderProvider.overrideWithValue(
+      (_) => const Scaffold(
+        key: ValueKey('app-entry'),
+        body: Text('Entry fixture'),
+      ),
+    ),
+  ];
   if (notificationBuilder != null) {
     overrides.add(
       notificationRouteBuilderProvider.overrideWithValue(notificationBuilder),
@@ -171,7 +181,7 @@ void main() {
           },
         );
         addTearDown(() => _disposeApp(tester, client));
-        final router = await _pumpApp(
+        await _pumpApp(
           tester,
           client,
           notificationBuilder: (context) => Scaffold(
@@ -189,14 +199,14 @@ void main() {
             ),
           ),
         );
-        router.go('/shipper/tasks/${delivery_fixtures.taskId}');
+        _currentRouter(tester).go('/shipper/tasks/${delivery_fixtures.taskId}');
         await _pumpUntil(
           tester,
           () => _hasText('Nguyễn Văn A'),
           description:
               'authorized cached recipient before notification handoff',
         );
-        router.go('/notifications');
+        _currentRouter(tester).go('/notifications');
         await _pumpUntil(
           tester,
           () => _hasKey('fixture-notification-task-link'),
@@ -209,7 +219,9 @@ void main() {
         );
         await _pumpUntil(
           tester,
-          () => router.state.uri.path == '/' && _hasKey('app-entry'),
+          () =>
+              _currentRouter(tester).state.uri.path == '/' &&
+              _hasKey('app-entry'),
           description: 'revoked notification destination rejected',
         );
         expect(guardReads, greaterThan(before));
@@ -221,7 +233,7 @@ void main() {
           ),
           isTrue,
         );
-        expect(router.state.uri.query, isEmpty);
+        expect(_currentRouter(tester).state.uri.query, isEmpty);
         expect(_hasKey('mh11-outlet'), isFalse);
         expect(_hasKey('mh18-outlet'), isFalse);
         expect(find.text('Nguyễn Văn A'), findsNothing);
@@ -249,27 +261,27 @@ void main() {
       },
     );
     addTearDown(() => _disposeApp(tester, client));
-    final router = await _pumpApp(tester, client);
-    router.go('/shipper/tasks/${delivery_fixtures.taskId}');
+    await _pumpApp(tester, client);
+    _currentRouter(tester).go('/shipper/tasks/${delivery_fixtures.taskId}');
     await _pumpUntil(
       tester,
       () => _hasKey('mh11-outlet'),
       description: 'task before pop',
     );
-    unawaited(router.push('/notifications'));
+    unawaited(_currentRouter(tester).push('/notifications'));
     await _pumpUntil(
       tester,
       () => _hasKey('mh17-production-screen'),
       description: 'notifications before pop',
     );
     final before = reads;
-    router.pop();
+    _currentRouter(tester).pop();
     await _pumpUntil(
       tester,
       () => reads > before && _hasKey('mh11-outlet'),
       description: 'authorized task after pop',
     );
-    unawaited(router.push('/notifications'));
+    unawaited(_currentRouter(tester).push('/notifications'));
     await _pumpUntil(
       tester,
       () => _hasKey('mh17-production-screen'),
@@ -277,12 +289,12 @@ void main() {
     );
     allowed = false;
     final beforeRevoke = reads;
-    router.pop();
+    _currentRouter(tester).pop();
     await _pumpUntil(
       tester,
       () =>
           reads > beforeRevoke &&
-          router.state.uri.path == '/' &&
+          _currentRouter(tester).state.uri.path == '/' &&
           _hasKey('app-entry'),
       description: 'revoked task after pop',
     );
@@ -293,8 +305,8 @@ void main() {
     final roles = {shipperA: 'shipper'};
     final client = await _roleClient(tester, userId: shipperA, roles: roles);
     addTearDown(() => _disposeApp(tester, client));
-    final router = await _pumpApp(tester, client);
-    router.go('/shipper/tasks');
+    await _pumpApp(tester, client);
+    _currentRouter(tester).go('/shipper/tasks');
     await _pumpUntil(
       tester,
       () => _hasKey('mh10-outlet'),
@@ -307,7 +319,8 @@ void main() {
     container.read(operationalReadAccessProvider).refreshSession();
     await _pumpUntil(
       tester,
-      () => router.state.uri.path == '/' && _hasKey('app-entry'),
+      () =>
+          _currentRouter(tester).state.uri.path == '/' && _hasKey('app-entry'),
       description: 'role revoked after refresh',
     );
     expect(_hasKey('mh10-outlet'), isFalse);
@@ -322,8 +335,8 @@ void main() {
       roles: {shipperA: 'shipper', shipperB: 'shipper'},
     );
     addTearDown(() => _disposeApp(tester, client));
-    final router = await _pumpApp(tester, client);
-    router.go('/shipper/tasks');
+    await _pumpApp(tester, client);
+    _currentRouter(tester).go('/shipper/tasks');
     await _pumpUntil(
       tester,
       () => _hasKey('mh10-outlet'),
@@ -332,11 +345,12 @@ void main() {
     await _recoverForWidget(tester, client, shipperB);
     await _pumpUntil(
       tester,
-      () => router.state.uri.path == '/' && _hasKey('app-entry'),
+      () =>
+          _currentRouter(tester).state.uri.path == '/' && _hasKey('app-entry'),
       description: 'root after direct switch',
     );
     expect(_hasKey('shipper-navigation'), isFalse);
-    router.go('/cod');
+    _currentRouter(tester).go('/cod');
     await _pumpUntil(
       tester,
       () => _hasKey('mh12-outlet'),
@@ -365,10 +379,10 @@ void main() {
     );
     addTearDown(() => _disposeApp(tester, client));
 
-    final router = await _pumpApp(tester, client);
+    await _pumpApp(tester, client);
     _expectRoot();
 
-    router.go('/shipper/tasks');
+    _currentRouter(tester).go('/shipper/tasks');
     await _pumpUntil(
       tester,
       () => _hasKey('mh10-outlet'),
@@ -376,14 +390,14 @@ void main() {
     );
     expect(_hasKey('shipper-navigation'), isTrue);
 
-    router.go('/shipper/tasks/${delivery_fixtures.taskId}');
+    _currentRouter(tester).go('/shipper/tasks/${delivery_fixtures.taskId}');
     await _pumpUntil(
       tester,
       () => _hasKey('mh11-outlet'),
       description: 'MH11 outlet',
     );
 
-    router.go('/shipper/tasks/${delivery_fixtures.taskId}/map');
+    _currentRouter(tester).go('/shipper/tasks/${delivery_fixtures.taskId}/map');
     await _pumpUntil(
       tester,
       () => _hasKey('mh18-outlet'),
@@ -429,8 +443,8 @@ void main() {
     );
     addTearDown(() => _disposeApp(tester, client));
 
-    final router = await _pumpApp(tester, client);
-    router.go('/shipper/tasks/${delivery_fixtures.taskId}/map');
+    await _pumpApp(tester, client);
+    _currentRouter(tester).go('/shipper/tasks/${delivery_fixtures.taskId}/map');
     await _pumpUntil(
       tester,
       () => _hasKey('mh18-outlet'),
@@ -441,14 +455,14 @@ void main() {
       status: 'delivered',
       scope: 'history',
     );
-    router.go('/shipper/tasks/${delivery_fixtures.taskId}');
+    _currentRouter(tester).go('/shipper/tasks/${delivery_fixtures.taskId}');
     await _pumpUntil(
       tester,
       () => _hasKey('mh11-outlet'),
       description: 'masked terminal MH11 outlet',
     );
 
-    router.go('/shipper/tasks/${delivery_fixtures.taskId}/map');
+    _currentRouter(tester).go('/shipper/tasks/${delivery_fixtures.taskId}/map');
     await _pumpUntil(
       tester,
       () => _hasKey('app-entry'),
@@ -497,8 +511,8 @@ void main() {
     );
     addTearDown(() => _disposeApp(tester, client));
 
-    final router = await _pumpApp(tester, client);
-    router.go('/cod?orderId=$_codOrderId');
+    await _pumpApp(tester, client);
+    _currentRouter(tester).go('/cod?orderId=$_codOrderId');
     await _pumpUntil(
       tester,
       () => _hasKey('mh12-outlet'),
@@ -506,25 +520,25 @@ void main() {
     );
     expect(_hasKey('shipper-navigation'), isTrue);
     expect(
-      (jsonDecode(codRequests.single.body) as Map)['p_order_id'],
+      (jsonDecode(codRequests.first.body) as Map)['p_order_id'],
       _codOrderId,
     );
-    expect(
-      (jsonDecode(codRequests.single.body) as Map)['p_shipper_id'],
-      isNull,
-    );
+    expect((jsonDecode(codRequests.first.body) as Map)['p_shipper_id'], isNull);
 
-    router.go('/');
+    _currentRouter(tester).go('/');
     await _pumpUntil(
       tester,
-      () => router.state.uri.path == '/' && _hasKey('app-entry'),
+      () =>
+          _currentRouter(tester).state.uri.path == '/' && _hasKey('app-entry'),
       description: 'root before unfiltered COD route',
     );
     final filteredRequestCount = codRequests.length;
-    router.go('/cod');
+    _currentRouter(tester).go('/cod');
     await _pumpUntil(
       tester,
-      () => router.state.uri.toString() == '/cod' && _hasKey('mh12-outlet'),
+      () =>
+          _currentRouter(tester).state.uri.toString() == '/cod' &&
+          _hasKey('mh12-outlet'),
       description: 'unfiltered MH12 outlet',
     );
     // The live shipper UI now queries its list after the guard admits /cod.
@@ -537,19 +551,20 @@ void main() {
       expect(body['p_order_id'], isNull);
     }
 
-    router.go('/');
+    _currentRouter(tester).go('/');
     await _pumpUntil(
       tester,
-      () => router.state.uri.path == '/' && _hasKey('app-entry'),
+      () =>
+          _currentRouter(tester).state.uri.path == '/' && _hasKey('app-entry'),
       description: 'root before unauthorized COD route',
     );
     returnRows = false;
     final unauthorizedRequestCount = codRequests.length;
-    router.go('/cod?orderId=$_codOrderId');
+    _currentRouter(tester).go('/cod?orderId=$_codOrderId');
     await _pumpUntil(
       tester,
       () =>
-          router.state.uri.path == '/' &&
+          _currentRouter(tester).state.uri.path == '/' &&
           codRequests.length > unauthorizedRequestCount &&
           _hasKey('app-entry'),
       description: 'root after unauthorized COD order',
@@ -573,36 +588,43 @@ void main() {
     ))!;
     addTearDown(() => _disposeApp(tester, client));
 
-    final router = await _pumpApp(tester, client);
-    router.go('/shipper/tasks/not-a-uuid');
+    await _pumpApp(tester, client);
+    _currentRouter(tester).go('/shipper/tasks/not-a-uuid');
     await _pumpUntil(
       tester,
       () =>
-          router.state.uri.path == '/shipper/tasks/not-a-uuid' &&
+          _currentRouter(tester).state.uri.path ==
+              '/shipper/tasks/not-a-uuid' &&
           _hasKey('navigation-invalid-id'),
       description: 'invalid task ID status',
     );
-    expect(router.state.uri.path, '/shipper/tasks/not-a-uuid');
+    expect(_currentRouter(tester).state.uri.path, '/shipper/tasks/not-a-uuid');
 
-    router.go('/cod?orderId=not-a-uuid');
+    _currentRouter(tester).go('/cod?orderId=not-a-uuid');
     await _pumpUntil(
       tester,
       () =>
-          router.state.uri.toString() == '/cod?orderId=not-a-uuid' &&
+          _currentRouter(tester).state.uri.toString() ==
+              '/cod?orderId=not-a-uuid' &&
           _hasKey('navigation-invalid-id'),
       description: 'invalid COD ID status',
     );
-    expect(router.state.uri.path, '/cod');
+    expect(_currentRouter(tester).state.uri.path, '/cod');
 
-    router.go('/cod?orderId=$_codOrderId&orderId=$_codOrderId');
+    _currentRouter(tester).go('/cod?orderId=$_codOrderId&orderId=$_codOrderId');
     await _pumpUntil(
       tester,
       () =>
-          router.state.uri.queryParametersAll['orderId']?.length == 2 &&
+          _currentRouter(tester)
+                  .state
+                  .uri
+                  .queryParametersAll['orderId']
+                  ?.length ==
+              2 &&
           _hasKey('navigation-invalid-id'),
       description: 'duplicate COD ID status',
     );
-    expect(router.state.uri.path, '/cod');
+    expect(_currentRouter(tester).state.uri.path, '/cod');
     expect(requests, 0);
   });
 
@@ -615,24 +637,25 @@ void main() {
     ))!;
     addTearDown(() => _disposeApp(tester, client));
 
-    final router = await _pumpApp(tester, client);
-    router.go('/?from=https://example.invalid/private');
+    await _pumpApp(tester, client);
+    _currentRouter(tester).go('/?from=https://example.invalid/private');
     await _pumpUntil(
       tester,
       () => _hasKey('app-entry'),
       description: 'root with external from query',
     );
-    expect(router.state.uri.path, '/');
-    expect(router.state.uri.host, isEmpty);
+    expect(_currentRouter(tester).state.uri.path, '/');
+    expect(_currentRouter(tester).state.uri.host, isEmpty);
 
-    router.go('/shipper/tasks/not-a-uuid?redirect=//example.invalid');
+    _currentRouter(tester)
+        .go('/shipper/tasks/not-a-uuid?redirect=//example.invalid');
     await _pumpUntil(
       tester,
       () => _hasKey('navigation-invalid-id'),
       description: 'safe invalid route status',
     );
-    expect(router.state.uri.path, '/shipper/tasks/not-a-uuid');
-    expect(router.state.uri.host, isEmpty);
+    expect(_currentRouter(tester).state.uri.path, '/shipper/tasks/not-a-uuid');
+    expect(_currentRouter(tester).state.uri.host, isEmpty);
   });
 
   testWidgets('enforces guest, customer and manager role boundaries', (
@@ -645,15 +668,15 @@ void main() {
       ),
     ))!;
     addTearDown(() => _disposeApp(tester, guest));
-    var router = await _pumpApp(tester, guest);
+    await _pumpApp(tester, guest);
     _expectRoot();
-    router.go('/shipper/tasks');
+    _currentRouter(tester).go('/shipper/tasks');
     await _pumpUntil(
       tester,
       () => _hasKey('app-entry'),
       description: 'guest task redirect',
     );
-    router.go('/cod');
+    _currentRouter(tester).go('/cod');
     await _pumpUntil(
       tester,
       () => _hasKey('app-entry'),
@@ -667,14 +690,14 @@ void main() {
       roles: {_customerId: 'customer'},
     );
     addTearDown(() => _disposeApp(tester, customer));
-    router = await _pumpApp(tester, customer);
-    router.go('/shipper/tasks');
+    await _pumpApp(tester, customer);
+    _currentRouter(tester).go('/shipper/tasks');
     await _pumpUntil(
       tester,
       () => _hasKey('app-entry'),
       description: 'customer task redirect',
     );
-    router.go('/cod');
+    _currentRouter(tester).go('/cod');
     await _pumpUntil(
       tester,
       () => _hasKey('app-entry'),
@@ -688,15 +711,15 @@ void main() {
       roles: {_managerId: 'manager'},
     );
     addTearDown(() => _disposeApp(tester, manager));
-    router = await _pumpApp(tester, manager);
-    router.go('/cod');
+    await _pumpApp(tester, manager);
+    _currentRouter(tester).go('/cod');
     await _pumpUntil(
       tester,
       () => _hasKey('mh12-outlet'),
       description: 'manager COD outlet',
     );
     expect(_hasKey('shipper-navigation'), isFalse);
-    router.go('/shipper/tasks');
+    _currentRouter(tester).go('/shipper/tasks');
     await _pumpUntil(
       tester,
       () => _hasKey('app-entry'),
@@ -715,8 +738,8 @@ void main() {
     );
     addTearDown(() => _disposeApp(tester, client));
 
-    final router = await _pumpApp(tester, client);
-    router.go('/cod');
+    await _pumpApp(tester, client);
+    _currentRouter(tester).go('/cod');
     await _pumpUntil(
       tester,
       () => _hasKey('app-entry'),
@@ -738,14 +761,14 @@ void main() {
     ))!;
     addTearDown(() => _disposeApp(tester, client));
 
-    final router = await _pumpApp(tester, client);
-    router.go('/shipper/tasks');
+    await _pumpApp(tester, client);
+    _currentRouter(tester).go('/shipper/tasks');
     await _pumpUntil(
       tester,
       () => _hasKey('navigation-access-error'),
       description: 'navigation access error',
     );
-    expect(router.state.uri.path, '/shipper/tasks');
+    expect(_currentRouter(tester).state.uri.path, '/shipper/tasks');
     expect(_hasKey('mh10-outlet'), isFalse);
     expect(_hasKey('app-entry'), isFalse);
   });
@@ -760,8 +783,8 @@ void main() {
     );
     addTearDown(() => _disposeApp(tester, client));
 
-    final router = await _pumpApp(tester, client);
-    router.go('/shipper/tasks');
+    await _pumpApp(tester, client);
+    _currentRouter(tester).go('/shipper/tasks');
     await _pumpUntil(
       tester,
       () => _hasKey('mh10-outlet'),
@@ -773,7 +796,7 @@ void main() {
       () => _hasKey('mh17-production-screen'),
       description: 'default MH17 slot',
     );
-    expect(router.state.uri.path, '/notifications');
+    expect(_currentRouter(tester).state.uri.path, '/notifications');
   });
 
   testWidgets('uses the notification builder extension point', (tester) async {
@@ -784,7 +807,7 @@ void main() {
     );
     addTearDown(() => _disposeApp(tester, client));
 
-    final router = await _pumpApp(
+    await _pumpApp(
       tester,
       client,
       notificationBuilder: (context) => const Center(
@@ -792,7 +815,7 @@ void main() {
         child: Text('Fixture notifications'),
       ),
     );
-    router.go('/shipper/tasks');
+    _currentRouter(tester).go('/shipper/tasks');
     await _pumpUntil(
       tester,
       () => _hasKey('mh10-outlet'),
@@ -805,7 +828,7 @@ void main() {
       description: 'notification fixture',
     );
     expect(_hasKey('mh17-production-screen'), isFalse);
-    expect(router.state.uri.path, '/notifications');
+    expect(_currentRouter(tester).state.uri.path, '/notifications');
   });
 
   testWidgets('drops late task data after logout and account switch', (
@@ -822,7 +845,7 @@ void main() {
         if (request.url.path.endsWith('/profiles')) {
           final id = _profileId(request);
           return jsonResponse(request, [
-            {'role': id == shipperA ? 'shipper' : 'customer'},
+            {'id': id, 'role': id == shipperA ? 'shipper' : 'customer'},
           ]);
         }
         if (request.url.path.endsWith('/read_my_delivery_tasks')) {
@@ -845,8 +868,8 @@ void main() {
       await _disposeApp(tester, client);
     });
 
-    final router = await _pumpApp(tester, client);
-    router.go('/shipper/tasks/${delivery_fixtures.taskId}');
+    await _pumpApp(tester, client);
+    _currentRouter(tester).go('/shipper/tasks/${delivery_fixtures.taskId}');
     await taskStarted.future;
 
     await tester.runAsync(() => client.auth.signOut(scope: SignOutScope.local));
@@ -865,6 +888,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     expect(_hasKey('app-entry'), isTrue);
     expect(_hasKey('mh11-outlet'), isFalse);
-    expect(router.state.uri.path, '/');
+    expect(_currentRouter(tester).state.uri.path, '/');
   });
 }
+
+GoRouter _currentRouter(WidgetTester tester) =>
+    ProviderScope.containerOf(tester.element(find.byType(SportsStoreApp)))
+        .read(appRouterProvider);

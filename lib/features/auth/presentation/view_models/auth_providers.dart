@@ -54,7 +54,7 @@ final trustedFeatureSessionProvider =
     );
 
 String homeRouteForRole(AppRole role) => switch (role) {
-  AppRole.customer => '/customer/products',
+  AppRole.customer => '/customer/home',
   AppRole.manager => '/manager/orders',
   AppRole.shipper => '/shipper/tasks',
 };
