@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sports_store/core/state/epoch_cache.dart';
+import 'package:sports_store/core/state/foundation_providers.dart';
+import 'package:sports_store/core/state/session_scope.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sports_store/features/cart/domain/models/cart_item.dart';
 import 'package:sports_store/features/cart/presentation/view_models/cart_providers.dart';
@@ -154,9 +157,10 @@ class _Store extends InMemoryPendingPlacementStore {
 }
 
 class _Harness {
-  _Harness(this.repository, this.store) {
+  _Harness(this.repository, this.store, {EpochCache? cache}) {
     container = ProviderContainer(
       overrides: [
+        if (cache != null) epochCacheProvider.overrideWithValue(cache),
         operationalSessionProvider.overrideWith(
           (ref) => Stream<OperationalSession>.multi((sink) {
             sink.addSync(session);
@@ -207,6 +211,97 @@ class _Harness {
 }
 
 void main() {
+  test('successful placement stales orders and notifications and rejects pre-placement reads', () async {
+    final cache = EpochCache(
+      const SessionScope(userId: _a, role: 'customer', generation: 0),
+    );
+    addTearDown(cache.dispose);
+    final list = cache.begin('orders/list/all');
+    final count = cache.begin('notifications/count');
+    final returns = cache.begin('returns/list');
+    expect(cache.accept(list, 'old orders'), isTrue);
+    expect(cache.accept(count, 2), isTrue);
+    expect(cache.accept(returns, 'unchanged returns'), isTrue);
+    final inFlight = cache.begin('orders/list/in-flight');
+    final h = _Harness(_Repository(), _Store(), cache: cache);
+    addTearDown(h.close);
+    await h.ready();
+    expect(await h.submit(), isTrue);
+    expect(cache.isCurrent(list), isFalse);
+    expect(cache.isCurrent(count), isFalse);
+    expect(cache.accept(inFlight, 'late old page'), isFalse);
+    expect(cache.read<String>('orders/list/all')!.stale, isTrue);
+    expect(cache.read<String>('orders/list/all')!.data, 'old orders');
+    expect(cache.read<String>('returns/list')!.stale, isFalse);
+  });
+
+  test(
+    'recovered placement also invalidates canonical order lists exactly once',
+    () async {
+      final cache = EpochCache(
+        const SessionScope(userId: _a, role: 'customer', generation: 0),
+      );
+      addTearDown(cache.dispose);
+      final token = cache.begin('orders/list/all');
+      cache.accept(token, 'old page');
+      final invalidated = <String>[];
+      final unlisten = cache.listen(invalidated.add);
+      addTearDown(unlisten);
+      final store = _Store();
+      await store.write(_a, _intent());
+      final repo = _Repository()
+        ..onLookup = (_) async =>
+            PlacementLookupResult.committed(_receipt(_intent()));
+      final h = _Harness(repo, store, cache: cache);
+      addTearDown(h.close);
+      await h.ready();
+      expect(h.container.read(checkoutProvider).requireValue.isSuccess, isTrue);
+      expect(
+        invalidated.where((key) => key == 'orders/list/all'),
+        hasLength(1),
+      );
+      expect(cache.isCurrent(token), isFalse);
+      expect(repo.requests, isEmpty);
+    },
+  );
+
+  test('failed local persistence does not invalidate order data', () async {
+    final cache = EpochCache(
+      const SessionScope(userId: _a, role: 'customer', generation: 0),
+    );
+    addTearDown(cache.dispose);
+    final token = cache.begin('orders/list/all');
+    cache.accept(token, 'canonical page');
+    final h = _Harness(
+      _Repository(),
+      _Store()..rejectWrite = true,
+      cache: cache,
+    );
+    addTearDown(h.close);
+    await h.ready();
+    expect(await h.submit(), isFalse);
+    expect(cache.isCurrent(token), isTrue);
+    expect(cache.read<String>('orders/list/all')!.stale, isFalse);
+  });
+
+  test(
+    'placement cannot invalidate a different account cache namespace',
+    () async {
+      final cache = EpochCache(
+        const SessionScope(userId: _b, role: 'customer', generation: 1),
+      );
+      addTearDown(cache.dispose);
+      final token = cache.begin('orders/list/all');
+      cache.accept(token, 'account B page');
+      final h = _Harness(_Repository(), _Store(), cache: cache);
+      addTearDown(h.close);
+      await h.ready();
+      expect(await h.submit(), isTrue);
+      expect(cache.isCurrent(token), isTrue);
+      expect(cache.read<String>('orders/list/all')!.stale, isFalse);
+    },
+  );
+
   test(
     'double tap while device persistence waits sends exactly one request',
     () async {

@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 
+import '../../../../app/theme/storefront_theme.dart';
 import '../../../../core/utils/display_formatters.dart';
+import '../../../catalog/presentation/widgets/catalog_formatters.dart'
+    as catalog_format;
 import '../../domain/models/order_status.dart';
 import '../../domain/models/order_summary.dart';
+import 'order_item_image.dart';
 
-const mh07Ink = Color(0xff111111);
-const mh07Cloud = Color(0xfff5f5f5);
-const mh07Muted = Color(0xff707072);
+const mh07Ink = StorefrontTheme.ink;
+const mh07Cloud = StorefrontTheme.cloud;
+const mh07Muted = StorefrontTheme.muted;
 
 /// MH07 presentation only. All action eligibility is supplied by its page.
 class Mh07OrderCard extends StatelessWidget {
@@ -109,7 +113,12 @@ class Mh07OrderCard extends StatelessWidget {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Mh07ProductPlaceholder(),
+                      OrderItemImage(
+                        key: ValueKey(
+                          'mh07-order-image-${summary.itemPreview.first.id}',
+                        ),
+                        item: summary.itemPreview.first,
+                      ),
                       const SizedBox(width: 16),
                       Expanded(
                         child: Column(
@@ -217,11 +226,16 @@ class Mh07OrderCard extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            '₫${formatVnd(order.totalCodVnd).replaceAll(' ₫', '')}',
+                            catalog_format.formatVnd(order.totalCodVnd),
+                            key: ValueKey('mh07-order-total-${order.id}'),
                             style: const TextStyle(
-                              fontSize: 20,
-                              height: 26 / 20,
+                              fontFamily: 'BarlowCondensed',
+                              fontFamilyFallback: ['Inter'],
+                              fontSize: 26,
+                              height: 1.1,
                               fontWeight: FontWeight.w700,
+                              color: StorefrontTheme.ink,
+                              decoration: TextDecoration.none,
                             ),
                           ),
                         ],
@@ -319,23 +333,7 @@ class Mh07OrderCard extends StatelessWidget {
 class Mh07ProductPlaceholder extends StatelessWidget {
   const Mh07ProductPlaceholder({super.key});
   @override
-  Widget build(BuildContext context) => Semantics(
-    label: 'Không có ảnh sản phẩm',
-    child: Container(
-      width: 72,
-      height: 72,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: mh07Cloud,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: const Icon(
-        Icons.image_not_supported_outlined,
-        color: Color(0xff9e9ea0),
-        size: 24,
-      ),
-    ),
-  );
+  Widget build(BuildContext context) => const OrderItemImagePlaceholder();
 }
 
 class Mh07StatusBadge extends StatelessWidget {

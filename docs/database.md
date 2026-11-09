@@ -1060,3 +1060,19 @@ trước/sau đều `1dc713f548b492ef960db45b8dd72626`; không có màu ánh x�
 URI `asset:assets/images/...` trỏ vào ảnh đóng gói trong client, không phải
 object Storage. Phải dùng bản ứng dụng có đủ asset tương ứng. Chi tiết seed,
 tính lặp và kiểm chứng tại [bản cập nhật](van_duc_color_images_20261109.md).
+
+## Projection ảnh snapshot đơn — 09/11/2026
+
+Migration local `20261109155043_expose_order_snapshot_product_images.sql`
+đã áp dụng nguyên nội dung qua MCP lên project `bqoyfytmrtvjwrpshuhh`;
+cloud ghi version `20261109160242`, tên `expose_order_snapshot_product_images`.
+Không sửa trực tiếp migration history để đổi timestamp.
+
+Hai helper `private.orders_read_items(uuid)` và
+`private.checkout_items_json(uuid)` bổ sung `product_image_url` vào JSON từ
+cột đã tồn tại trên `order_items`. Giữ nguyên owner, ACL, SECURITY INVOKER,
+search_path và thứ tự riêng; checkout helper vẫn chỉ postgres được execute.
+Không thay schema bảng/RLS, dữ liệu snapshot, giá/tồn hoặc join catalog.
+Fixture PostgreSQL và smoke read-only cloud xác nhận ảnh có sẵn được trả
+đúng chủ đơn, khách khác bị từ chối, hàng đơn không thay đổi.
+Xem [biên bản kiểm chứng](order_snapshot_images_20261109.md).

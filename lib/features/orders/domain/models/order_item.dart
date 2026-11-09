@@ -13,6 +13,7 @@ class OrderItem {
     required int quantity,
     required int lineTotalVnd,
     required DateTime createdAt,
+    String? productImageUrl,
   }) : id = validateUuidValue(id),
        orderId = validateUuidValue(orderId, field: 'orderId'),
        productId = validateUuidValue(productId, field: 'productId'),
@@ -20,6 +21,7 @@ class OrderItem {
        productName = validateNonBlank(productName, field: 'productName'),
        variantLabel = validateNonBlank(variantLabel, field: 'variantLabel'),
        attributes = freezeObject(attributes),
+       productImageUrl = _normalizedProductImageUrl(productImageUrl),
        unitPriceVnd = validateNonNegativeInt(
          unitPriceVnd,
          field: 'unitPriceVnd',
@@ -44,6 +46,10 @@ class OrderItem {
   final String productName;
   final String variantLabel;
   final Map<String, Object?> attributes;
+
+  /// Optional product-level image captured when the order was placed. This
+  /// does not establish that the photograph depicts this exact variant color.
+  final String? productImageUrl;
   final int unitPriceVnd;
   final int quantity;
   final int lineTotalVnd;
@@ -57,6 +63,7 @@ class OrderItem {
     'product_name': productName,
     'variant_label': variantLabel,
     'attributes': attributes,
+    if (productImageUrl != null) 'product_image_url': productImageUrl,
     'unit_price_vnd': unitPriceVnd,
     'quantity': quantity,
     'line_total_vnd': lineTotalVnd,
@@ -73,6 +80,7 @@ class OrderItem {
         other.productName == productName &&
         other.variantLabel == variantLabel &&
         other.attributes.toString() == attributes.toString() &&
+        other.productImageUrl == productImageUrl &&
         other.unitPriceVnd == unitPriceVnd &&
         other.quantity == quantity &&
         other.lineTotalVnd == lineTotalVnd &&
@@ -88,9 +96,45 @@ class OrderItem {
     productName,
     variantLabel,
     attributes.toString(),
+    productImageUrl,
     unitPriceVnd,
     quantity,
     lineTotalVnd,
     createdAt,
   );
+}
+
+String? _normalizedProductImageUrl(String? value) {
+  final path = value?.trim();
+  if (path == null ||
+      path.isEmpty ||
+      path.contains(RegExp(r'[\x00-\x1f\x7f]'))) {
+    return null;
+  }
+  final uri = Uri.tryParse(path);
+  if (uri == null) return null;
+  if (uri.hasScheme) {
+    return uri.scheme == 'https' && uri.host.isNotEmpty && uri.userInfo.isEmpty
+        ? path
+        : null;
+  }
+  // A private Storage object path is resolved by the shared image provider.
+  String decoded;
+  try {
+    decoded = Uri.decodeComponent(path);
+  } on FormatException {
+    return null;
+  }
+  if (uri.hasAuthority ||
+      uri.hasQuery ||
+      uri.hasFragment ||
+      path.startsWith('/') ||
+      path.contains('\\') ||
+      decoded.startsWith('/') ||
+      decoded.contains('\\') ||
+      decoded.contains(RegExp(r'[\x00-\x1f\x7f]')) ||
+      decoded.split('/').any((segment) => segment == '.' || segment == '..')) {
+    return null;
+  }
+  return path;
 }

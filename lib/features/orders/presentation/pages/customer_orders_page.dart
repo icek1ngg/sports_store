@@ -335,14 +335,14 @@ class _CustomerOrdersBodyState extends ConsumerState<_CustomerOrdersBody> {
         if (MediaQuery.textScalerOf(context).scale(14) <= 21)
           Flexible(
             child: const Text(
-              'VN ATHLETICS',
+              'STRIDE',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontFamily: 'BarlowCondensed',
-                fontSize: 14,
+                fontSize: 26,
                 fontWeight: FontWeight.w700,
-                letterSpacing: 1.4,
+                letterSpacing: -.6,
               ),
             ),
           ),

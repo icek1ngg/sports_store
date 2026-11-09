@@ -2153,6 +2153,27 @@ trong manifest chỉ là đầu vào script upload, không được ghi vào att
 SQL chỉ đổi metadata sau khi kiểm tra đủ 52 object thật; giữ nguyên giá/tồn
 và snapshot đơn. Xem [quy trình upload và trạng thái](storage_color_images_20261109.md).
 
+## Đồng bộ MH07 sau checkout
+
+Sau khi placement/lookup committed đã xác minh receipt và phiên còn hiện
+hành, chỉ EpochCache có `canRead` và `scope.userId` đúng khách đặt mới bị
+invalidate prefix `orders/`/`notifications/`. Danh sách tiếp tục refetch RPC
+chuẩn; không dùng receipt thay aggregate. `OrderItemImage` ưu tiên đường
+ảnh trong attributes snapshot, sau đó `OrderItem.productImageUrl` đã lưu
+cùng đơn. Card MH07, dòng chi tiết và receipt dùng cùng quy tắc. Không join
+dữ liệu catalog để thay lịch sử đơn.
+Xem [chẩn đoán và kiểm chứng](van_duc_customer_orders_sync_20261109.md).
+
+## Ảnh sản phẩm đã lưu cùng đơn — 09/11/2026
+
+Item JSON của danh sách/chi tiết đơn và placement/lookup/replay bổ sung
+`product_image_url` nullable từ chính `order_items.product_image_url` hiện
+có. `OrderItemDto` chấp nhận response cũ không có trường này; metadata ảnh
+sai được bỏ qua, không làm hỏng toàn bộ đơn. Ảnh màu trong attributes có
+độ ưu tiên cao hơn ảnh cấp sản phẩm; ảnh chung chỉ được mô tả là ảnh mẫu.
+Nếu ảnh màu đã khai báo nhưng tải thất bại, UI giữ trạng thái lỗi ảnh thay
+vì âm thầm đổi sang màu khác. Xem [kiểm chứng API và UI](order_snapshot_images_20261109.md).
+
 ## MH07 → MH13 — `can_open_return_creation` (09/11/2026)
 
 Migration `20261109124501_orders_return_creation_capability.sql` thêm
