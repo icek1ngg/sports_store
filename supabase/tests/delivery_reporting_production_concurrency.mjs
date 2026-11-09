@@ -55,7 +55,7 @@ export async function testDeliveryReportingProductionConcurrency(Client, options
 
   const assign = (actor, order, shipper, request) => callRpc(
     actor,
-    'select public.assign_delivery_task($1::uuid,$2::uuid,$3::uuid) result',
+    'select public.prepare_and_assign_delivery($1::uuid,$2::uuid,$3::uuid,true) result',
     [order, shipper, request],
   );
   const accept = (actor, task, request) => callRpc(

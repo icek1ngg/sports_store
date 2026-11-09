@@ -7,12 +7,16 @@ class CartState {
     this.isMutating = false,
     this.mutationError,
     this.hasPendingMutation = false,
+    this.userId,
   }) : items = List.unmodifiable(items);
 
   final List<CartItem> items;
   final bool isMutating;
   final CartFailure? mutationError;
   final bool hasPendingMutation;
+
+  /// Owner of this confirmed snapshot, used to reset local cart selection.
+  final String? userId;
 
   int get totalQuantity =>
       items.fold(0, (total, item) => total + item.quantity);

@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/config/auth_startup_options.dart';
 import '../../core/config/load_supabase_config.dart';
 import '../../features/auth/data/email_confirmation_callback.dart';
+import '../../features/auth/data/oauth_sign_in_callback.dart';
 import '../../features/auth/presentation/view_models/auth_providers.dart';
 import '../integration/production_feature_composition.dart';
 import '../router/app_router.dart';
@@ -17,6 +18,9 @@ Future<void> bootstrapSportsStore() async {
   // The SDK consumes and clears Auth URL parameters during initialization.
   final incomingUri = Uri.base;
   final confirmingEmail = EmailConfirmationCallback.isCallback(incomingUri);
+  final oauthError = confirmingEmail
+      ? null
+      : OAuthSignInCallback.errorMessage(incomingUri);
   try {
     final config = await loadSupabaseConfig();
     await Supabase.initialize(
@@ -28,6 +32,8 @@ Future<void> bootstrapSportsStore() async {
       ProviderScope(
         overrides: [
           ...productionFeatureOverrides,
+          if (oauthError != null)
+            initialOAuthErrorProvider.overrideWithValue(oauthError),
           if (confirmingEmail)
             initialEmailConfirmationProvider.overrideWithValue(
               EmailConfirmationCallback.resolveAfterSdkInitialization(

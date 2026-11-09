@@ -1,0 +1,81 @@
+-- BỔ SUNG MÀU DEMO STRIDE: 13 sản phẩm, mỗi mẫu 4 màu/phối màu.
+-- Yêu cầu đã chạy stride_apparel_shoes_20261108.sql; không tạo sản phẩm trùng.
+-- Thêm 215 biến thể màu-cỡ, tổng 340 (180 giày + 160 quần áo).
+-- Giá và tồn là dữ liệu demo, không phải thông số thương mại của nhà sản xuất.
+-- Chỉ backfill color_hex còn thiếu; giữ giá/tồn/reserved/thuộc tính đã chỉnh.
+-- Không gán ảnh màu chưa có nguồn. Không thay schema, quyền hoặc đơn hàng.
+begin;
+select pg_advisory_xact_lock(hashtextextended('stride-apparel-shoes-20261108',0));
+do $seed$
+declare
+  item jsonb;
+  color_item jsonb;
+  category uuid;
+  product uuid;
+  variant uuid;
+  existing_variant public.product_variants%rowtype;
+  size_label text;
+  color_label text;
+  color_hex text;
+  size_index int;
+  color_index int;
+  stock bigint;
+  variant_sku text;
+  product_count int;
+begin
+  for item in select value from jsonb_array_elements($dataset$[{"key":"S01","category":"shoes","name":"Giày Nike Air Jordan 1 Đỏ Đen","price_vnd":1890000,"sizes":["36","37","38","39","40","41","42","43","44"],"material":"Vải và vật liệu tổng hợp","colors":[{"name":"Đỏ đen","hex":"#D43135"},{"name":"Đen trắng","hex":"#202124"},{"name":"Trắng xanh","hex":"#78BFE9"},{"name":"Xám","hex":"#92969C"}]},{"key":"S02","category":"shoes","name":"Giày Nike Baseball Cleats","price_vnd":1590000,"sizes":["36","37","38","39","40","41","42","43","44"],"material":"Vải và vật liệu tổng hợp","colors":[{"name":"Đen trắng","hex":"#202124"},{"name":"Trắng xanh","hex":"#78BFE9"},{"name":"Cam đen","hex":"#F57C24"},{"name":"Xanh lá","hex":"#32A16A"}]},{"key":"S03","category":"shoes","name":"Giày Puma Future Rider","price_vnd":1490000,"sizes":["36","37","38","39","40","41","42","43","44"],"material":"Vải và vật liệu tổng hợp","colors":[{"name":"Nhiều màu","hex":"#9A72BC"},{"name":"Đen","hex":"#202124"},{"name":"Trắng","hex":"#F5F5F2"},{"name":"Xanh navy","hex":"#233653"}]},{"key":"S04","category":"shoes","name":"Giày Sports Sneakers Off White & Red","price_vnd":1190000,"sizes":["36","37","38","39","40","41","42","43","44"],"material":"Vải và vật liệu tổng hợp","colors":[{"name":"Trắng đỏ","hex":"#D43135"},{"name":"Trắng xanh","hex":"#78BFE9"},{"name":"Đen","hex":"#202124"},{"name":"Xám","hex":"#92969C"}]},{"key":"S05","category":"shoes","name":"Giày Sports Sneakers Off White Red","price_vnd":1290000,"sizes":["36","37","38","39","40","41","42","43","44"],"material":"Vải và vật liệu tổng hợp","colors":[{"name":"Trắng đỏ","hex":"#D43135"},{"name":"Đen trắng","hex":"#202124"},{"name":"Trắng xanh","hex":"#78BFE9"},{"name":"Xanh ngọc","hex":"#28B9AD"}]},{"key":"A01","category":"apparel","name":"Áo chạy bộ Kalenji Xanh","price_vnd":350000,"sizes":["S","M","L","XL","XXL"],"material":"Polyester","colors":[{"name":"Xanh dương","hex":"#3981D1"},{"name":"Xanh navy","hex":"#233653"},{"name":"Đen","hex":"#202124"},{"name":"Trắng","hex":"#F5F5F2"}]},{"key":"A02","category":"apparel","name":"Áo tập Nike Miler Cam","price_vnd":490000,"sizes":["S","M","L","XL","XXL"],"material":"Polyester","colors":[{"name":"Cam","hex":"#F57C24"},{"name":"Đen","hex":"#202124"},{"name":"Trắng","hex":"#F5F5F2"},{"name":"Xanh navy","hex":"#233653"}]},{"key":"A03","category":"apparel","name":"Áo thể thao Carrollton Trắng","price_vnd":390000,"sizes":["S","M","L","XL","XXL"],"material":"Vải pha co giãn","colors":[{"name":"Trắng","hex":"#F5F5F2"},{"name":"Xám","hex":"#92969C"},{"name":"Đen","hex":"#202124"},{"name":"Xanh navy","hex":"#233653"}]},{"key":"A04","category":"apparel","name":"Áo tập Performance Xám","price_vnd":290000,"sizes":["S","M","L","XL","XXL"],"material":"Polyester","colors":[{"name":"Xám","hex":"#92969C"},{"name":"Đen","hex":"#202124"},{"name":"Trắng","hex":"#F5F5F2"},{"name":"Xanh dương","hex":"#3981D1"}]},{"key":"A05","category":"apparel","name":"Quần short tập luyện Essential","price_vnd":250000,"sizes":["S","M","L","XL","XXL"],"material":"Polyester","colors":[{"name":"Đen","hex":"#202124"},{"name":"Xanh navy","hex":"#233653"},{"name":"Xám","hex":"#92969C"},{"name":"Xanh lá","hex":"#32A16A"}]},{"key":"A06","category":"apparel","name":"Quần short chạy bộ nữ Kiprun","price_vnd":280000,"sizes":["S","M","L","XL","XXL"],"material":"Polyester","colors":[{"name":"Đen","hex":"#202124"},{"name":"Trắng","hex":"#F5F5F2"},{"name":"Xám","hex":"#92969C"},{"name":"Xanh navy","hex":"#233653"}]},{"key":"A07","category":"apparel","name":"Áo khoác chạy bộ Kiprun","price_vnd":790000,"sizes":["S","M","L","XL","XXL"],"material":"Vải tổng hợp","colors":[{"name":"Đen","hex":"#202124"},{"name":"Xanh navy","hex":"#233653"},{"name":"Xám","hex":"#92969C"},{"name":"Xanh dương","hex":"#3981D1"}]},{"key":"A08","category":"apparel","name":"Áo khoác chạy bộ nữ","price_vnd":690000,"sizes":["S","M","L","XL","XXL"],"material":"Vải tổng hợp","colors":[{"name":"Đen","hex":"#202124"},{"name":"Xám","hex":"#92969C"},{"name":"Trắng","hex":"#F5F5F2"},{"name":"Xanh ngọc","hex":"#28B9AD"}]}]$dataset$::jsonb)
+  loop
+    select id into strict category from public.categories
+      where code=item->>'category' and is_active;
+    select count(distinct v.product_id), min(v.product_id::text)::uuid
+      into product_count,product from public.product_variants v
+      where v.sku like 'DEMO-STRIDE-20261108-' || (item->>'key') || '-%';
+    if product_count<>1 or not exists (
+      select 1 from public.products p where p.id=product
+      and p.category_id=category and p.description like '[DEMO STRIDE 20261108]%'
+    ) then
+      raise exception 'Missing/colliding STRIDE product for %; apply base seed first',item->>'key';
+    end if;
+    for color_item,color_index in
+      select value,ordinality::int from jsonb_array_elements(item->'colors') with ordinality
+    loop
+      color_label:=color_item->>'name';
+      color_hex:=color_item->>'hex';
+      if color_label is null or color_hex is null or color_hex !~ '^#[0-9A-Fa-f]{6}$' then
+        raise exception 'Invalid color manifest for %',item->>'key';
+      end if;
+      for size_label,size_index in
+        select value,ordinality::int from jsonb_array_elements_text(item->'sizes') with ordinality
+      loop
+        variant_sku:='DEMO-STRIDE-20261108-' || (item->>'key') || '-C' || color_index || '-' || size_label;
+        select * into existing_variant from public.product_variants where sku=variant_sku for update;
+        if found then
+          if existing_variant.product_id<>product
+            or existing_variant.attributes->>'color' is distinct from color_label
+            or existing_variant.attributes->>'size' is distinct from size_label then
+            raise exception 'STRIDE color/size SKU collision: %',variant_sku;
+          end if;
+          -- Never replace merchant-maintained attributes or financial/stock data.
+          if not (existing_variant.attributes ? 'color_hex') then
+            update public.product_variants
+              set attributes=attributes || jsonb_build_object('color_hex',color_hex)
+              where id=existing_variant.id;
+          end if;
+          continue;
+        end if;
+        stock:=8+(size_index*3+color_index)%15;
+        insert into public.product_variants(product_id,sku,label,attributes,price_vnd,on_hand,reserved,damaged,is_active)
+        values(product,variant_sku,color_label || ' / ' || size_label,
+          jsonb_build_object('color',color_label,'color_hex',color_hex,'size',size_label,
+            'material',item->>'material','demo',true),
+          (item->>'price_vnd')::bigint,stock,0,0,true)
+        returning id into variant;
+        insert into public.inventory_movements(variant_id,event_id,kind,on_hand_delta,reason)
+        values(variant,gen_random_uuid(),'adjustment',stock,
+          '[DEMO STRIDE COLORS 20261108] Khởi tạo tồn màu-cỡ bổ sung');
+      end loop;
+    end loop;
+  end loop;
+end;
+$seed$;
+commit;

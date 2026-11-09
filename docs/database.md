@@ -1,5 +1,119 @@
 # Database Sports Store
 
+> **Hiện trạng được ưu tiên đọc — 09/11/2026.** Nguồn schema/RPC là các tệp
+> trong [`supabase/migrations`](../supabase/migrations), sắp theo tên timestamp;
+> client production đọc/gọi chúng qua các repository trong
+> [`lib/features`](../lib/features). Sự có mặt của một tệp migration chỉ chứng
+> minh **nguồn SQL**, không chứng minh tệp đó đã được áp dụng lên Supabase
+> chung. Các câu “đã deploy” bên dưới là bằng chứng được ghi trong handoff/test
+> của repository tại thời điểm nêu; không thay cho một lần đọc
+> `migration list --linked` mới.
+
+## Inventory migration hiện hành
+
+Repo hiện có **39 migration SQL** (không tính `.gitkeep` và không đọc
+`supabase/.temp`). Thứ tự áp dụng nguồn là:
+
+1. `20261006034251_sports_store_schema.sql`
+2. `20261006034259_sports_store_access.sql`
+3. `20261006040019_simplify_sports_store.sql`
+4. `20261023104903_secure_delivery_read_projections.sql`
+5. `20261023153729_list_my_delivery_tasks.sql`
+6. `20261024010714_get_my_delivery_task.sql`
+7. `20261024070151_assign_outbound_delivery_task.sql`
+8. `20261025064829_list_cod_collections.sql`
+9. `20261025121908_confirm_cod_received.sql`
+10. `20261026055651_accept_start_outbound_delivery.sql`
+11. `20261026062903_secure_internal_auth_identity_bridge.sql`
+12. `20261026130645_complete_outbound_delivery.sql`
+13. `20261027005254_checkout_placement.sql`
+14. `20261027005305_hanoi_service_area.sql`
+15. `20261027010030_checkout_exact_intent.sql`
+16. `20261027060030_fail_outbound_delivery.sql`
+17. `20261027062118_decide_outbound_retry.sql`
+18. `20261027093919_report_delivery_handover_incidents.sql`
+19. `20261027140241_delivery_reporting_context.sql`
+20. `20261027142031_return_pickup_tasks.sql`
+21. `20261028011128_return_pickup_store_handover.sql`
+22. `20261028062908_p083_redelivery_production.sql`
+23. `20261029041230_dung_an_management_integration.sql`
+24. `20261029094727_fix_catalog_checkout_lock_order.sql`
+25. `20261030032730_delivery_item_images.sql`
+26. `20261101080125_submit_return_request.sql`
+27. `20261101090627_get_my_return_request.sql`
+28. `20261101095549_shipper_retry_outbound_failure.sql`
+29. `20261102035050_accept_and_start_delivery_task.sql`
+30. `20261102050041_manager_return_management.sql`
+31. `20261102092824_return_management_resolution.sql`
+32. `20261102133026_shipper_history_detail_projection.sql`
+33. `20261103022144_shipper_history_detail_auth_acl.sql`
+34. `20261103152927_consume_purchased_cart_items.sql`
+35. `20261107044955_orders_read_aggregates.sql`
+36. `20261107171621_orders_transactional_mutations.sql`
+37. `20261107171648_orders_mutation_capability_bridge.sql`
+38. `20261107221505_orders_internal_auth_identity_bridge.sql`
+39. `20261109124501_orders_return_creation_capability.sql`
+
+### Provenance triển khai
+
+| Nguồn trong repo | Trạng thái có bằng chứng trong repository | Ghi chú không suy diễn |
+|---|---|---|
+| 1–22 (`20261006034251` → `20261028062908`) | Các handoff P04–P10 ghi đã áp dụng/kiểm thử cloud theo từng nhóm; mốc 22 là snapshot lịch sử | Đây là bằng chứng lịch sử, không phải lần kiểm tra cloud mới trong thay đổi tài liệu này. |
+| 23 `20261029041230_dung_an_management_integration.sql` | Đã chạy bản SQL quản lý/chat thủ công và probe nhận diện năm RPC trên cloud; migration history chưa được xác nhận | Không tự đánh dấu version migration đã applied. |
+| 24 `20261029094727_fix_catalog_checkout_lock_order.sql` | **Chưa có bằng chứng deploy**; ghi chú 01/11 nói bản sửa `locked_variants` chưa có trên Production | Chỉ là source SQL; cần operator đối chiếu function fingerprint trước khi áp dụng. |
+| 25 `20261030032730_delivery_item_images.sql` | Handoff ghi cloud đã có version `20261030032730`; tên repo đã được đồng bộ từ version cũ | Không chạy lại migration trên cloud. |
+| 26–27 (`20261101080125`, `20261101090627`) | Chỉ có test fixture PostgreSQL cục bộ; tài liệu hiện hành ghi **chưa áp dụng cloud** | RPC MH13/MH14 có trong Dart nhưng deployment chưa được suy ra từ code. |
+| 28 `20261101095549_shipper_retry_outbound_failure.sql` | Đã deploy riêng; cloud version được ghi là `20261101144354` | Version cloud khác tên file repo; không dùng `db push` hàng loạt. |
+| 29 `20261102035050_accept_and_start_delivery_task.sql` | Đã deploy riêng; cloud version được ghi là `20261102040118` | Chỉ migration này được triển khai riêng trong handoff, không suy các migration sau. |
+| 30–31 (`20261102050041`, `20261102092824`) | Test local/fixture; tài liệu ghi **chưa áp dụng Supabase chung** | Repository có gọi RPC, nhưng live availability chưa được chứng minh. |
+| 32–33 (`20261102133026`, `20261103022144`) | Đã deploy riêng; cloud versions được ghi là `20261103022045` và `20261103022454` | Giữ mapping version cloud/repo vì đây là migration history drift đã được ghi nhận. |
+| 34 `20261103152927_consume_purchased_cart_items.sql` | SQL local đã chạy trên cloud và được đăng ký version `20261108153641` | Không coi timestamp cloud là tên source; không áp lại cùng trigger/function. |
+| 35–38 (Orders B1/B2 và identity bridge) | Một số header (35, 36, 38) ghi `SOURCE ONLY` tại mốc tạo file; bridge 37 là delta reviewed. Claim migration 39 có DO-assert cho thấy các read helper prerequisite đã tồn tại tại thời điểm đó, nhưng không chứng minh migration history đầy đủ hoặc mọi file 35–38 đã áp nguyên văn | Không gọi nhóm này là production chỉ vì `SupabaseOrderRepository` đã có. |
+| 39 `20261109124501_orders_return_creation_capability.sql` | Commit `99b4247` ngày 09/11 ghi đã chạy `db query --linked -f` và `migration repair --status applied 20261109124501` | Lần cập nhật tài liệu này không đọc lại trạng thái linked; đây là deployment claim có dẫn commit, không phải xác minh độc lập. |
+
+Ba migration đầu tạo schema rồi simplify còn **18 bảng public**. Các migration
+sau bổ sung private ledgers/projections (assignment, COD receipt, outbound
+dispatch/custody/completion/failure/retry/reporting, checkout placement,
+return-pickup, redelivery, catalog command, return management và Orders); các
+private object này không được gộp thành bảng public hoặc quyền đọc client.
+Nhóm Orders 35–39 tồn tại trong nguồn local ngay cả khi trạng thái cloud còn
+chưa được xác nhận đầy đủ.
+
+Mục P10.3 nói “22 migrations” và các đoạn ghi “hiện 22 migrations” là mốc
+28/10/2026 khi repo mới có 22 file; không còn là inventory hiện tại. Các mục
+P00/P01 và changelog phía dưới được giữ để truy vết; nếu mâu thuẫn với phần
+“Hiện trạng” này, ưu tiên inventory, migration source và code hiện tại.
+
+## Orders/checkout hiện hành trong nguồn
+
+Ba migration đọc Orders (`20261107044955_orders_read_aggregates.sql`,
+`20261107171648_orders_mutation_capability_bridge.sql` và
+`20261109124501_orders_return_creation_capability.sql`) tạo projection JSON
+cho `get_customer_orders`, `get_manager_orders`, `get_order_details`; migration
+`20261107171621_orders_transactional_mutations.sql` tạo các command RPC
+`confirm_order`, `reject_order`, `cancel_customer_order`,
+`cancel_manager_order`, `get_order_operation_result` và private receipt/event
+ledgers; `20261107221505_orders_internal_auth_identity_bridge.sql` thay tham
+chiếu identity bằng helper nội bộ. Đây là **nguồn SQL hiện có**, không đồng
+nghĩa nhóm 35–38 đã deploy (một số file có nhãn `SOURCE ONLY`, còn bridge 37
+không có nhãn đó; claim 39 chỉ chứng minh prerequisite read đã tồn tại tại
+thời điểm claim, không chứng minh toàn bộ migration history).
+
+Migration 39 thêm helper SECURITY INVOKER
+`private.orders_return_creation_open(uuid)` và ghép cờ
+`capabilities.can_open_return_creation` vào hai read projection. Theo source,
+helper chỉ mở cờ cho customer sở hữu đơn `delivered`, còn trong cửa sổ bảy ngày
+theo `delivered_at` và chưa có return active; `submit_return_request` vẫn là
+điểm kiểm tra cuối. Đây là điều kiện của code/migration, không phải chính sách
+mới được suy ra từ báo cáo nghiệp vụ. Test fixture tương ứng là
+[`supabase/tests/orders_return_creation_capability.sql`](../supabase/tests/orders_return_creation_capability.sql).
+
+Checkout source gồm `place_order`/`get_placement_result`, vùng phục vụ Hà Nội
+và exact-intent; trigger `private.consume_purchased_cart_items` của migration
+34 trừ đúng các dòng đã mua trong transaction. `place_order` vẫn là boundary
+duy nhất để giữ tồn, snapshot đơn và idempotency; không dùng các thao tác
+`cart_items` của client để mô phỏng đặt đơn.
+
 Cập nhật 02/11/2026: API lịch sử nhiệm vụ và các trường COD tối thiểu cho
 shipper được phân công; không mở quyền ghi hoặc quyền xem nhiệm vụ người khác.
 [Hợp đồng](demos/shipper_history_details_20261102.md).
@@ -13,19 +127,23 @@ bổ sung RPC giao lại theo task cho shipper đang giữ hàng và mở đúng
 của giao dịch hiện hữu. Không đổi lịch sử task/attempt, ledger tồn hay COD.
 [Hợp đồng và kiểm chứng](demos/shipper_self_retry_20261101.md).
 
-P10.3: [Migration order 22 files, fixture/demo/cleanup và setup](handover/delivery_p103.md).
-Catalog mới chỉ local guarded BEGIN/ROLLBACK, có manager/2shipper/2customer,
-3kind, COD collected/received và denied cases. Không migration/schema/RLS mới,
-không persistent demo accounts hoặc reset database dùng chung.
+P10.3 là [migration order 22 files, fixture/demo/cleanup và setup](handover/delivery_p103.md)
+ở thời điểm 28/10/2026. Inventory hiện tại đã tăng lên 39 file; handoff này
+chỉ còn là chứng cứ lịch sử cho 22 file đầu. Catalog fixture mới chỉ local
+guarded BEGIN/ROLLBACK, có manager/2shipper/2customer, 3 kind, COD
+collected/received và denied cases; không tạo persistent demo accounts hoặc
+reset database dùng chung.
 
 P10.1 bổ sung SQL/security/concurrency QA, không migration/RPC/grant mới.
-Local PG17: 22 migrations, 17 SQL suites, 9 concurrency modules PASS; 51 bảng
+Local PG17: **22 migrations tại thời điểm P10.1**, 17 SQL suites, 9 concurrency
+modules PASS; 51 bảng
 về baseline và trigger enablement không đổi. Không coi Auth/Storage SQL stubs
 là cloud acceptance; cancellation chỉ kiểm trusted fixture/trigger boundary.
 [Lệnh, traceability và giới hạn](qa/p101_sql_security_transactions.md).
 
-**Cập nhật production 28/10/2026:** migration
-`20261028062908_p083_redelivery_production.sql` đã deploy, hiện 22 migrations.
+**Cập nhật production 28/10/2026 (mốc lịch sử):** migration
+`20261028062908_p083_redelivery_production.sql` đã deploy khi lịch sử khi đó
+có 22 migration.
 Thêm private append-only/FORCE RLS redelivery_requests, redelivery_return_receipts,
 redelivery_inspection_results, redelivery_release_plan_items, redelivery_task_items,
 redelivery_acceptances, redelivery_custody, redelivery_starts, redelivery_outcomes.
@@ -136,7 +254,15 @@ Dung lượng và định dạng file chưa được chốt trong báo cáo; c�
 
 ## Phạm vi đã thiết kế và phần triển khai tiếp theo
 
-Schema cung cấp bảng, FK/index, constraint, RLS/grants, trigger tạo profile khách và lưu mốc đọc theo giờ server. `conversations.read_at_by_user` là JSON object ánh xạ user UUID sang timestamp; trigger chỉ cập nhật mốc của session hiện tại và giữ nguyên mốc của người khác. Các chính sách 7 ngày, địa chỉ Hà Nội, giữ/xuất/nhập tồn, chuyển trạng thái, thông báo theo sự kiện và hoàn tiền cần được thực thi thêm trong RPC/tác vụ server của từng feature.
+Baseline cung cấp bảng, FK/index, constraint, RLS/grants, trigger tạo profile
+khách và lưu mốc đọc theo giờ server. `conversations.read_at_by_user` là JSON
+object ánh xạ user UUID sang timestamp; trigger chỉ cập nhật mốc của session
+hiện tại và giữ nguyên mốc của người khác. Các migration sau đó đã thêm nhiều
+RPC transaction cho checkout, delivery/COD, pickup/redelivery, catalog, chat và
+orders; các RPC/repository hiện hành được liệt kê trong
+[`api_contracts.md`](api_contracts.md). Những policy/rule chưa có migration
+hoặc chưa có bằng chứng cloud vẫn phải coi là dependency, không suy ra chỉ từ
+enum/cột hoặc từ việc Dart đã có adapter.
 
 Chưa có địa chỉ/tọa độ cửa hàng hoặc polygon Hà Nội được phê duyệt trong báo cáo. `store_settings` không được điền bằng vị trí suy đoán. RPC checkout phải từ chối đặt khi chưa xác thực được địa chỉ/phạm vi; không dùng riêng nhãn `Hà Nội` làm kiểm tra tọa độ.
 
@@ -146,7 +272,11 @@ Trạng thái chuẩn: [business_states.md](business_states.md). Hợp đồng D
 
 ## Migration và kiểm tra
 
-Các migration được tạo bằng Supabase CLI 2.119.0. Tên/version trong repo phải khớp lịch sử migration cloud sau khi áp dụng. Không chạy `db reset --linked` trên project dùng chung.
+Các migration được tạo bằng các phiên bản Supabase CLI được ghi trong từng
+handoff (2.119.0 ở các phase đầu, 2.122.0 ở các phase sau). Không giả định
+mọi file dùng cùng một CLI version; đối chiếu tên/version cloud theo bảng
+`Provenance triển khai` ở đầu tài liệu. Không chạy `db reset --linked` trên
+project dùng chung.
 
 Ngày 06/10/2026 đã áp dụng nguyên văn lên project `bqoyfytmrtvjwrpshuhh`:
 
@@ -696,7 +826,7 @@ function, quyền RLS/grants, custody hoặc inventory primitive. P04.1 demo kh�
 được đưa vào repository runtime. Accept/start live vẫn chưa có; contract và
 blockers tại [handoff P04.2](demos/p042_outbound_actions_fixture.md).
 
-## P05.1 — Completion chưa có migration/API live
+## P05.1 — Completion chưa có migration/API live (snapshot trước 26/10/2026)
 
 Baseline delivery_attempts unique task và (order_id,attempt_number), COD CHECKs
 và notification unique(recipient_id,event_id) chỉ bảo vệ hình dạng/trùng row,
@@ -755,7 +885,7 @@ giảm nghĩa vụ theo refund; mọi side effect rollback khi có lỗi.
 
 Migration/kiểm tra và trạng thái cloud: [P06.3](demos/p063_cod_receipt_api.md).
 
-## P07.1 — Outbound failure dependency boundary (26/10/2026)
+## P07.1 — Outbound failure dependency boundary (snapshot trước production, 26/10/2026)
 
 Audit chín migration: chưa có public `fail_delivery_task`, accept/start hoặc
 `complete_outbound_delivery`. P04.1/P05.1 chỉ fixture cô lập; không dùng dữ
@@ -778,7 +908,7 @@ custody/dispatch P04.1 và D3 lần hai; success/failure cần cùng khóa và l
 [Manifest, contract mục tiêu, kiểm tra và blockers](demos/p071_outbound_failure_boundary.md).
 P07.1 **chưa hoàn tất / live BLOCKED**; dependency fixture không trả success
 và không thay thế acceptance tests của RPC thật.
-## P07.2 — Manager retry/reassignment/custody: live BLOCKED (26/10/2026)
+## P07.2 — Manager retry/reassignment/custody: live BLOCKED (snapshot trước production, 26/10/2026)
 
 Đã audit chín migration và contracts: `assign_delivery_task` P03.3 có thật,
 chỉ outbound đầu tiên và đổi trước nhận hàng, chặn count>0/lịch sử attempt/
@@ -800,7 +930,7 @@ D5 xử lý task 2 đã tạo nhưng chưa start; ledger/version/custody và D7 
 
 [Manifest, contract mục tiêu và kiểm tra P07.2](demos/p072_outbound_retry_boundary.md).
 Không migration/RPC public/RLS/UI/router mới; P07.2 **chưa hoàn tất**.
-## P07.4 — Store handover/incident dependency boundary (26/10/2026)
+## P07.4 — Store handover/incident dependency boundary (snapshot trước production, 26/10/2026)
 
 Chín migration hiện có chưa có report_store_handover/report_delivery_incident.
 Actual enum incident là damaged/lost/other; lưu trong business_events, không
@@ -957,9 +1087,9 @@ kiểm tra đạt, ghi hoàn tiền. Sau mỗi bước khách đọc lại và t
 khách B luôn nhận `RETURN_NOT_FOUND`; khách không đọc trực tiếp được
 `delivery_tasks`/`profiles`. Kết quả 01/11/2026: PASS (rollback).
 
-## Đối chiếu lịch sử migration với Production — 01/11/2026
+## Đối chiếu lịch sử migration với Production — 01/11/2026 (snapshot lịch sử)
 
-Project `bqoyfytmrtvjwrpshuhh` có 24 bản ghi trong
+Project `bqoyfytmrtvjwrpshuhh` khi đó có 24 bản ghi trong
 `supabase_migrations.schema_migrations`, lấy bằng truy vấn chỉ đọc trong SQL
 Editor. So với thư mục `supabase/migrations` có ba chỗ lệch. Phải xử lý xong
 cả ba thì `supabase db push` mới chỉ còn MH13 và MH14.
@@ -971,10 +1101,10 @@ cả ba thì `supabase db push` mới chỉ còn MH13 và MH14.
 | dung_an_management_integration | `20261029041230` | Không ghi lịch sử; đối tượng đã có (chạy qua SQL Editor theo `supabase/manual`) | Ghi nhận bằng `supabase migration repair --status applied 20261029041230` khi nhóm đồng ý. Chưa chạy. |
 | fix_catalog_checkout_lock_order | `20261029094727` | Không ghi lịch sử; bản sửa chưa có trên Production (`private.save_managed_product` chưa có `locked_variants`) | Dung An xác nhận và xử lý trước (cách B). Không đánh dấu "applied" khi chưa áp dụng thật. |
 
-Khi ba mục trên xong, `supabase db push --dry-run` phải chỉ liệt kê, theo thứ
-tự: `20261101080125_submit_return_request.sql` (MH13), rồi
-`20261101090627_get_my_return_request.sql` (MH14). Nếu dry-run hiện thêm bất
-kỳ migration nào khác thì dừng lại, không push.
+Kế hoạch dry-run dưới đây chỉ đúng cho snapshot 01/11; không dùng nó làm lệnh
+đồng bộ hiện tại sau khi repo đã có migration 23–39. Nếu cần triển khai mới,
+operator phải lấy migration history hiện hành trước và dừng khi có drift; không
+push hàng loạt dựa trên bảng cũ này.
 
 ## MH15 — quản lý yêu cầu trả hàng, giai đoạn 1 (kiểm thử cục bộ 02/11/2026)
 
@@ -996,3 +1126,87 @@ chỉ writer), helper chỉ trả boolean/JSON có kiểm tra role
 `sports_store_return_management_writer` (cập nhật tồn kho chỉ qua movement
 `return_received` không âm, gói hoàn tiền, phản hồi của khách). Không đổi bảng
 hay enum hiện có. Chưa áp dụng lên cloud.
+
+## Seed quần áo/giày STRIDE — 08/11/2026
+
+Đã thêm bằng `supabase/seeds/stride_apparel_shoes_20261108.sql`: 8 sản phẩm
+quần áo (80 biến thể), 5 giày (45 biến thể), 112 ledger khởi tạo tồn. Tổng
+cloud xác nhận 23 sản phẩm/135 biến thể cùng 10 dụng cụ có sẵn. SKU/mô tả ghi
+rõ demo; giá/tồn minh họa. Chạy lại không đặt lại tồn hoặc giá. Không thay
+schema/RLS. Xem [kiểm chứng và nguồn ảnh](van_duc_catalog_redesign_20261108.md).
+
+### Bổ sung màu/cỡ MH05 — 08/11/2026
+
+Đã áp dụng `supabase/seeds/stride_color_expansion_20261108.sql` lên project
+`bqoyfytmrtvjwrpshuhh`: thêm 215 biến thể và 215 movement `adjustment`.
+13 sản phẩm demo hiện có 4 màu/mẫu: 5 giày × 4 màu × 9 cỡ (36–44) = 180;
+8 quần áo × 4 màu × 5 cỡ (S, M, L, XL, XXL) = 160. Tổng catalog gồm
+10 dụng cụ có sẵn là 23 sản phẩm/350 biến thể.
+
+Không đổi schema, RPC, RLS, đơn hàng hoặc sản phẩm dụng cụ. Seed dùng cùng
+transaction advisory lock với seed gốc; xác minh SKU thuộc đúng sản phẩm,
+màu và cỡ; chỉ bổ sung `color_hex` nếu thiếu. Giá/on_hand/reserved/damaged
+và trạng thái của 125 biến thể gốc được đối chiếu hash trước/sau, không đổi.
+Chạy lại không đặt lại tồn hoặc nhân đôi movement. JSON nguồn nằm cạnh SQL.
+
+Đây là dữ liệu demo, không xác nhận bảng màu thực tế của các hãng. Không
+gán ảnh khác màu làm ảnh thật. `attributes.image_path/image_paths` tùy chọn
+được MH05 hỗ trợ qua signed-URL provider chung; khi thiếu, UI ghi ảnh mẫu.
+
+Fixture `supabase/tests/run_stride_color_fixture.mjs` đã PASS PostgreSQL 17
+cục bộ: đủ ma trận màu–cỡ, chạy lặp, giữ giá/reservation/metadata, collision
+rollback cả insert, khách đọc được nhưng không sửa tồn, shipper không đọc
+catalog. Các kiểm thử quyền này chạy trên fixture, không giả danh tài khoản
+thật trên cloud.
+
+## Đồng bộ trừ giỏ tại checkout — 09/11/2026
+
+Chẩn đoán thực tế phát hiện cloud thiếu `private.consume_purchased_cart_items`
+và trigger trên `private.checkout_placements`. Đã áp dụng nguyên SQL file
+local `20261103152927_consume_purchased_cart_items.sql` qua MCP, được cloud
+đăng ký version **20261108153641** với tên `consume_purchased_cart_items`.
+Hàm `SECURITY INVOKER`, `search_path=''`, không cấp execute cho public/
+anon/authenticated; chạy trong transaction tạo đơn để chỉ trừ đúng hàng đã
+mua của khách. Không đổi giá, tồn hoặc các đơn cũ.
+
+`checkout_cloud_smoke.sql` mở rộng đã PASS trên cloud và rollback toàn bộ:
+trừ giỏ một phần, xóa dòng mua hết, giữ món bỏ chọn/giỏ khách khác, replay
+không trừ lại, giữ tồn/ledger/thông báo, từ chối ngoài Hà Nội và đọc chéo.
+Sau thử vẫn 8 đơn thật và không còn user/product/cart fixture.
+
+Không sửa trực tiếp migration history sau khi bộ duyệt tự động từ chối đổi
+version. Hai timestamp local/cloud cần được đối chiếu trước lần dùng CLI
+đồng bộ tiếp theo; không áp lại cùng `CREATE FUNCTION/TRIGGER` trùng. Chi
+tiết và giới hạn scheduler tại [biên bản MH16](van_duc_checkout_completion_20261109.md).
+
+## Ảnh biến thể demo — 09/11/2026
+
+Đã chạy `supabase/seeds/stride_color_images_20261109.sql` trên project
+`bqoyfytmrtvjwrpshuhh`: 340 biến thể của 13 mẫu có đủ 52 đường dẫn màu
+(40 AI, 12 tham khảo). Chỉ cập nhật `attributes.image_path/image_paths`,
+`image_source/image_color` và đúng câu mô tả ảnh demo cũ; giữ nguyên thuộc
+tính khác, giá/tồn/trạng thái, SKU, đơn hàng, schema và quyền. Hash giá/tồn
+trước/sau đều `1dc713f548b492ef960db45b8dd72626`; không có màu ánh xạ sai.
+URI trong seed hiện là object path
+`demo/stride-colors-20261109/...` của bucket private `product-images`; cột
+`local_source` chỉ là nguồn đầu vào để upload và không được ghi vào
+`attributes`. Client ký URL qua Storage provider chung. Hỗ trợ
+`asset:assets/images/...` trong Dart vẫn tồn tại cho dữ liệu legacy/preview,
+nhưng không phải giá trị của seed Storage hiện hành. Chi tiết seed, tính lặp và
+kiểm chứng tại [bản cập nhật](van_duc_color_images_20261109.md).
+
+## Projection ảnh snapshot đơn — 09/11/2026
+
+Migration local `20261109155043_expose_order_snapshot_product_images.sql`
+đã áp dụng nguyên nội dung qua MCP lên project `bqoyfytmrtvjwrpshuhh`;
+cloud ghi version `20261109160242`, tên `expose_order_snapshot_product_images`.
+Không sửa trực tiếp migration history để đổi timestamp.
+
+Hai helper `private.orders_read_items(uuid)` và
+`private.checkout_items_json(uuid)` bổ sung `product_image_url` vào JSON từ
+cột đã tồn tại trên `order_items`. Giữ nguyên owner, ACL, SECURITY INVOKER,
+search_path và thứ tự riêng; checkout helper vẫn chỉ postgres được execute.
+Không thay schema bảng/RLS, dữ liệu snapshot, giá/tồn hoặc join catalog.
+Fixture PostgreSQL và smoke read-only cloud xác nhận ảnh có sẵn được trả
+đúng chủ đơn, khách khác bị từ chối, hàng đơn không thay đổi.
+Xem [biên bản kiểm chứng](order_snapshot_images_20261109.md).

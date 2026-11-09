@@ -110,6 +110,9 @@ class OrderItemDto {
           productName: requiredString(json, 'product_name', nonBlank: true),
           variantLabel: requiredString(json, 'variant_label', nonBlank: true),
           attributes: requiredObject(json, 'attributes'),
+          productImageUrl: json['product_image_url'] is String
+              ? json['product_image_url'] as String
+              : null,
           unitPriceVnd: requiredInt(json, 'unit_price_vnd', min: 0),
           quantity: requiredInt(json, 'quantity', min: 1),
           lineTotalVnd: requiredInt(json, 'line_total_vnd', min: 0),

@@ -1,4 +1,4 @@
-# Cấu hình Supabase cho base project
+# Cấu hình Supabase cho ứng dụng
 
 ## Project dùng chung
 
@@ -9,17 +9,17 @@
 
 ## Khởi tạo và dependency injection
 
-`lib/main.dart` dùng `loadSupabaseConfig`: nếu có biến biên dịch Supabase thì đọc toàn bộ cấu hình từ `--dart-define-from-file`; nếu không có, đọc asset `config/supabase.json`. Cấu hình riêng thiếu/sai không được trộn với cấu hình mặc định. Sau khi kiểm tra URL/key, ứng dụng gọi `Supabase.initialize` trước khi chạy `ProviderScope`. Chỉ file cấu hình public dùng chung được đóng gói; không thêm file local hoặc secret key vào assets. Session được quản lý bởi Supabase Flutter SDK. Khởi tạo SDK không tự chứng minh kết nối mạng hay quyền truy cập vào bảng.
+`lib/main.dart` dùng `loadSupabaseConfig`: nếu có biến biên dịch Supabase thì đọc toàn bộ cấu hình từ `--dart-define-from-file`; nếu không có, đọc asset `config/supabase.json`. Cấu hình riêng thiếu/sai không được trộn với cấu hình mặc định. Sau khi kiểm tra URL/key, ứng dụng gọi `Supabase.initialize` trước khi chạy `ProviderScope`. Chỉ file cấu hình public dùng chung được đóng gói; không thêm file local hoặc secret key vào assets. Session được quản lý bởi Supabase Flutter SDK với `startupAuthClientOptions` (`persistSession: false`): giữ phiên trong bộ nhớ, không khôi phục phiên khi khởi động process mới. Khởi tạo SDK không tự chứng minh kết nối mạng hay quyền truy cập vào bảng.
 
 `lib/core/supabase/supabase_providers.dart` cung cấp `supabaseClientProvider` trỏ tới `Supabase.instance.client`. Repository thuộc tầng Data nhận client qua constructor; provider của repository lấy client bằng `ref.watch(supabaseClientProvider)`. ViewModel nhận repository qua Riverpod. Widget không gọi Supabase trực tiếp.
 
-Chỉ khởi tạo một client cho ứng dụng. Router dùng chung nằm ở `lib/app/router/app_router.dart`; theme nằm ở `lib/app/theme/app_theme.dart`. Route `/` hiện là shell tạm, chưa phải màn hình nghiệp vụ. Khi triển khai Auth, phải thống nhất nguồn role do backend quản lý và invalidation cache khi đổi tài khoản.
+Chỉ khởi tạo một client cho ứng dụng. Router dùng chung nằm ở `lib/app/router/app_router.dart`; theme nằm ở `lib/app/theme/app_theme.dart`. Route `/` dùng `DungAnRoutePage` và chuyển về trang chính theo role khi phiên/profile hợp lệ. Role lấy từ profile server. `lib/app/integration/production_feature_composition.dart` gắn trusted session và repository Supabase cho Orders/Notifications; `FeatureSessionLifecycle` theo dõi phiên, tra cứu/đối chiếu kết quả pending command (không tự gửi lại lệnh) và yêu cầu đọc lại profile khi ứng dụng resumed. Bản local `lib/main_dev.dart` có composition riêng, không khởi tạo SDK.
 
 Android manifest chính đã khai báo `android.permission.INTERNET` để truy cập backend khi build release.
 
 ## Phạm vi hiện tại
 
-Base đã có cấu hình và SDK để kết nối project. Schema nền tảng, migration, RLS và Storage được mô tả tại [database.md](database.md); kết quả áp dụng cloud và kiểm tra database được ghi trong tài liệu đó. Chưa có màn hình đăng nhập, tài khoản manager/shipper hoặc RPC giao dịch nghiệp vụ.
+Ứng dụng đã có Auth, cấu hình client và các repository Supabase. Schema, migration, RLS và Storage được mô tả tại [database.md](database.md); hợp đồng RPC xem [api_contracts.md](api_contracts.md), giới hạn tích hợp UI xem [screen_mapping.md](screen_mapping.md). Tài khoản manager/shipper được cấp qua quản trị đáng tin cậy. Mã nguồn và kết quả cloud lịch sử không xác nhận môi trường hiện tại đã có mọi migration; lần cập nhật tài liệu 09/11/2026 không kết nối hoặc thay đổi cloud.
 
 Repository dùng tên bảng/cột theo migration và [api_contracts.md](api_contracts.md). Các thao tác tồn kho, đặt/hủy đơn, giao nhận, COD và trả/hoàn hàng cần RPC phía server; quyền client hiện chặn ghi trực tiếp các bảng này. Vai trò trong app lấy từ `profiles.role`, chỉ được quản trị qua công cụ server đáng tin cậy.
 
@@ -45,6 +45,53 @@ mở callback trống hoặc truyền `success=true` không chứng minh đã x�
 dùng đã xác nhận có thể quay về đăng nhập; người chưa xác nhận cần email/link
 còn hiệu lực. Không vô hiệu hóa yêu cầu xác nhận email. Chưa thay đổi cấu hình
 dashboard hoặc gửi email thật trong bản sửa này.
+
+### Google OAuth trên Flutter Web và Android
+
+Google OAuth dùng Web OAuth client cho luồng trình duyệt. Trong Google Auth
+Platform, đặt **Authorized JavaScript origins** là `http://localhost:57604`
+cho Web local và domain Web production nếu có. Đặt **Authorized redirect URI**
+là `https://bqoyfytmrtvjwrpshuhh.supabase.co/auth/v1/callback`; đây là callback
+Google → Supabase, không phải deep link của app. Client ID và Client Secret chỉ
+được lưu trong Authentication → Providers → Google của Supabase.
+
+Trong Supabase Authentication → URL Configuration, dùng `http://localhost:57604`
+cho Site URL khi phát triển Web (đổi sang domain production khi phát hành), và
+thêm các Redirect URLs:
+
+```text
+http://localhost:57604/**
+com.example.sportsstore://login-callback
+https://<domain-production-của-bạn>/**
+```
+
+Flutter gọi `signInWithOAuth(OAuthProvider.google)`, dùng `Uri.base.origin` cho
+Web và `com.example.sportsstore://login-callback` cho Android. Scheme này không
+dùng dấu gạch dưới vì URI scheme không cho phép ký tự đó. Android manifest
+đăng ký scheme/host này để mở lại app. OAuth qua trình duyệt không cần Android
+OAuth client riêng; Android client ID và SHA-1 chỉ cần nếu thay bằng Google
+Sign-In native lấy ID token. Application ID hiện tại còn là
+`com.example.sports_store` (giá trị mẫu), cần đổi sang ID chính thức trước khi
+phát hành; scheme deep link phải nhất quán giữa Supabase, code và manifest.
+
+Activity đặt `flutter_deeplinking_enabled=false` để `app_links` của Supabase
+nhận callback, tránh Flutter Router xử lý cùng URI lần nữa. Theo hướng dẫn
+[Flutter app links](https://docs.flutter.dev/cookbook/navigation/set-up-app-links)
+và [Supabase OAuth](https://supabase.com/docs/reference/dart/auth-signinwithoauth).
+Khi callback Google có lỗi, app mở `/login` với thông báo cố định, không hiển
+thị nội dung `error_description` từ provider hoặc coi đó là xác nhận email.
+Callback thành công vẫn do SDK trao đổi PKCE và session/profile server quyết
+định điều hướng. Để giữ đúng origin local đã allowlist, có thể chạy
+`flutter run -d chrome --web-port=57604`.
+
+Kiểm tra bằng HTTP/SDK/widget fixture không thay thế nghiệm thu Google consent
+và deep link trên thiết bị thật. Chưa xác minh cấu hình provider/redirect URLs
+trên Supabase cloud trong lượt rà soát này.
+
+Rà soát 09/11/2026: 145 test Auth/Catalog/Chat/router và shell đăng xuất đã
+PASS bằng fixture. Bao phủ Google PKCE không bị nhận nhầm xác nhận email,
+callback lỗi quay về login, không lộ diagnostics, xác nhận email hết hạn,
+điều hướng theo role, đổi tài khoản/đăng xuất, sản phẩm và lịch sử chat.
 
 ## Kiểm tra kết nối
 

@@ -1,5 +1,7 @@
 # Cross Module Integration Contracts — revision 1.2
 
+> **Tài liệu thiết kế lịch sử.** Các trạng thái proposed/missing/blocked và chữ ký API bên dưới thuộc snapshot được ghi trong tài liệu, không mô tả toàn bộ codebase hiện tại. Đối chiếu ngày 09/11/2026 xem [mục lục hiện hành](README.md), [API](api_contracts.md), [database](database.md), [trạng thái](business_states.md) và [màn hình](screen_mapping.md). Giữ nội dung bên dưới để truy vết quyết định thiết kế.
+
 Orders/Notifications consumer contract do Bảo OWNER DECIDED. Tất cả interfaces đòi hỏi owner khác thực hiện là **SHARED CONTRACT — NOT ACCEPTED / NOT IMPLEMENTED**, trừ facts SQL chỉ rõ VERIFIED. Không sửa API/schema/implementation của họ trong lượt này. Normative owned DTO/error/receipt ở [Data/API](technical_specification_mh07_mh08_mh09_mh17_data_api.md). Business baseline BR-COM-09–36/CR-07/08/11. Không dùng View/ViewModel khác làm API, không client ghép SQL transactions.
 
 ## 1. Common boundary conventions

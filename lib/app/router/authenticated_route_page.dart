@@ -15,9 +15,15 @@ import '../../features/orders/presentation/view_models/order_providers.dart';
 class AuthenticatedRoutePage extends ConsumerWidget {
   const AuthenticatedRoutePage({
     super.key,
+    required this.path,
+    this.initialError,
     this.inbox = false,
     this.detailBuilder,
   });
+
+  /// Route identity comes from the canonical GoRoute builder.
+  final String path;
+  final String? initialError;
   final bool inbox;
   final WidgetBuilder? detailBuilder;
 
@@ -35,6 +41,7 @@ class AuthenticatedRoutePage extends ConsumerWidget {
       return Scaffold(
         body: SafeArea(
           child: LoginScreen(
+            initialError: initialError,
             onRegister: () => context.go('/register'),
             onAuthenticated: () => context.go('/'),
           ),
@@ -52,19 +59,15 @@ class AuthenticatedRoutePage extends ConsumerWidget {
     }
     final profile = profileState.requireValue!;
     if (profile.id != session.requireValue.userId) return const _AccessStatus();
-    final path = GoRouter.of(context).state.uri.path;
     if (path == '/' || path == '/login') {
       return _RoleEntry(
         key: ValueKey(profile.id + profile.role.name),
         userId: profile.id,
         role: profile.role,
+        path: path,
       );
     }
     if (profile.role == AppRole.shipper) {
-      final path = GoRouter.of(context).state.uri.path;
-      if (path == '/' || path == '/login') {
-        return _RoleEntry(key: ValueKey(profile.id), userId: profile.id);
-      }
       return _AccessStatus(
         message: 'Tài khoản giao hàng',
         retryLabel: 'Mở nhiệm vụ giao hàng',
@@ -122,10 +125,12 @@ class _RoleEntry extends ConsumerStatefulWidget {
   const _RoleEntry({
     super.key,
     required this.userId,
-    this.role = AppRole.shipper,
+    required this.role,
+    required this.path,
   });
   final String userId;
   final AppRole role;
+  final String path;
 
   @override
   ConsumerState<_RoleEntry> createState() => _RoleEntryState();
@@ -139,13 +144,12 @@ class _RoleEntryState extends ConsumerState<_RoleEntry> {
       if (!mounted) return;
       final session = ref.read(authSessionProvider);
       final profile = ref.read(currentProfileProvider);
-      final path = GoRouter.of(context).state.uri.path;
       if (!session.isLoading &&
           !profile.isLoading &&
           session.asData?.value.userId == widget.userId &&
           profile.asData?.value?.id == widget.userId &&
           profile.asData?.value?.role == widget.role &&
-          (path == '/' || path == '/login')) {
+          (widget.path == '/' || widget.path == '/login')) {
         context.go(homeRouteForRole(widget.role));
       }
     });

@@ -29,8 +29,9 @@ export async function testOutboundRetryProductionConcurrency(Client, options, ad
     `select public.${name}(${params.map(() => '$1').length ? params.map((_, i) => `$${i + 1}::uuid`).join(',') : ''}) as result`,
     params,
   ).then(r => r.rows[0].result);
-  const assign = (client, order, request, shipper = shipperA) => call(
-    client, 'assign_delivery_task', [order, shipper, request, null, null]);
+  const assign = (client, order, request, shipper = shipperA) => client.query(
+    'select public.prepare_and_assign_delivery($1::uuid,$2::uuid,$3::uuid,true) as result',
+    [order, shipper, request]).then(r => r.rows[0].result);
   const accept = (client, task, request) => call(client, 'accept_delivery_task', [task, request]);
   const start = (client, task, request) => call(client, 'start_delivery_task', [task, request]);
   const fail = (client, task, request) => client.query(
@@ -233,7 +234,7 @@ export async function testOutboundRetryProductionConcurrency(Client, options, ad
                exists(select 1 from information_schema.columns x where x.table_schema='private' and x.table_name=c.relname and x.column_name='task_id') has_task
         from pg_class c join pg_namespace n on n.oid=c.relnamespace
         where n.nspname='private' and c.relkind='r'
-          and (c.relname like '%retry%' or c.relname like '%decision%' or c.relname in ('delivery_assignment_requests','delivery_assignment_audits','outbound_command_requests','outbound_dispatches','outbound_custody_acceptances','outbound_failure_requests','outbound_failure_results'))
+          and (c.relname like '%retry%' or c.relname like '%decision%' or c.relname in ('delivery_preparation_proofs','delivery_assignment_requests','delivery_assignment_audits','outbound_command_requests','outbound_dispatches','outbound_custody_acceptances','outbound_failure_requests','outbound_failure_results'))
         order by case when c.relname='outbound_dispatches' then 2 else 1 end
       `)).rows;
       for (const row of privateRows) {

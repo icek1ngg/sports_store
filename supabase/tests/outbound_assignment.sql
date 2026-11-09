@@ -122,6 +122,7 @@ insert into public.orders (
 select x, '03310000-0000-0000-0000-000000000001'::uuid, x,
   case when x = '03310000-0000-0000-0000-000000000013'::uuid
     then 'delivered'::public.order_status
+    when x in ('03310000-0000-0000-0000-000000000024'::uuid,'03310000-0000-0000-0000-000000000025'::uuid) then 'awaiting_pickup'::public.order_status
     else 'preparing'::public.order_status end,
   'Assignment Recipient', '0900000000', 'Ha Noi assignment fixture',
   21.0285, 105.8542, 100000
@@ -144,13 +145,6 @@ from unnest(array[
   '03310000-0000-0000-0000-000000000025'::uuid,
   '03310000-0000-0000-0000-000000000026'::uuid
 ]::uuid[]) as ids(x);
-
-update public.orders
-set status = 'awaiting_pickup'::public.order_status
-where id = '03310000-0000-0000-0000-000000000024'::uuid;
-update public.orders
-set status = 'awaiting_pickup'::public.order_status
-where id = '03310000-0000-0000-0000-000000000025'::uuid;
 
 update public.orders
 set delivery_attempt_count = 1
@@ -382,11 +376,10 @@ do $$
 declare
   l_result jsonb;
 begin
-  l_result := public.assign_delivery_task(
+  l_result := public.prepare_and_assign_delivery(
     '03310000-0000-0000-0000-000000000010'::uuid,
     '03310000-0000-0000-0000-000000000004'::uuid,
-    '03310000-0000-0000-0000-000000000210'::uuid
-  );
+    '03310000-0000-0000-0000-000000000210'::uuid,true);
   perform pg_temp.assert_assignment('first assignment returns server total',
     l_result ->> 'amount_to_collect_vnd' = '130000'
     and l_result ->> 'expected_amount_vnd' = '130000'
@@ -438,16 +431,14 @@ declare
   l_first jsonb;
   l_replay jsonb;
 begin
-  l_first := public.assign_delivery_task(
+  l_first := public.prepare_and_assign_delivery(
     '03310000-0000-0000-0000-000000000011'::uuid,
     '03310000-0000-0000-0000-000000000004'::uuid,
-    '03310000-0000-0000-0000-000000000220'::uuid
-  );
-  l_replay := public.assign_delivery_task(
+    '03310000-0000-0000-0000-000000000220'::uuid,true);
+  l_replay := public.prepare_and_assign_delivery(
     '03310000-0000-0000-0000-000000000011'::uuid,
     '03310000-0000-0000-0000-000000000004'::uuid,
-    '03310000-0000-0000-0000-000000000220'::uuid
-  );
+    '03310000-0000-0000-0000-000000000220'::uuid,true);
   perform pg_temp.assert_assignment('idempotent replay is byte-equivalent JSON',
     l_first = l_replay);
 end;
@@ -536,13 +527,10 @@ select pg_temp.assert_assignment_error(
 do $$
 declare l_result jsonb;
 begin
-  l_result := public.assign_delivery_task(
+  l_result := public.prepare_and_assign_delivery(
     '03310000-0000-0000-0000-000000000018'::uuid,
     '03310000-0000-0000-0000-000000000006'::uuid,
-    '03310000-0000-0000-0000-000000000240'::uuid,
-    '03310000-0000-0000-0000-000000000101'::uuid,
-    null
-  );
+    '03310000-0000-0000-0000-000000000240'::uuid,true);
   perform pg_temp.assert_assignment('pending task assignment succeeds',
     l_result ->> 'task_id' = '03310000-0000-0000-0000-000000000101'
     and (select status = 'assigned' and assigned_shipper_id =
@@ -553,11 +541,10 @@ $$;
 do $$
 declare l_result jsonb;
 begin
-  l_result := public.assign_delivery_task(
+  l_result := public.prepare_and_assign_delivery(
     '03310000-0000-0000-0000-000000000014'::uuid,
     '03310000-0000-0000-0000-000000000004'::uuid,
-    '03310000-0000-0000-0000-000000000241'::uuid
-  );
+    '03310000-0000-0000-0000-000000000241'::uuid,true);
   perform pg_temp.assert_assignment('clean COD mismatch reconciles',
     l_result ->> 'total_cod_vnd' = '130000'
     and (select expected_amount_vnd = 130000 and shipper_id =

@@ -24,13 +24,13 @@ final class FileSelectorEvidencePicker implements ManagerEvidencePicker {
         'Chỉ nhận ảnh JPG, PNG, WEBP hoặc tệp PDF.',
       );
     }
-    final size = await file.length();
+    final size = await file.length().timeout(const Duration(seconds: 30));
     if (size <= 0 || size > ManagerEvidenceFile.maxBytes) {
       throw const ManagerEvidencePickFailure('Tệp phải nhỏ hơn 10 MB.');
     }
     return ManagerEvidenceFile(
       name: name,
-      bytes: await file.readAsBytes(),
+      bytes: await file.readAsBytes().timeout(const Duration(seconds: 60)),
       mimeType: switch (ext) {
         'pdf' => 'application/pdf',
         'png' => 'image/png',

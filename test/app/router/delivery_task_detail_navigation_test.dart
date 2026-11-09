@@ -15,6 +15,8 @@ import 'package:sports_store/app/sports_store_app.dart';
 import 'package:sports_store/core/supabase/supabase_providers.dart';
 import 'package:sports_store/core/state/foundation_providers.dart';
 
+import 'package:sports_store/features/deliveries/data/repositories/operational_providers.dart';
+
 import '../../features/deliveries/fixtures/delivery_dtos.dart';
 import '../../features/support/operational_supabase_fixture.dart';
 
@@ -200,6 +202,22 @@ void main() {
         expect(find.byKey(const ValueKey('mh18-outlet')), findsNothing);
       } else {
         expect(find.text('Bản đồ'), findsOneWidget);
+        // Reproduce a new authorization epoch while the pushed map is visible.
+        container.read(operationalReadAccessProvider).refreshSession();
+        await tester.pump();
+        await _until(
+          tester,
+          () =>
+              find.byKey(const ValueKey('mh18-outlet')).evaluate().isNotEmpty &&
+              find
+                  .byKey(const ValueKey('navigation-checking-access'))
+                  .evaluate()
+                  .isEmpty,
+        );
+        expect(
+          _currentRouter(tester).state.uri.path,
+          '/shipper/tasks/$taskId/map',
+        );
         expect(find.byType(BackButton), findsOneWidget);
         // A cancelled task is still a permitted historical task, so the
         // route guard alone cannot clear an old current-detail projection.

@@ -11,11 +11,13 @@ class LoginScreen extends ConsumerStatefulWidget {
     this.onPreviewProducts,
     this.onPreviewInbox,
     this.onAuthenticated,
+    this.initialError,
   });
   final VoidCallback onRegister;
   final VoidCallback? onPreviewProducts;
   final VoidCallback? onPreviewInbox;
   final VoidCallback? onAuthenticated;
+  final String? initialError;
   @override
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
@@ -25,13 +27,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
   bool _visible = false;
+  bool _submitted = false;
 
   Future<void> _login() async {
     if (!_form.currentState!.validate()) return;
+    setState(() => _submitted = true);
     final accepted = await ref
         .read(authViewModelProvider.notifier)
         .login(_email.text, _password.text);
     if (mounted && accepted) widget.onAuthenticated?.call();
+  }
+
+  Future<void> _loginWithGoogle() async {
+    setState(() => _submitted = true);
+    await ref.read(authViewModelProvider.notifier).loginWithGoogle();
   }
 
   @override
@@ -243,7 +252,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        if (ref.watch(authViewModelProvider).error case final message?)
+        if ((ref.watch(authViewModelProvider).error ??
+                (_submitted ? null : widget.initialError))
+            case final message?)
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: Text(message, style: const TextStyle(color: Colors.red)),
@@ -252,6 +263,43 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           label: 'Đăng nhập',
           busy: ref.watch(authViewModelProvider).busy,
           onPressed: ref.watch(authViewModelProvider).busy ? null : _login,
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            const Expanded(child: Divider()),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Text(
+                'hoặc đăng nhập với',
+                style: TextStyle(fontSize: 10, color: muted),
+              ),
+            ),
+            const Expanded(child: Divider()),
+          ],
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: ref.watch(authViewModelProvider).busy
+                ? null
+                : _loginWithGoogle,
+            icon: const Icon(Icons.g_mobiledata_rounded, size: 22),
+            label: const Text('Tiếp tục với Google'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: ink,
+              side: const BorderSide(color: Color(0xFFD9DEE3)),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              textStyle: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
         ),
         const SizedBox(height: 10),
         Center(

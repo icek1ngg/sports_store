@@ -185,9 +185,10 @@ void main() {
     expect(fake.setQuantityCalls, hasLength(1));
     expect(fake.setQuantityCalls.single.quantity, 1);
 
-    await tester.tap(
-      find.byKey(const ValueKey('cart-remove-$_missingVariantId')),
-    );
+    final remove = find.byKey(const ValueKey('cart-remove-$_missingVariantId'));
+    await tester.ensureVisible(remove);
+    await tester.pumpAndSettle();
+    await tester.tap(remove);
     await tester.pump();
     expect(fake.removeCalls, [_missingVariantId]);
   });
@@ -335,6 +336,11 @@ void main() {
     await _settle(tester);
 
     expect(find.byKey(const ValueKey('cart-page')), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('cart-row-$_variantId')),
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Giày chạy bộ đường dài'), findsOneWidget);
     expect(find.byKey(const ValueKey('cart-subtotal')), findsOneWidget);
     expect(tester.takeException(), isNull);

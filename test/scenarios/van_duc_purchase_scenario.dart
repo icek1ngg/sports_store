@@ -6,13 +6,35 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sports_store/app/router/app_router.dart';
+import 'package:sports_store/app/shells/customer_navigation_bar.dart';
 import 'package:sports_store/app/sports_store_app.dart';
 import 'package:sports_store/core/supabase/supabase_providers.dart';
+import 'package:sports_store/features/checkout/presentation/view_models/checkout_address_providers.dart';
 import 'package:sports_store/features/checkout/presentation/view_models/checkout_providers.dart';
 
 import '../features/catalog/catalog_repository_test.dart'
     show categoryId, productId, productRow, variantId, variantRow;
 import '../features/support/operational_supabase_fixture.dart';
+
+const _addressSuggestion = AddressSuggestion(
+  id: 'purchase-trang-tien',
+  label: 'phố Tràng Tiền, Hoàn Kiếm, Hà Nội',
+  latitude: 21.0285,
+  longitude: 105.8542,
+);
+const _addressDetail = 'Số 1';
+const _fullAddress = 'Số 1, phố Tràng Tiền, Hoàn Kiếm, Hà Nội';
+
+/// The address provider is isolated too: this scenario never calls geocoding.
+class _PurchaseAddresses implements AddressSearchRepository {
+  final queries = <String>[];
+
+  @override
+  Future<List<AddressSuggestion>> search(String query) async {
+    queries.add(query);
+    return const [_addressSuggestion];
+  }
+}
 
 // Runs the actual router, pages, ViewModels and Supabase repositories against
 // an explicitly isolated HTTP fixture. This does not claim cloud acceptance.
@@ -20,6 +42,7 @@ void runVanDucPurchaseScenario() {
   testWidgets('MH04 → MH05 → MH06 → MH16 tạo đúng một đơn COD', (tester) async {
     var quantity = 0;
     var placements = 0;
+    final addresses = _PurchaseAddresses();
     Map<String, Object?>? receipt;
     final client = (await tester.runAsync(
       () => fixtureClient((request) async {
@@ -50,6 +73,7 @@ void runVanDucPurchaseScenario() {
           return jsonResponse(request, [productRow()]);
         }
         if (path.endsWith('/product_variants')) {
+          expect(request.method, 'GET');
           return jsonResponse(
             request,
             request.url.queryParameters['id']?.startsWith('gt.') == true
@@ -93,6 +117,8 @@ void runVanDucPurchaseScenario() {
           expect(payload.containsKey('p_customer_id'), isFalse);
           expect(payload.containsKey('p_total_vnd'), isFalse);
           expect(payload['p_latitude'], closeTo(21.0285, .000001));
+          expect(payload['p_longitude'], closeTo(105.8542, .000001));
+          expect(payload['p_address_detail'], _fullAddress);
           const orderId = '60000000-0000-4000-8000-000000000001';
           const stamp = '2026-10-26T10:00:00Z';
           receipt = {
@@ -169,6 +195,7 @@ void runVanDucPurchaseScenario() {
             InMemoryPendingPlacementStore(),
           ),
           checkoutMapTilesEnabledProvider.overrideWithValue(false),
+          addressSearchRepositoryProvider.overrideWithValue(addresses),
         ],
         child: const SportsStoreApp(),
       ),
@@ -207,23 +234,48 @@ void runVanDucPurchaseScenario() {
     );
     await _enter(tester, 'checkout-name', '[THỬ NGHIỆM] Văn Đức');
     await _enter(tester, 'checkout-phone', '0901234567');
-    await _enter(
-      tester,
-      'checkout-address',
-      'Số 1 phố Tràng Tiền, Hoàn Kiếm, Hà Nội',
-    );
+    await _enter(tester, 'checkout-address-search', 'Tràng Tiền');
     FocusManager.instance.primaryFocus?.unfocus();
     await tester.pump();
-    await _tap(tester, find.byKey(const ValueKey('checkout-location')));
+    await _tap(
+      tester,
+      find.byKey(const ValueKey('checkout-address-search-button')),
+    );
+    final suggestion = find.byKey(
+      const ValueKey('checkout-address-suggestion-purchase-trang-tien'),
+    );
+    await _until(tester, () => suggestion.evaluate().isNotEmpty);
+    await _tap(tester, suggestion);
+    await _enter(tester, 'checkout-address', _addressDetail);
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pump();
+    await _tap(tester, find.byKey(const ValueKey('checkout-address-confirm')));
     await _until(
       tester,
-      () => find
-          .byKey(const ValueKey('checkout-location-confirm'))
-          .evaluate()
-          .isNotEmpty,
+      () => find.text('Đã xác nhận địa chỉ nhận hàng.').evaluate().isNotEmpty,
     );
-    await _tap(tester, find.byKey(const ValueKey('checkout-location-confirm')));
+    expect(addresses.queries, ['Tràng Tiền']);
+    expect(find.byKey(const ValueKey('checkout-location-map')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('checkout-location-latitude')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('checkout-location-longitude')),
+      findsNothing,
+    );
     final submit = find.byKey(const ValueKey('checkout-submit'));
+    expect(router.state.uri.path, '/customer/checkout');
+    expect(find.byType(CustomerNavigationBar), findsNothing);
+    // The cart confirmation has an action and can remain visible. Dismiss it
+    // with the same gesture as a customer before tapping the fixed order bar.
+    final cartNotice = find.byType(SnackBar);
+    if (cartNotice.evaluate().isNotEmpty) {
+      await tester.drag(cartNotice, const Offset(0, 100));
+      await tester.pumpAndSettle();
+    }
+    expect(cartNotice, findsNothing);
+    expect(submit.hitTestable(), findsOneWidget);
     await _tap(tester, submit);
     await _until(
       tester,
@@ -233,6 +285,14 @@ void runVanDucPurchaseScenario() {
     expect(placements, 1);
     expect(find.textContaining('1.410.000'), findsWidgets);
     expect(receipt, isNotNull);
+    final order = receipt!['order']! as Map<String, Object?>;
+    expect(order['customer_id'], shipperA);
+    expect(order['address_detail'], _fullAddress);
+    expect(order['latitude'], _addressSuggestion.latitude);
+    expect(order['longitude'], _addressSuggestion.longitude);
+    expect(order['subtotal_vnd'], 1380000);
+    expect(order['delivery_fee_vnd'], 30000);
+    expect(order['total_cod_vnd'], 1410000);
     expect(
       quantity,
       2,

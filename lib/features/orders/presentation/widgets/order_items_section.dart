@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/utils/display_formatters.dart';
 import '../../domain/models/order_item.dart';
+import 'order_item_image.dart';
 
 /// Renders immutable product and variant snapshots from an order.
 class OrderItemsSection extends StatelessWidget {
@@ -58,28 +59,10 @@ class _OrderItemRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Semantics(
-          container: true,
-          excludeSemantics: true,
-          label: 'Không có ảnh sản phẩm',
-          child: Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Icon(
-              Icons.image_not_supported_outlined,
-              color: colorScheme.outline,
-              semanticLabel: 'Không có ảnh sản phẩm',
-            ),
-          ),
-        ),
+        OrderItemImage(item: item, size: 64),
         const SizedBox(width: 12),
         Expanded(
           child: Column(

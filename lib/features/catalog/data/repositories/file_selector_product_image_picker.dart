@@ -23,13 +23,15 @@ class FileSelectorProductImagePicker implements ProductImagePicker {
         ],
       );
       if (file == null) return null;
-      final size = await file.length();
+      final size = await file.length().timeout(const Duration(seconds: 30));
       if (size == 0 || size > SelectedProductImage.maxBytes) {
         throw const CatalogFailure(
           'Chọn ảnh có dung lượng từ 1 byte đến 5 MB.',
         );
       }
-      return SelectedProductImage.fromBytes(await file.readAsBytes());
+      return SelectedProductImage.fromBytes(
+        await file.readAsBytes().timeout(const Duration(seconds: 60)),
+      );
     } on CatalogFailure {
       rethrow;
     } catch (_) {

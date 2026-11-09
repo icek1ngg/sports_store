@@ -53,7 +53,7 @@ class ReturnRequestFailure implements Exception {
     ReturnRequestFailureCode.returnWindowExpired =>
       'Đơn đã quá 7 ngày kể từ khi nhận hàng.',
     ReturnRequestFailureCode.activeReturnExists =>
-      'Đơn này đã có yêu cầu trả hàng đang được xử lý.',
+      'Đơn này đã có yêu cầu đang xử lý hoặc đã được hoàn tiền.',
     ReturnRequestFailureCode.videoRequired =>
       'Không xác nhận được video mở kiện. Vui lòng chọn lại video.',
     ReturnRequestFailureCode.videoAlreadyUsed =>

@@ -77,7 +77,7 @@ void main() {
       await _until(
         tester,
         () => find
-            .byKey(const ValueKey('catalog-open-account'))
+            .widgetWithText(NavigationDestination, 'Tài khoản')
             .evaluate()
             .isNotEmpty,
       );

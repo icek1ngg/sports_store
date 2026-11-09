@@ -26,6 +26,9 @@ final initialEmailConfirmationProvider = Provider<EmailConfirmationResult?>(
   (ref) => null,
 );
 
+/// Safe startup notice for a failed OAuth redirect, never raw URL diagnostics.
+final initialOAuthErrorProvider = Provider<String?>((ref) => null);
+
 final authSessionProvider = StreamProvider<AuthSession>((ref) {
   return ref.watch(authRepositoryProvider).watchSession();
 });

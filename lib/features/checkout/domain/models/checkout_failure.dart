@@ -11,6 +11,7 @@ enum CheckoutFailureCode {
   permissionDenied,
   backendUnavailable,
   invalidData,
+  localStorageUnavailable,
   unexpected,
 }
 
@@ -64,6 +65,7 @@ const Map<CheckoutFailureCode, String> _defaultCheckoutFailureMessages = {
   CheckoutFailureCode.backendUnavailable:
       'Dịch vụ đặt hàng tạm thời không khả dụng.',
   CheckoutFailureCode.invalidData: 'Dữ liệu trả về từ máy chủ không hợp lệ.',
+  CheckoutFailureCode.localStorageUnavailable: 'Không lưu được yêu cầu trên thiết bị. Chưa gửi đơn hàng; hãy mở lại ứng dụng và thử lại.',
   CheckoutFailureCode.unexpected:
       'Không thể hoàn tất đặt hàng. Vui lòng thử lại.',
 };

@@ -1,126 +1,81 @@
 # Sports Store
 
-## Chạy ứng dụng Sports Store trên Android
+Ứng dụng cửa hàng thể thao tại Hà Nội, dùng Flutter + Supabase, kiến trúc
+feature-first MVVM, Riverpod và go_router. Phạm vi giữ nguyên 20 mã màn hình
+MH01–MH20 và ba vai trò customer, manager, shipper.
+
+Tài liệu đối chiếu codebase ngày 09/11/2026 nằm tại
+[docs/README.md](docs/README.md). Đây là điểm bắt đầu để đọc trạng thái tích hợp,
+hợp đồng hiện hành và phân biệt tài liệu lịch sử với bản chạy thực tế.
+
+## Chạy bản kết nối Supabase
+
+Yêu cầu Dart tương thích `^3.13.2` và Flutter tương thích; dependencies được
+cố định trong `pubspec.yaml`, phiên bản giải quyết nằm trong `pubspec.lock`.
+Chạy lệnh từ thư mục gốc dự án:
+
+```powershell
+flutter pub get
+flutter devices
+flutter run -d <device-id> -t lib/main.dart --dart-define-from-file=config/supabase.json
+```
+
+Có thể chọn `chrome` làm thiết bị. Nếu không truyền cấu hình biên dịch,
+`lib/main.dart` đọc asset `config/supabase.json`. Cấu hình ghi đè thiếu/sai
+sẽ báo lỗi khởi động, không tự trộn với cấu hình mặc định. Project riêng dùng
+`config/supabase.local.json` và truyền bằng `--dart-define-from-file`.
+Không thêm secret/service-role key hoặc mật khẩu vào cấu hình client.
+
+Bản này dùng Supabase Auth và repository thật. Orders/Notifications được gắn
+qua `lib/app/integration/production_feature_composition.dart`; không còn là
+placeholder chưa bind repository. Phiên chỉ giữ trong bộ nhớ
+(`persistSession: false`), nên khởi động process mới cần đăng nhập lại.
+Giao diện và menu Flutter dùng tiếng Việt từ cấu hình localization chung.
+
+Có repository và migration trong repo không chứng minh backend đã được triển
+khai đầy đủ. Các điểm chưa tích hợp được ghi ở
+[screen_mapping.md](docs/screen_mapping.md). Cấu hình Auth/OAuth và client xem
+[supabase_setup.md](docs/supabase_setup.md).
+
+## Ứng dụng thống nhất trên Android
+
+Chỉ dùng một runtime Supabase Auth/repositories và canonical router:
 
 ```powershell
 flutter run -d emulator-5554 -t lib/main.dart --no-dds
 ```
 
-Ứng dụng chính dùng Supabase Auth, hồ sơ phân quyền từ server và các Supabase
-repositories/RPC của nhóm. Không có tài khoản local, role switcher hoặc RAM
-business fallback trong runtime chính. Cần Internet, cấu hình client hợp lệ
-và tài khoản ứng dụng được cấp quyền; không đưa mật khẩu/token vào source.
-Các RPC chưa được triển khai hoặc không đủ quyền phải báo unavailable/error,
-không tự tạo đơn hay báo thao tác thành công bằng dữ liệu fixture.
+Các fixtures chỉ phục vụ automated tests dưới test/support; không có app mode local riêng.
 
-Phạm vi Orders/Notifications và các giới hạn xác minh xem
-[báo cáo tổng kết MH07/MH08/MH09/MH17](docs/FINAL_REPORT_MH07_MH08_MH09_MH17.md).
-Các công cụ kiểm tra và ghi chú theo module bên dưới là tài liệu tham chiếu;
-entrypoint chính thức của ứng dụng đầy đủ là `lib/main.dart`.
+## Tài liệu dùng chung
 
-Ứng dụng dùng tiếng Việt cho giao diện, thông báo, nút điều hướng và các menu
-mặc định của Flutter, kể cả khi thiết bị đang dùng ngôn ngữ khác. Cấu hình chung
-nằm trong `lib/app/localization/app_localization.dart`; mã nguồn và API giữ tên
-tiếng Anh theo quy ước nhóm.
+- [Màn hình, route, owner và mức tích hợp](docs/screen_mapping.md).
+- [Schema, migration và quyền dữ liệu](docs/database.md).
+- [Trạng thái nghiệp vụ](docs/business_states.md).
+- [Repository và RPC](docs/api_contracts.md).
+- [Mục lục và các khác biệt so với báo cáo tham khảo](docs/README.md).
 
-## Phần Văn Đức: MH04, MH05, MH06 và MH16
+Áp dụng migration theo thứ tự trong `supabase/migrations/`; với môi trường đã
+có dữ liệu, đối chiếu lịch sử và chỉ áp dụng phần còn thiếu. Không dùng
+`db reset --linked` trên project dùng chung. Hướng dẫn và kết quả kiểm tra
+lịch sử của từng module vẫn được giữ trong `docs/` với phạm vi riêng.
 
-Danh sách chức năng, backend đặt COD, cách chạy trên Android và kết quả kiểm
-tra: [bàn giao MH04–MH16](docs/van_duc_completion.md).
-
-Quy trình nghiệm thu trên Android với hai tài khoản riêng, cách nhập mật khẩu
-tại máy và kết quả cloud hiện hành:
-[nghiệm thu MH04–MH06](docs/van_duc_mh04_mh06_acceptance.md).
-
-```powershell
-flutter pub get
-flutter run -d emulator-5554 -t lib/main.dart --no-dds
-```
-
-Đăng nhập bằng tài khoản `customer` của project. Xem
-[hướng dẫn Supabase từng bước](docs/supabase_catalog_guide.md) để tạo user,
-xem bảng, thêm dữ liệu mẫu có nhãn DEMO và upload ảnh private. Công cụ không
-bỏ qua RLS và không lưu phiên xuống đĩa. MH04 đã nối repository Supabase;
-MH05 đọc chi tiết/chọn biến thể và thêm giỏ. Mở biểu tượng giỏ từ MH04/MH05
-để vào `/customer/cart`: sửa số lượng, xóa và tải lại để kiểm tra lưu theo
-tài khoản. Giỏ chưa giữ tồn. Giỏ hợp lệ mở `/customer/checkout` để nhập người
-nhận, chọn vị trí trong Hà Nội và đặt COD; máy chủ giữ tồn khi tạo đơn.
-Giá/tồn đã đổi hoặc hàng ngừng bán có cảnh báo; lỗi ghi không báo thành công.
-Hợp đồng checkout/tồn kho bàn giao với phần Bảo nằm tại
-[docs/van_duc_catalog_checkout_contract.md](docs/van_duc_catalog_checkout_contract.md).
-
-Project PRM393 dùng Flutter + Supabase, tổ chức theo feature-first MVVM,
-Riverpod và go_router. Nhánh tích hợp giữ catalog/giỏ/checkout của Văn Đức cùng
-các cập nhật giao hàng, COD và bản đồ từ main.
-Các màn và luồng còn lại xem trạng thái cụ thể trong `docs/screen_mapping.md`;
-không coi toàn bộ MH01–MH20 đã hoàn thành.
-
-Ứng dụng dùng navigation theo vai trò và cùng một router cho catalog, giỏ,
-checkout, Orders, Notifications và các module nhóm. MH07/MH08/MH09 đã bind
-`SupabaseOrderRepository`; MH17 bind `SupabaseNotificationRepository`.
-Backend lỗi hoặc thiếu RPC hiển thị unavailable, không chuyển sang dữ liệu RAM.
-Phạm vi Auth/Catalog/Chat của Dung An xem
-[phạm vi, phụ thuộc và kiểm thử](docs/features/dung_an_supabase.md).
-
-## Các màn Dung An đã nối Supabase
-
-MH01 đăng nhập và MH02 đăng ký dùng Supabase Auth. MH03 quản lý sản phẩm đọc dữ liệu thật và lưu sản phẩm/biến thể/giá/tồn kho qua RPC giao dịch. MH19 đọc hội thoại, mở MH20 và gửi/đọc tin nhắn có lưu trữ. Các màn đã nối router chính và đọc quyền từ `profiles`.
-
-**Đã kiểm tra sau migration trên cloud:** Auth/Data API kết nối được tới project `bqoyfytmrtvjwrpshuhh`; cả năm RPC mới đã tồn tại và từ chối caller chưa đăng nhập đúng quyền (`42501`). Lượt kiểm tra lại có 30 test chức năng/điều hướng và 37 kiểm tra database cô lập thành công. Chưa kiểm thử thao tác ghi bằng tài khoản đăng nhập thật trên cloud. Chi tiết chức năng, giới hạn và kết quả ở [docs/features/dung_an_supabase.md](docs/features/dung_an_supabase.md).
-
-Các harness UI chỉ còn là fixtures dưới `test/support`; không có entrypoint
-preview/local riêng trong application source.
-
-## Chạy ứng dụng
-
-Yêu cầu Flutter 3.47.2 / Dart 3.13.2 hoặc phiên bản tương thích với `pubspec.yaml`.
-Chạy các lệnh từ thư mục gốc của repository:
-
-```powershell
-flutter pub get
-flutter run -d chrome --dart-define-from-file=config/supabase.json
-```
-
-Với Android, mở emulator hoặc kết nối điện thoại, chạy `flutter devices`, sau đó:
-
-```powershell
-flutter run -d <device-id> --dart-define-from-file=config/supabase.json
-```
-
-`config/supabase.json` đã cấu hình project `bqoyfytmrtvjwrpshuhh`. Đây là URL và **publishable key** dành cho client, được lưu trong Git để cả nhóm dùng cùng cấu hình. Không thêm secret key, service-role key hoặc mật khẩu database vào file này. Quyền truy cập dữ liệu phải được kiểm soát bằng RLS ở backend.
-
-Khi chạy `lib/main.dart` không có `--dart-define`, ứng dụng tự đọc `config/supabase.json` được đóng gói trong assets. Có thể dùng `flutter run` hoặc nút Run thông thường. Để dùng project riêng, tạo `config/supabase.local.json` với cùng hai trường và truyền `--dart-define-from-file=config/supabase.local.json`; file `*.local.json` đã được Git bỏ qua. Nếu truyền cấu hình riêng thiếu hoặc sai, ứng dụng báo lỗi và không tự chuyển sang project mặc định.
-
-Trong VS Code, mở thư mục gốc repository, chọn thiết bị, chọn cấu hình **Sports Store** ở Run and Debug rồi nhấn **F5**. File `.vscode/launch.json` đã truyền cấu hình Supabase cho lần chạy này.
-
-Trong Android Studio, vào **Run → Edit Configurations**, chọn cấu hình Flutter chạy `lib/main.dart`, thêm `--dart-define-from-file=config/supabase.json` vào **Additional run args**, rồi chạy lại.
-
-Nếu log báo `Application startup failed: ArgumentError` ngay sau khi APK build thành công, kiểm tra cấu hình mặc định hoặc tham số ghi đè trên. Sau khi thay đổi assets/cấu hình, dừng phiên chạy cũ và chạy lại hoàn toàn; hot reload không cập nhật các giá trị `String.fromEnvironment`.
-
-## Kiểm tra
+## Kiểm tra khi thay đổi code
 
 ```powershell
 flutter analyze
 flutter test
+```
+
+Kiểm tra kết nối và build riêng khi cần:
+
+```powershell
 dart run tool/check_supabase_connection.dart
 flutter build web --dart-define-from-file=config/supabase.json
 ```
 
-Script kết nối thực hiện GET tới Supabase Auth settings và Data API bằng publishable key; không tạo tài khoản, đọc bản ghi hoặc ghi dữ liệu. Data API được kiểm tra bằng tên bảng probe với `limit=0`; lỗi bảng không tồn tại `PGRST205` là phản hồi mong đợi cho phép kiểm tra này. Có thể truyền đường dẫn file cấu hình khác làm tham số đầu tiên.
-
-Chi tiết khởi tạo client dùng chung và hướng dẫn cho thành viên: [docs/supabase_setup.md](docs/supabase_setup.md).
-
-## Database dùng chung
-
-Database nền có 18 bảng phục vụ phạm vi MH01–MH20. Schema và quyền Supabase
-được version trong `supabase/migrations/`; khi dựng mới áp dụng tất cả migration
-theo thứ tự, gồm các migration nền, checkout và các cập nhật giao hàng/COD/trả hàng.
-Xem [docs/database.md](docs/database.md) để phân biệt schema đã triển khai,
-kết quả kiểm tra cloud lịch sử và các luồng RPC còn cần làm.
-[docs/business_states.md](docs/business_states.md),
-[docs/api_contracts.md](docs/api_contracts.md) và
-[docs/screen_mapping.md](docs/screen_mapping.md) là hợp đồng dùng chung.
-
-Với cloud đang có dữ liệu, đối chiếu lịch sử và chỉ áp dụng migration còn thiếu.
-
-`supabase/tests/database_security.sql` kiểm tra quyền và constraint bằng fixture trong transaction, kết thúc bằng ROLLBACK. Chạy nguyên file qua kết nối quản trị có quyền phù hợp; không dùng `db reset --linked` trên project dùng chung.
+Script kết nối chỉ probe Auth settings và Data API bằng publishable key;
+không kiểm chứng luồng nghiệp vụ có đăng nhập. Các kiểm thử trong `test/live/`,
+`integration_test/` và `supabase/tests/` cần môi trường/fixture phù hợp.
+Không suy kết quả đạt từ việc file kiểm thử tồn tại. Lần cập nhật tài liệu
+09/11/2026 chỉ đối chiếu tĩnh mã nguồn, không chạy lại Flutter hay backend.

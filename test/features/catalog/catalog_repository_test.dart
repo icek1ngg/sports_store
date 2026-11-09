@@ -39,6 +39,45 @@ Map<String, dynamic> productRow() => {
 };
 
 void main() {
+  test('stock filter and sort apply on the server before pagination', () async {
+    final requests = <http.Request>[];
+    final client = await fixtureClient((request) async {
+      requests.add(request);
+      if (request.url.path.endsWith('/profiles')) {
+        return jsonResponse(request, [
+          {'role': 'customer'},
+        ]);
+      }
+      return jsonResponse(request, []);
+    });
+    final access = OperationalReadAccess(client);
+    addTearDown(() async {
+      await access.dispose();
+      await client.dispose();
+    });
+    final repository = SupabaseCatalogRepository(access: access);
+    await repository.getProducts(
+      const CatalogQuery(sort: CatalogSort.newest, inStockOnly: true, page: 1),
+    );
+    final params = requests.last.url.queryParameters;
+    expect(params['select'], contains('stock:product_variants!inner(id)'));
+    expect(params['stock.available_quantity'], 'gt.0');
+    expect(params['stock.is_active'], 'eq.true');
+    expect(params['order'], 'created_at.desc.nullslast,id.asc.nullslast');
+    expect(params['offset'], '20');
+    expect(params['limit'], '21');
+    await repository.getProducts(
+      const CatalogQuery(sort: CatalogSort.nameDescending),
+    );
+    expect(
+      requests.last.url.queryParameters['order'],
+      'name.desc.nullslast,id.asc.nullslast',
+    );
+    expect(
+      requests.last.url.queryParameters.containsKey('stock.available_quantity'),
+      isFalse,
+    );
+  });
   test(
     'strict mapping rejects rounded money, missing flags and mismatched FK',
     () {

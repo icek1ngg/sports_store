@@ -18,6 +18,7 @@ class Mh09DetailBody extends StatelessWidget {
     required this.details,
     required this.onRefresh,
     this.contactEnabled = false,
+    this.assignmentIntegrated = false,
     this.onCall,
     this.onChat,
     this.onOpenCod,
@@ -28,6 +29,7 @@ class Mh09DetailBody extends StatelessWidget {
   final OrderDetails details;
   final Future<void> Function() onRefresh;
   final bool contactEnabled;
+  final bool assignmentIntegrated;
   final VoidCallback? onCall;
   final VoidCallback? onChat;
   final ValueChanged<String>? onOpenCod;
@@ -58,7 +60,10 @@ class Mh09DetailBody extends StatelessWidget {
         entries: details.timeline,
         historyComplete: details.historyComplete,
       ),
-      Mh09OperationalActions(capabilities: details.capabilities),
+      Mh09OperationalActions(
+        capabilities: details.capabilities,
+        assignmentIntegrated: assignmentIntegrated,
+      ),
     ];
 
     return RefreshIndicator(

@@ -9,17 +9,20 @@ class Mh09OperationalActions extends StatelessWidget {
   const Mh09OperationalActions({
     this.capabilities = const OrderCapabilities.none(),
     this.unavailableReason,
+    this.assignmentIntegrated = false,
     super.key,
   });
 
   final OrderCapabilities capabilities;
   final String? unavailableReason;
+  final bool assignmentIntegrated;
 
   @override
   Widget build(BuildContext context) {
     final deliveryReason = 'Dịch vụ giao hàng chưa sẵn sàng.';
     final operations = <(String, String)>[
-      if (capabilities.canAssign) ('Phân công', deliveryReason),
+      if (capabilities.canAssign && !assignmentIntegrated)
+        ('Phân công', deliveryReason),
       if (capabilities.canReassign) ('Phân công lại', deliveryReason),
       if (capabilities.canArrangeSecondAttempt)
         ('Giao lần hai', deliveryReason),

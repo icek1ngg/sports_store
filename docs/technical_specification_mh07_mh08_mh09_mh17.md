@@ -1,5 +1,7 @@
 # Technical Specification & Implementation Blueprint — MH07, MH08, MH09, MH17
 
+> **Tài liệu thiết kế lịch sử.** Các trạng thái proposed/missing/blocked và chữ ký API bên dưới thuộc snapshot được ghi trong tài liệu, không mô tả toàn bộ codebase hiện tại. Đối chiếu ngày 09/11/2026 xem [mục lục hiện hành](README.md), [API](api_contracts.md), [database](database.md), [trạng thái](business_states.md) và [màn hình](screen_mapping.md). Giữ nội dung bên dưới để truy vết quyết định thiết kế.
+
 ## 1. Thông tin tài liệu và phạm vi
 
 | Thuộc tính | Giá trị |

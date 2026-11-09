@@ -83,7 +83,7 @@ export async function testDeliveryCodConcurrency(Client, options, admin) {
       await admin.query(`insert into public.inventory_movements(variant_id,order_id,event_id,kind,reserved_delta,actor_id,reason)
         values($1,$2,$3,'reserve',2,$4,'P10.1 TEST-ONLY checkout reservation seed')`,[id(102),orders[i],id(300+i),managerA]);
       await begin(a,managerA);
-      tasks.push((await rpc(a,'assign_delivery_task',[orders[i],shipper,id(400+i)])).task_id);
+      tasks.push((await a.query('select public.prepare_and_assign_delivery($1::uuid,$2::uuid,$3::uuid,true) result',[orders[i],shipper,id(400+i)])).rows[0].result.task_id);
       await a.query('commit');
       await begin(a,shipper);
       await rpc(a,'accept_delivery_task',[tasks[i],id(500+i)]);
@@ -141,7 +141,7 @@ export async function testDeliveryCodConcurrency(Client, options, admin) {
       await admin.query("set local session_replication_role='replica'");
       for(const table of ['cod_receipt_requests','outbound_completion_results','outbound_completion_requests',
         'outbound_command_requests','outbound_custody_acceptances','outbound_dispatches',
-        'delivery_assignment_requests','delivery_assignment_audits']) {
+        'delivery_preparation_proofs','delivery_assignment_requests','delivery_assignment_audits']) {
         await admin.query(`delete from private.${table} where order_id=any($1::uuid[])`,[orders]);
       }
       await admin.query('delete from public.notifications where event_id in (select id from public.business_events where task_id=any($1::uuid[]) or subject_id=any($2::uuid[]))',[tasks,orders]);

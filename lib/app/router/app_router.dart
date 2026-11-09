@@ -8,6 +8,7 @@ import '../../core/state/foundation_providers.dart';
 import '../../features/cod/presentation/pages/cod_route_page.dart';
 import '../../features/cart/presentation/pages/cart_page.dart';
 import '../../features/checkout/presentation/pages/checkout_page.dart';
+import '../../features/checkout/presentation/view_models/checkout_providers.dart';
 import '../../features/catalog/presentation/pages/product_list_page.dart';
 import '../../features/catalog/presentation/pages/product_details_page.dart';
 import '../../features/auth/presentation/pages/register_screen.dart';
@@ -18,6 +19,7 @@ import '../../features/auth/presentation/view_models/auth_providers.dart';
 import '../../features/chat/presentation/pages/conversation_detail_screen.dart';
 import '../../features/cod/presentation/view_models/cod_providers.dart';
 import '../../features/deliveries/data/repositories/operational_providers.dart';
+import '../../features/deliveries/data/repositories/operational_read_access.dart';
 import '../../features/deliveries/presentation/pages/delivery_route_pages.dart';
 import '../../features/deliveries/presentation/view_models/delivery_providers.dart';
 import '../../features/deliveries/presentation/view_models/delivery_task_list_view_model.dart';
@@ -104,6 +106,7 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
   }
   final guard = ref.watch(operationalRouteGuardProvider);
   final confirmation = ref.read(initialEmailConfirmationProvider);
+  final oauthError = ref.read(initialOAuthErrorProvider);
   final navigatorKey = GlobalKey<NavigatorState>();
   final branchNavigatorKeys = List.generate(
     _branchPaths.length,
@@ -181,11 +184,19 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
       path: '/',
       builder: (context, state) =>
           ref.read(landingPageBuilderProvider)?.call(context) ??
-          const AuthenticatedRoutePage(key: ValueKey('app-entry')),
+          AuthenticatedRoutePage(
+            key: const ValueKey('app-entry'),
+            path: state.uri.path,
+          ),
     ),
     GoRoute(
       path: '/login',
-      builder: (context, state) => const AuthenticatedRoutePage(),
+      builder: (context, state) => AuthenticatedRoutePage(
+        path: state.uri.path,
+        initialError: state.uri.queryParameters['oauth_error'] == '1'
+            ? ref.read(initialOAuthErrorProvider)
+            : null,
+      ),
     ),
     GoRoute(
       path: '/register',
@@ -212,7 +223,7 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
       ),
     GoRoute(
       path: '/manager/products',
-      builder: (context, state) => const AuthenticatedRoutePage(),
+      builder: (context, state) => AuthenticatedRoutePage(path: state.uri.path),
     ),
     GoRoute(
       path: '/manager/orders',
@@ -298,7 +309,8 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
     ),
     GoRoute(
       path: '/chat',
-      builder: (context, state) => const AuthenticatedRoutePage(inbox: true),
+      builder: (context, state) =>
+          AuthenticatedRoutePage(path: state.uri.path, inbox: true),
       routes: [
         GoRoute(
           path: ':conversationId',
@@ -312,6 +324,7 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
               );
             }
             return AuthenticatedRoutePage(
+              path: state.uri.path,
               inbox: true,
               detailBuilder: (_) =>
                   ConversationDetailScreen(conversationId: id),
@@ -357,7 +370,19 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
         GoRoute(
           path: '/customer/checkout',
           caseSensitive: true,
-          builder: (context, state) => const CheckoutPage(),
+          builder: (context, state) {
+            final variants = state.uri.queryParametersAll['variant'];
+            if (variants == null) return const CheckoutPage();
+            return ProviderScope(
+              key: ValueKey(state.uri.toString()),
+              overrides: [
+                selectedCheckoutVariantIdsProvider.overrideWithValue(
+                  Set<String>.unmodifiable(variants),
+                ),
+              ],
+              child: const CheckoutPage(),
+            );
+          },
         ),
         GoRoute(
           path: '/customer/orders/:orderId/return',
@@ -523,12 +548,15 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
   router = GoRouter(
     initialLocation: confirmation != null
         ? EmailConfirmationCallback.path
+        : oauthError != null
+        ? '/login?oauth_error=1'
         : null,
     // Supabase's #access_token / #error fragment is not a Flutter hash route.
-    overridePlatformDefaultLocation: confirmation != null,
+    overridePlatformDefaultLocation: confirmation != null || oauthError != null,
     navigatorKey: navigatorKey,
     observers: [_RecheckOnPop(recheckAfterPop)],
-    refreshListenable: guard,
+    // Recheck visible route boundaries in place. Re-parsing an imperative
+    // stack replaces awaited push completers (Maps/file picker regression).
     redirect: (context, state) async {
       activeRedirects++;
       try {
@@ -675,7 +703,9 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
         profileRefreshPending = true;
         return;
       }
-      router.refresh();
+      if (const {'/', '/login', '/register'}.contains(activeLocation().path)) {
+        router.refresh();
+      }
     });
   });
   ref.onDispose(() {
@@ -729,7 +759,72 @@ class _OperationalRouteBoundary extends ConsumerStatefulWidget {
 class _OperationalRouteBoundaryState
     extends ConsumerState<_OperationalRouteBoundary> {
   String? _authorizedCustomerId;
-  Object? _authorizedOperationalSession;
+  String? _authorizedOperationalUserId;
+  Object? _selfCheckSession;
+  Uri? _selfCheckLocation;
+  bool _selfCheckRunning = false;
+  int _selfCheckAttempts = 0;
+  static const _maxSelfCheckAttempts = 5;
+
+  /// go_router re-runs redirect on the *base* URI of an imperative stack after
+  /// a session refresh (e.g. returning from the MH13 video picker). When that
+  /// base is outside this guard (such as `/customer/orders`), the guard clears
+  /// its decision and nothing rechecks the visible customer page, leaving it on
+  /// "Đang tải màn hình…". Ask the guard to check this page's own URI.
+  ///
+  /// The router's own redirect can supersede this check (the guard discards
+  /// results of older requests) and clear the decision again, which happens on
+  /// web when the tab regains focus after the file dialog. Retry while the
+  /// decision is still missing, bounded per session/location; repositories and
+  /// RPCs still authorize every read/write.
+  /// Only the visible shell page may ask for a decision. A customer shell left
+  /// below a root page (e.g. `/notifications`) must not supersede that page's
+  /// own guard check.
+  bool get _isVisibleLeaf =>
+      TickerMode.valuesOf(context).enabled &&
+      ((ModalRoute.isCurrentOf(context) ?? true) ||
+          GoRouter.of(context).state.uri == widget.location);
+
+  bool _shouldSelfCheck(Uri location) =>
+      mounted &&
+      widget.location == location &&
+      _isVisibleLeaf &&
+      widget.guard.decisionFor(location) == null;
+
+  void _ensureVisibleDecision(OperationalSession session) {
+    if (!identical(_selfCheckSession, session) ||
+        _selfCheckLocation != widget.location) {
+      _selfCheckSession = session;
+      _selfCheckLocation = widget.location;
+      _selfCheckAttempts = 0;
+    }
+    if (_selfCheckRunning || _selfCheckAttempts >= _maxSelfCheckAttempts) {
+      return;
+    }
+    _selfCheckRunning = true;
+    _selfCheckAttempts++;
+    final location = widget.location;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        if (!_shouldSelfCheck(location)) return;
+        final destination = await widget.guard.redirectLocation(location);
+        if (!mounted || widget.location != location) return;
+        if (destination != null) {
+          if (destination == '/' &&
+              widget.guard.decisionFor(location)?.failure != null) {
+            ref.invalidate(currentProfileProvider);
+          }
+          context.go(destination);
+        }
+      } finally {
+        _selfCheckRunning = false;
+        if (_shouldSelfCheck(location)) {
+          // Superseded or cleared meanwhile: rebuild to check again.
+          setState(() {});
+        }
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -740,6 +835,13 @@ class _OperationalRouteBoundaryState
     final decision = widget.guard.decisionFor(widget.location);
     final customerOnly = OperationalRouteLocation.parse(widget.location)
         .customerOnly;
+    if (OperationalRouteLocation.parse(widget.location).protected &&
+        _isVisibleLeaf &&
+        decision == null &&
+        session != null &&
+        session.failure == null) {
+      _ensureVisibleDecision(session);
+    }
     final allowed =
         session != null &&
         decision?.allowed == true &&
@@ -779,19 +881,19 @@ class _OperationalRouteBoundaryState
         ],
       );
     }
-    if (!identical(session, _authorizedOperationalSession) ||
+    if (session?.userId != _authorizedOperationalUserId ||
         session?.failure != null ||
         decision?.failure != null ||
         decision?.invalidId == true) {
-      _authorizedOperationalSession = null;
+      _authorizedOperationalUserId = null;
     }
     if (allowed) {
-      _authorizedOperationalSession = session;
+      _authorizedOperationalUserId = session.userId;
     }
     return Stack(
       fit: StackFit.expand,
       children: [
-        if (_authorizedOperationalSession != null)
+        if (_authorizedOperationalUserId != null)
           Offstage(
             offstage: !allowed,
             child: TickerMode(
@@ -799,7 +901,7 @@ class _OperationalRouteBoundaryState
               child: ExcludeFocus(
                 excluding: !allowed,
                 child: KeyedSubtree(
-                  key: ValueKey(_authorizedOperationalSession),
+                  key: ValueKey(_authorizedOperationalUserId),
                   child: Scaffold(body: widget.child),
                 ),
               ),

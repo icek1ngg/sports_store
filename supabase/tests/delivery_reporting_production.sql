@@ -325,59 +325,41 @@ insert into public.delivery_tasks(
 set local role authenticated;
 select pg_temp.set_p074_claims('07450000-0000-0000-0000-000000000002');
 insert into p074_ids(name, id)
-select 'task10', (public.assign_delivery_task(
-  '07450000-0000-0000-0000-000000000010',
+select 'task10', (public.prepare_and_assign_delivery('07450000-0000-0000-0000-000000000010',
   '07450000-0000-0000-0000-000000000003',
-  '07450000-0000-0000-0000-000000000901'
-)->>'task_id')::uuid;
+  '07450000-0000-0000-0000-000000000901',true)->>'task_id')::uuid;
 insert into p074_ids(name, id)
-select 'task11', (public.assign_delivery_task(
-  '07450000-0000-0000-0000-000000000011',
+select 'task11', (public.prepare_and_assign_delivery('07450000-0000-0000-0000-000000000011',
   '07450000-0000-0000-0000-000000000003',
-  '07450000-0000-0000-0000-000000000902'
-)->>'task_id')::uuid;
+  '07450000-0000-0000-0000-000000000902',true)->>'task_id')::uuid;
 insert into p074_ids(name, id)
-select 'task12', (public.assign_delivery_task(
-  '07450000-0000-0000-0000-000000000012',
+select 'task12', (public.prepare_and_assign_delivery('07450000-0000-0000-0000-000000000012',
   '07450000-0000-0000-0000-000000000003',
-  '07450000-0000-0000-0000-000000000903'
-)->>'task_id')::uuid;
+  '07450000-0000-0000-0000-000000000903',true)->>'task_id')::uuid;
 insert into p074_ids(name, id)
-select 'task13', (public.assign_delivery_task(
-  '07450000-0000-0000-0000-000000000013',
+select 'task13', (public.prepare_and_assign_delivery('07450000-0000-0000-0000-000000000013',
   '07450000-0000-0000-0000-000000000003',
-  '07450000-0000-0000-0000-000000000904'
-)->>'task_id')::uuid;
+  '07450000-0000-0000-0000-000000000904',true)->>'task_id')::uuid;
 insert into p074_ids(name, id)
-select 'task14', (public.assign_delivery_task(
-  '07450000-0000-0000-0000-000000000014',
+select 'task14', (public.prepare_and_assign_delivery('07450000-0000-0000-0000-000000000014',
   '07450000-0000-0000-0000-000000000003',
-  '07450000-0000-0000-0000-000000000905'
-)->>'task_id')::uuid;
+  '07450000-0000-0000-0000-000000000905',true)->>'task_id')::uuid;
 insert into p074_ids(name, id)
-select 'task15', (public.assign_delivery_task(
-  '07450000-0000-0000-0000-000000000015',
+select 'task15', (public.prepare_and_assign_delivery('07450000-0000-0000-0000-000000000015',
   '07450000-0000-0000-0000-000000000003',
-  '07450000-0000-0000-0000-000000000906'
-)->>'task_id')::uuid;
+  '07450000-0000-0000-0000-000000000906',true)->>'task_id')::uuid;
 insert into p074_ids(name, id)
-select 'task16', (public.assign_delivery_task(
-  '07450000-0000-0000-0000-000000000016',
+select 'task16', (public.prepare_and_assign_delivery('07450000-0000-0000-0000-000000000016',
   '07450000-0000-0000-0000-000000000003',
-  '07450000-0000-0000-0000-000000000907'
-)->>'task_id')::uuid;
+  '07450000-0000-0000-0000-000000000907',true)->>'task_id')::uuid;
 insert into p074_ids(name, id)
-select 'task18', (public.assign_delivery_task(
-  '07450000-0000-0000-0000-000000000018',
+select 'task18', (public.prepare_and_assign_delivery('07450000-0000-0000-0000-000000000018',
   '07450000-0000-0000-0000-000000000003',
-  '07450000-0000-0000-0000-000000000908'
-)->>'task_id')::uuid;
+  '07450000-0000-0000-0000-000000000908',true)->>'task_id')::uuid;
 insert into p074_ids(name, id)
-select 'task19', (public.assign_delivery_task(
-  '07450000-0000-0000-0000-000000000019',
+select 'task19', (public.prepare_and_assign_delivery('07450000-0000-0000-0000-000000000019',
   '07450000-0000-0000-0000-000000000004',
-  '07450000-0000-0000-0000-000000000909'
-)->>'task_id')::uuid;
+  '07450000-0000-0000-0000-000000000909',true)->>'task_id')::uuid;
 
 select pg_temp.set_p074_claims('07450000-0000-0000-0000-000000000003');
 select public.accept_delivery_task((select id from p074_ids where name='task10'),'07450000-0000-0000-0000-000000000910');

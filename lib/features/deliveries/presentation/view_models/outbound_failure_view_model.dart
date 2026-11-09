@@ -155,6 +155,16 @@ class OutboundFailureViewModel extends Notifier<OutboundFailureState> {
             state.pendingCommand == null &&
             (state.requiresReadRetry || state.awaitingAuthoritativeRead)) {
           unawaited(retry());
+        } else if (!_disposed &&
+            _usable(_session) &&
+            state.pendingCommand == null &&
+            !state.busy &&
+            !state.actionsDenied &&
+            !state.confirmed &&
+            state.details.isLoading) {
+          // Returning from a covered route must restore action eligibility
+          // from a fresh read, even when no write was pending.
+          unawaited(_read(_session!, _sessionRevision));
         }
       });
     });

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:sports_store/features/auth/data/repositories/supabase_auth_repository.dart';
@@ -66,6 +67,7 @@ http.Response _json(Object value, [int status = 200]) => http.Response(
 );
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   late SupabaseClient client;
   late SupabaseAuthRepository repository;
   late List<http.Request> requests;
@@ -122,6 +124,32 @@ void main() {
     },
   );
 
+  test('Google login launches OAuth with the Android deep link', () async {
+    const launcherChannel = MethodChannel('plugins.flutter.io/url_launcher');
+    String? launchedUrl;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(launcherChannel, (call) async {
+          expect(call.method, 'launch');
+          launchedUrl =
+              (call.arguments as Map<Object?, Object?>)['url'] as String;
+          return true;
+        });
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(launcherChannel, null),
+    );
+
+    await repository.loginWithGoogle();
+
+    final uri = Uri.parse(launchedUrl!);
+    expect(uri.path, '/auth/v1/authorize');
+    expect(uri.queryParameters['provider'], 'google');
+    expect(
+      uri.queryParameters['redirect_to'],
+      'com.example.sportsstore://login-callback',
+    );
+  });
+
   test('signup submits personal fields only and requires confirmation without session', () async {
     repository = SupabaseAuthRepository(
       client,
@@ -149,6 +177,10 @@ void main() {
   test(
     'signup callback reports success after SDK exchanges the code',
     () async {
+      repository = SupabaseAuthRepository(
+        client,
+        emailRedirectTo: 'http://localhost:57604/auth/confirm-email',
+      );
       handle = (request) async {
         if (request.url.path.endsWith('/signup')) return _json(_user(_userId));
         expect(request.url.queryParameters['grant_type'], 'pkce');
@@ -163,7 +195,9 @@ void main() {
         email: 'customer@example.com',
         password: 'strong-password',
       );
-      final callback = Uri.parse('http://localhost:57604/?code=test-code');
+      final callback = Uri.parse(
+        'http://localhost:57604/auth/confirm-email?code=test-code',
+      );
       await client.auth.getSessionFromUrl(callback);
       expect(
         EmailConfirmationCallback.resolveAfterSdkInitialization(
@@ -182,7 +216,9 @@ void main() {
   test('failed SDK code exchange never reports confirmation success', () async {
     handle = (_) async =>
         _json({'error_code': 'bad_code_verifier', 'msg': 'Invalid code'}, 400);
-    final callback = Uri.parse('http://localhost:57604/?code=invalid');
+    final callback = Uri.parse(
+      'http://localhost:57604/?code=invalid&type=signup',
+    );
     await expectLater(
       client.auth.getSessionFromUrl(callback),
       throwsA(isA<AuthException>()),

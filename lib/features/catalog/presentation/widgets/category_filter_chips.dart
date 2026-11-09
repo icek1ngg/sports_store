@@ -53,15 +53,22 @@ class CategoryFilterChips extends StatelessWidget {
       );
     }
 
-    final values = categories.asData?.value ?? const <Category>[];
+    final values = [...?categories.asData?.value];
+    int rank(Category category) => switch (category.code) {
+      'shoes' => 0,
+      'apparel' => 1,
+      'equipment' => 2,
+      _ => 3,
+    };
+    values.sort((a, b) => rank(a).compareTo(rank(b)));
     return SizedBox(
-      height: 52,
+      height: MediaQuery.textScalerOf(context).scale(14) + 38,
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: [
           _CategoryChip(
             key: const ValueKey('catalog-category-all'),
-            label: 'Tất cả',
+            label: 'TẤT CẢ',
             selected: selectedCategoryId == null,
             onSelected: () => onSelected(null),
           ),
@@ -69,7 +76,7 @@ class CategoryFilterChips extends StatelessWidget {
             const SizedBox(width: 8),
             _CategoryChip(
               key: ValueKey('catalog-category-${category.id}'),
-              label: category.name,
+              label: category.name.toUpperCase(),
               selected: selectedCategoryId == category.id,
               onSelected: () => onSelected(category.id),
             ),
@@ -95,11 +102,24 @@ class _CategoryChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ChoiceChip(
+      backgroundColor: const Color(0xfff5f5f5),
+      selectedColor: const Color(0xff111111),
+      color: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? const Color(0xff111111)
+            : const Color(0xfff5f5f5),
+      ),
       label: Text(label),
       selected: selected,
       onSelected: (_) => onSelected(),
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
       visualDensity: VisualDensity.compact,
+      labelStyle: TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w600,
+        color: selected ? Colors.white : const Color(0xff111111),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
     );
   }
 }

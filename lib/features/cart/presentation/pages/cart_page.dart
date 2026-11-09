@@ -12,50 +12,121 @@ import '../view_models/cart_providers.dart';
 import '../widgets/cart_item_tile.dart';
 import '../widgets/cart_notice.dart';
 import '../../../catalog/presentation/widgets/catalog_formatters.dart';
+import '../../../../app/theme/storefront_theme.dart';
+import '../view_models/cart_selection_view_model.dart';
 
 /// MH06: customer cart.
 ///
-/// Checkout is intentionally represented as a disabled action until MH16 is
-/// integrated. Cart reads and mutations still use the shared CartViewModel;
-/// this page never talks to Supabase directly.
+/// Cart writes use the shared ViewModel. Checkout receives only selected
+/// business IDs; this page never talks to Supabase directly.
 class CartPage extends ConsumerWidget {
   const CartPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cart = ref.watch(cartProvider);
-    final hasData = cart.hasValue && cart.asData != null;
-
-    return Scaffold(
-      key: const ValueKey('cart-page'),
-      appBar: AppBar(
-        leading: BackButton(
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go('/customer/products');
-            }
-          },
-        ),
-        title: const Text('Giỏ hàng'),
-        actions: [
-          IconButton(
-            key: const ValueKey('cart-refresh'),
-            onPressed: () => unawaited(_refresh(ref)),
-            tooltip: 'Làm mới giỏ hàng',
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-      ),
-      body: !hasData
-          ? _buildAsyncState(context, ref, cart)
-          : _buildData(
-              context,
-              ref,
-              cart.asData!.value,
-              isRefreshing: cart.isLoading,
+    final selection = ref.watch(cartSelectionProvider);
+    final data = cart.isLoading || cart.hasError ? null : cart.asData?.value;
+    return StorefrontTheme(
+      child: Builder(
+        builder: (context) => Scaffold(
+          key: const ValueKey('cart-page'),
+          appBar: AppBar(
+            leadingWidth: 104,
+            leading: const Padding(
+              padding: EdgeInsets.only(left: 18),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'STRIDE',
+                  style: TextStyle(
+                    fontFamily: 'BarlowCondensed',
+                    fontSize: 25,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
             ),
+            title: const Text(
+              'CART',
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1,
+              ),
+            ),
+            centerTitle: true,
+            actions: [
+              IconButton(
+                tooltip: 'Tìm sản phẩm',
+                icon: const Icon(Icons.search, size: 21),
+                onPressed: () => context.go('/customer/products'),
+              ),
+              IconButton(
+                key: const ValueKey('cart-refresh'),
+                onPressed: data?.isMutating == true
+                    ? null
+                    : () => unawaited(_refresh(ref)),
+                tooltip: 'Làm mới giỏ hàng',
+                icon: const Icon(Icons.refresh, size: 21),
+              ),
+            ],
+          ),
+          bottomNavigationBar: data == null || data.items.isEmpty
+              ? null
+              : _CartSummary(
+                  state: data,
+                  selection: selection,
+                  onSelectAll: (selected) => ref
+                      .read(cartSelectionProvider.notifier)
+                      .setAllSelected(selected),
+                ),
+          body: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(6, 0, 18, 8),
+                child: Row(
+                  children: [
+                    BackButton(
+                      onPressed: () {
+                        if (context.canPop()) {
+                          context.pop();
+                        } else {
+                          context.go('/customer/products');
+                        }
+                      },
+                    ),
+                    const Expanded(
+                      child: Text(
+                        'GIỎ HÀNG',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    if (data != null)
+                      Text(
+                        '${data.items.length} sản phẩm',
+                        key: const ValueKey('cart-item-count'),
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: data == null
+                    ? _buildAsyncState(context, ref, cart)
+                    : _buildData(
+                        context,
+                        ref,
+                        data,
+                        selection: selection,
+                        isRefreshing: false,
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -87,6 +158,7 @@ class CartPage extends ConsumerWidget {
     WidgetRef ref,
     CartState state, {
     required bool isRefreshing,
+    required CartSelectionState selection,
   }) {
     if (state.items.isEmpty) {
       return RefreshIndicator(
@@ -134,8 +206,19 @@ class CartPage extends ConsumerWidget {
       onRefresh: () => _refresh(ref),
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 28),
+        padding: const EdgeInsets.fromLTRB(14, 0, 14, 24),
         children: [
+          const _CartDeliveryNote(),
+          const SizedBox(height: 12),
+          _StoreSelectionHeader(
+            items: state.items,
+            selection: selection,
+            enabled: mutationsEnabled,
+            onSelectAll: (selected) => ref
+                .read(cartSelectionProvider.notifier)
+                .setAllSelected(selected),
+          ),
+          const SizedBox(height: 12),
           if (isRefreshing) ...[
             const LinearProgressIndicator(),
             const SizedBox(height: 10),
@@ -149,13 +232,22 @@ class CartPage extends ConsumerWidget {
               key: ValueKey('cart-row-${item.variantId}'),
               item: item,
               mutationsEnabled: mutationsEnabled,
+              selected: selection.isSelected(item.variantId),
+              onSelectionChanged: (selected) => ref
+                  .read(cartSelectionProvider.notifier)
+                  .setSelected(item.variantId, selected),
               onIncrease: () => _setQuantity(ref, item, item.quantity + 1),
               onDecrease: () => _setQuantity(ref, item, _decreaseTarget(item)),
               onRemove: () => _removeItem(ref, item),
             ),
             const SizedBox(height: 10),
           ],
-          _CartSummary(state: state),
+          const _CartDeliveryNote(detailed: true),
+          const SizedBox(height: 10),
+          const Text(
+            'Thêm vào giỏ chưa giữ hàng. Giá và tồn được kiểm tra lại khi đặt đơn.',
+            style: TextStyle(fontSize: 11, color: StorefrontTheme.muted),
+          ),
         ],
       ),
     );
@@ -302,80 +394,228 @@ class _PendingMutationNotice extends StatelessWidget {
   }
 }
 
-class _CartSummary extends StatelessWidget {
-  const _CartSummary({required this.state});
+class _CartDeliveryNote extends StatelessWidget {
+  const _CartDeliveryNote({this.detailed = false});
+  final bool detailed;
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+    decoration: BoxDecoration(
+      color: StorefrontTheme.cloud,
+      borderRadius: BorderRadius.circular(24),
+    ),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          Icons.local_shipping_outlined,
+          size: 20,
+          color: detailed ? StorefrontTheme.ink : StorefrontTheme.success,
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Text(
+            detailed
+                ? 'GIAO HÀNG COD TẠI HÀ NỘI\nPhí cố định 30.000 đ cho mỗi đơn.'
+                : 'COD tại Hà Nội · Phí giao hàng 30.000 đ',
+            style: TextStyle(
+              fontSize: detailed ? 12 : 11,
+              fontWeight: detailed ? FontWeight.w600 : FontWeight.w400,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
 
-  final CartState state;
-
+class _StoreSelectionHeader extends StatelessWidget {
+  const _StoreSelectionHeader({
+    required this.items,
+    required this.selection,
+    required this.enabled,
+    required this.onSelectAll,
+  });
+  final List<CartItem> items;
+  final CartSelectionState selection;
+  final bool enabled;
+  final ValueChanged<bool> onSelectAll;
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Card(
-      elevation: 0,
-      color: scheme.surfaceContainerHighest,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    'Tạm tính',
-                    key: const ValueKey('cart-subtotal'),
-                    style: Theme.of(context).textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w700),
+    final selectedCount = selection.selectedItems(items).length;
+    final all = selectedCount == items.length;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(2, 4, 12, 4),
+      decoration: BoxDecoration(
+        border: Border.all(color: const Color(0xffe9e9e9)),
+        borderRadius: BorderRadius.circular(28),
+      ),
+      child: Row(
+        children: [
+          Checkbox(
+            key: const ValueKey('cart-store-select-all'),
+            tristate: true,
+            value: all
+                ? true
+                : selectedCount == 0
+                ? false
+                : null,
+            onChanged: enabled ? (_) => onSelectAll(!all) : null,
+          ),
+          const Icon(Icons.storefront_outlined, size: 18),
+          const SizedBox(width: 6),
+          const Expanded(
+            child: Text(
+              'STRIDE · HÀ NỘI',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+            ),
+          ),
+          Text(
+            '$selectedCount/${items.length}',
+            style: const TextStyle(fontSize: 11, color: StorefrontTheme.muted),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CartSummary extends StatelessWidget {
+  const _CartSummary({
+    required this.state,
+    required this.selection,
+    required this.onSelectAll,
+  });
+  final CartState state;
+  final CartSelectionState selection;
+  final ValueChanged<bool> onSelectAll;
+  @override
+  Widget build(BuildContext context) {
+    final items = selection.selectedItems(state.items);
+    final subtotal = items.fold<int>(
+      0,
+      (total, item) => total + (item.lineTotalVnd ?? 0),
+    );
+    final canCheckout =
+        items.isNotEmpty &&
+        !state.isMutating &&
+        !state.hasPendingMutation &&
+        items.every((item) => item.canCheckout);
+    final all = items.length == state.items.length;
+    final enabled = !state.isMutating && !state.hasPendingMutation;
+    return Container(
+      key: const ValueKey('cart-sticky-summary'),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Color(0xffeeeeee))),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Checkbox(
+                    key: const ValueKey('cart-select-all'),
+                    tristate: true,
+                    value: all
+                        ? true
+                        : items.isEmpty
+                        ? false
+                        : null,
+                    onChanged: enabled ? (_) => onSelectAll(!all) : null,
                   ),
-                ),
-                const SizedBox(width: 12),
-                Flexible(
-                  child: Text(
-                    formatVnd(state.subtotalVnd),
-                    textAlign: TextAlign.end,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: scheme.primary,
-                      fontWeight: FontWeight.w900,
+                  Expanded(
+                    child: Text(
+                      'Tất cả (${items.length}/${state.items.length})',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text('${state.totalQuantity} sản phẩm'),
-            if (state.hasUnavailableItems) ...[
+                  const Text(
+                    'COD',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: StorefrontTheme.muted,
+                    ),
+                  ),
+                ],
+              ),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final amount = Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Tạm tính',
+                        key: ValueKey('cart-subtotal'),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: StorefrontTheme.muted,
+                        ),
+                      ),
+                      Text(
+                        formatVnd(subtotal),
+                        key: const ValueKey('cart-selected-subtotal'),
+                        style: Theme.of(context).textTheme.titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                    ],
+                  );
+                  final action = FilledButton.icon(
+                    key: const ValueKey('cart-checkout'),
+                    onPressed: canCheckout
+                        ? () => context.push(
+                            Uri(
+                              path: '/customer/checkout',
+                              queryParameters: {
+                                'variant': items
+                                    .map((item) => item.variantId)
+                                    .toList(),
+                              },
+                            ).toString(),
+                          )
+                        : null,
+                    icon: const Icon(Icons.arrow_forward, size: 18),
+                    label: Text('Đặt hàng (${items.length})'),
+                  );
+                  if (constraints.maxWidth < 350 ||
+                      MediaQuery.textScalerOf(context).scale(14) > 22) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [amount, const SizedBox(height: 8), action],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      Expanded(child: amount),
+                      const SizedBox(width: 10),
+                      Flexible(child: action),
+                    ],
+                  );
+                },
+              ),
               const SizedBox(height: 6),
               const Text(
-                'Dòng không còn khả dụng chưa được cộng vào tạm tính.',
+                'Chưa gồm phí giao hàng 30.000 đ.',
+                style: TextStyle(fontSize: 10, color: StorefrontTheme.muted),
               ),
+              if (items.any((item) => !item.canCheckout)) ...[
+                const SizedBox(height: 4),
+                const Text(
+                  'Bỏ chọn hoặc điều chỉnh món hết hàng/không còn bán để tiếp tục.',
+                  key: ValueKey('cart-selection-warning'),
+                  style: TextStyle(fontSize: 11, color: StorefrontTheme.sale),
+                ),
+              ],
             ],
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                key: const ValueKey('cart-checkout'),
-                onPressed: state.canCheckout
-                    ? () => context.push('/customer/checkout')
-                    : null,
-                icon: const Icon(Icons.arrow_forward),
-                label: const Text('Tiến hành đặt hàng'),
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Thanh toán khi nhận hàng. Phí giao hàng tại Hà Nội: 30.000 đ.',
-              textAlign: TextAlign.center,
-            ),
-            if (state.items.any((item) => !item.canCheckout)) ...[
-              const SizedBox(height: 4),
-              Text(
-                'Hãy xóa sản phẩm không còn bán hoặc điều chỉnh số lượng trước khi đặt hàng.',
-                style: Theme.of(context).textTheme.bodySmall
-                    ?.copyWith(color: scheme.onSurfaceVariant),
-              ),
-            ],
-          ],
+          ),
         ),
       ),
     );

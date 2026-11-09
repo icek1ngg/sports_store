@@ -1,5 +1,61 @@
 # Hợp đồng truy cập database
 
+> **Hiện trạng được ưu tiên đọc — 09/11/2026.** Bảng dưới đây được đối chiếu
+> từ domain contracts và các Supabase adapters hiện có trong `lib/features`;
+> tên RPC/params phải khớp migration tương ứng trong
+> [`supabase/migrations`](../supabase/migrations). “Có adapter/có source SQL”
+> không đồng nghĩa RPC đã có trên Supabase chung. Trạng thái migration và bằng
+> chứng cloud được tách riêng tại phần [inventory database](database.md#inventory-migration-hiện-hành).
+
+## Hợp đồng runtime hiện hành
+
+Composition production dùng một Supabase client/provider chung và repository
+theo feature. Adapter kiểm tra session/role trước và sau request, giải mã DTO
+strict, không trả dữ liệu demo khi backend lỗi. Các đường dẫn dưới đây đều là
+đường dẫn tương đối từ `docs/api_contracts.md`.
+
+| Feature | Domain contract → adapter hiện tại | Giao diện server thực tế |
+|---|---|---|
+| Auth | [`AuthRepository`](../lib/features/auth/domain/repositories/auth_repository.dart) → [`SupabaseAuthRepository`](../lib/features/auth/data/repositories/supabase_auth_repository.dart) | Supabase Auth SDK; đọc `profiles(id,role)` để xác minh vai trò. Không có RPC đăng nhập/đăng ký riêng. |
+| Catalog/MH03 | [`CatalogRepository`](../lib/features/catalog/domain/repositories/catalog_repository.dart) → [`SupabaseCatalogRepository`](../lib/features/catalog/data/repositories/supabase_catalog_repository.dart) | Data API `categories`, `products`, `product_variants`, `profiles`; manager ghi qua `save_managed_product(p_request_id,p_product_id,p_expected_updated_at,p_name,p_category_id,p_description,p_image_path,p_is_active,p_variants)`. |
+| Ảnh catalog | [`ProductImageRepository`](../lib/features/catalog/domain/repositories/product_image_repository.dart) → [`SupabaseProductImageRepository`](../lib/features/catalog/data/repositories/supabase_product_image_repository.dart) | Storage bucket private `product-images`; signed URL. `asset:` chỉ là nhánh asset local hợp lệ của client, không thay object path Storage. |
+| Cart/MH06 | [`CartRepository`](../lib/features/cart/domain/repositories/cart_repository.dart) → [`SupabaseCartRepository`](../lib/features/cart/data/repositories/supabase_cart_repository.dart) | Data API `cart_items` của customer hiện tại; `setQuantity` là giá trị đích, không reserve tồn. Đặt đơn không gọi chuỗi update cart từ widget. |
+| Checkout/MH16 | [`CheckoutRepository`](../lib/features/checkout/domain/repositories/checkout_repository.dart) → [`SupabaseCheckoutRepository`](../lib/features/checkout/data/repositories/supabase_checkout_repository.dart) | `place_order(p_request_id,p_items,p_recipient_name,p_recipient_phone,p_address_detail,p_latitude,p_longitude)` và `get_placement_result(p_request_id)`. Giá/tồn/phí/snapshot do server. |
+| Tìm địa chỉ | [`AddressSearchRepository`](../lib/features/checkout/domain/repositories/address_search_repository.dart) → [`PhotonAddressSearchRepository`](../lib/features/checkout/data/repositories/photon_address_search_repository.dart) | Photon HTTP ngoài Supabase; chỉ tạo draft địa chỉ sau khi khách xác nhận. Không phải quyền/validation backend của `place_order`. |
+| COD đọc | [`CodRepository`](../lib/features/cod/domain/repositories/cod_repository.dart) → [`SupabaseCodRepository`](../lib/features/cod/data/repositories/supabase_cod_repository.dart) | `list_cod_collections(p_shipper_id,p_order_id,p_statuses,p_limit,p_cursor)`; scope shipper/manager do server kiểm. |
+| COD nhận tiền | [`CodReceiptRepository`](../lib/features/cod/domain/repositories/cod_receipt_repository.dart) → [`SupabaseCodReceiptRepository`](../lib/features/cod/data/repositories/supabase_cod_receipt_repository.dart) | Manager gọi `confirm_cod_received(p_order_id,p_received_amount_vnd,p_request_id)`; chỉ ACK đầy đủ, không partial/refund offset. |
+| Delivery đọc/MH10–11/18 | [`DeliveryRepository` + `DeliveryMapReader`](../lib/features/deliveries/domain/repositories/delivery_repository.dart) → [`SupabaseDeliveryRepository`](../lib/features/deliveries/data/repositories/supabase_delivery_repository.dart) | `read_my_delivery_tasks`, `read_my_delivery_task_items`, `list_my_delivery_tasks`, `get_my_delivery_task`, `get_my_delivery_task_history`; map reader tái sử dụng detail RPC, không mở API GPS mới. |
+| Outbound actions | [`OutboundTaskCommandRepository`](../lib/features/deliveries/domain/repositories/outbound_task_command_repository.dart), [`OutboundCompletionRepository`](../lib/features/deliveries/domain/repositories/outbound_completion_repository.dart), [`OutboundFailureRepository`](../lib/features/deliveries/domain/repositories/outbound_failure_repository.dart), [`OutboundRetryRepository`](../lib/features/deliveries/domain/repositories/outbound_retry_repository.dart) | `accept_delivery_task`, `accept_and_start_delivery_task`, `start_delivery_task`, `complete_outbound_delivery`, `fail_delivery_task`, `retry_outbound_delivery_task`; mỗi write giữ nguyên `p_request_id` khi outcome không rõ. |
+| Assignment/reporting | [`DeliveryReportingRepository`](../lib/features/deliveries/domain/repositories/delivery_reporting_repository.dart) và các adapter delivery tương ứng | `assign_delivery_task`; `get_my_delivery_reporting_context`; `report_store_handover`; `report_delivery_incident`. Reporting không tự đổi state/COD/tồn. |
+| Return pickup/redelivery | [`ReturnPickupRepository`](../lib/features/deliveries/domain/repositories/return_pickup_repository.dart) → [`SupabaseReturnPickupRepository`](../lib/features/deliveries/data/repositories/supabase_return_pickup_repository.dart); [`RedeliveryRepository`](../lib/features/deliveries/domain/repositories/redelivery_repository.dart) → [`SupabaseRedeliveryRepository`](../lib/features/deliveries/data/repositories/supabase_redelivery_repository.dart) | Pickup: `collect_return_items`, `fail_return_pickup_task`, `report_return_pickup_handover`, `get_my_return_pickup_handover`. Redelivery: `accept_redelivery_task`, `start_redelivery_task`, `complete_redelivery`, `fail_redelivery_task`. Manager adapter ở returns gọi wrappers `approve_return_collection`/`reject_inspected_return`, cùng `receive_customer_return` và `assign_redelivery_task`; wrappers mới gọi primitive `approve_return_pickup_plan`/`reject_return_after_inspection`. |
+| Orders/MH07–09 | [`OrderRepository`](../lib/features/orders/domain/repositories/order_repository.dart) → [`SupabaseOrderRepository`](../lib/features/orders/data/repositories/supabase_order_repository.dart); pending commands dùng [`PendingOrderCommandStore`](../lib/features/orders/domain/repositories/order_repository.dart) → [`SecurePendingOrderCommandStore`](../lib/features/orders/data/repositories/secure_pending_order_command_store.dart) | Read: `get_customer_orders`, `get_manager_orders`, `get_order_details`. Commands: `confirm_order`, `reject_order`, `cancel_customer_order`, `cancel_manager_order`; lookup `get_order_operation_result`. Không raw UPDATE trạng thái. |
+| Notifications/MH17 | [`NotificationRepository`](../lib/features/notifications/domain/repositories/notification_repository.dart) → [`SupabaseNotificationRepository`](../lib/features/notifications/data/repositories/supabase_notification_repository.dart); `NotificationTargetResolver` là contract riêng và hiện chưa có adapter production được bind | Data API `notifications` (recipient-scoped select, unread count, update `read_at`); mở target phải resolve lại quyền. Không có push/realtime RPC mới. |
+| Chat/MH19–20 | [`ChatRepository`](../lib/features/chat/domain/repositories/chat_repository.dart) → [`SupabaseChatRepository`](../lib/features/chat/data/repositories/supabase_chat_repository.dart) | `list_chat_conversations`, `ensure_customer_conversation`, `get_chat_messages`, `send_chat_message`; activity probe chỉ đọc `conversations`/`messages`, không mark read. Shipper không được tham gia. |
+| Returns/MH13 | [`ReturnRequestRepository`](../lib/features/returns/domain/repositories/return_request_repository.dart) → [`SupabaseReturnRequestRepository`](../lib/features/returns/data/repositories/supabase_return_request_repository.dart) | `get_return_request_context`, `submit_return_request`; video nằm ở private bucket `return-videos`, request UUID là khóa retry. |
+| Returns/MH14 | [`ReturnTrackingRepository`](../lib/features/returns/domain/repositories/return_tracking_repository.dart) → [`SupabaseReturnTrackingRepository`](../lib/features/returns/data/repositories/supabase_return_tracking_repository.dart) | `get_my_return_request`, `get_my_return_info_request`, `respond_return_info`; customer chỉ đọc return của mình. |
+| Returns/MH15 | [`ManagerReturnRepository`](../lib/features/returns/domain/repositories/manager_return_repository.dart) → [`SupabaseManagerReturnRepository`](../lib/features/returns/data/repositories/supabase_manager_return_repository.dart) | `list_manager_return_requests`, `get_manager_return_request`, `approve_return_collection`, `reject_return_request`, `request_return_info`, `receive_customer_return`, `accept_inspected_return`, `reject_inspected_return`, `record_return_refund`, `assign_redelivery_task`; Storage `inspection-evidence`/`refund-evidence` private. |
+
+### Nguyên tắc ACK, retry và trạng thái triển khai
+
+- Các write adapter không optimistic-update state. Timeout, malformed ACK hoặc
+  mất session không chứng minh rollback; ViewModel giữ cùng `request_id` để
+  lookup/retry rồi đọc lại projection server. Đây là hợp đồng Dart, không làm
+  cho một RPC source-only trở thành live.
+- `p_request_id` phải UUID ổn định theo command. Client không gửi actor/role,
+  giá, tồn, timestamp server hoặc trạng thái đích để server tin cậy.
+- Quyền backend vẫn do RLS/function kiểm tra trên server. `profiles.role` là
+  nguồn role app; không dùng `user_metadata` hoặc route guard để thay thế RLS.
+- Bảng migration/triển khai tại [`database.md`](database.md#provenance-triển-khai)
+  phân biệt source, local fixture và cloud evidence. Orders migrations 35–38
+  đều có trong source/test runner; một số header ghi `SOURCE ONLY` tại mốc tạo
+  file, bridge 37 là delta reviewed. Claim migration 39 cho thấy read helper
+  prerequisite đã tồn tại tại thời điểm patch linked, nhưng không chứng minh
+  migration history đầy đủ hoặc toàn bộ 35–38 đã áp nguyên văn.
+
+Các mục P00/P01… phía dưới là changelog/đặc tả lịch sử. Khi một mục cũ nói
+“chưa có RPC” hoặc “chưa có adapter”, câu đó chỉ đúng tại timestamp của mục đó;
+đối chiếu bảng runtime này trước khi dùng làm hợp đồng mới.
+
 Cập nhật 02/11/2026: MH11 đọc đầy đủ snapshot nhiệm vụ đã kết thúc của chính
 shipper qua API bổ sung; COD lấy từ ledger, quyền thao tác vẫn theo trạng thái.
 [Chi tiết hợp đồng](demos/shipper_history_details_20261102.md).
@@ -26,8 +82,10 @@ Lifecycle che PII/resume recheck; foreground recheck 15s không phải realtime.
 
 P09.2: người dùng chốt OSM raster tiles + Google Maps URL cho demo Web/Android
 ngày 28/10/2026. Core có MapLocation, MapDisplayAdapter và MapNavigationAdapter
-coordinate-only cho MH16 tái sử dụng; chưa triển khai picker/địa chỉ MH16 và
-server vẫn kiểm Hà Nội. Native cache file bounded, Web browser cache; không API
+coordinate-only cho MH16 tái sử dụng. Ghi chú “chưa triển khai picker/địa chỉ
+MH16” là snapshot 28/10; code hiện tại đã có picker/map và
+`AddressSearchRepository`, còn server vẫn kiểm Hà Nội. Native cache file
+bounded, Web browser cache; không API
 key hoặc Supabase API mới. [Quyết định/provider/license/cấu hình/tests](demos/p092_reusable_maps_adapter.md).
 
 P09.1 MH18 tái sử dụng `get_my_delivery_task(p_task_id uuid)` production và
@@ -120,9 +178,12 @@ Lỗi thiếu grant/RLS thường là `42501`; FK là `23503`; CHECK là `23514`
 
 RLS trên đối tượng đích vẫn được kiểm tra khi mở liên kết thông báo. Nội dung thông báo không được nhúng bank details hoặc snapshot riêng tư của nhiệm vụ cho người không còn quyền.
 
-## RPC/tác vụ server cần triển khai theo feature
+## RPC/tác vụ server cần triển khai theo feature (baseline proposal)
 
-Các mục dưới đây là trách nhiệm tích hợp tiếp theo; chưa phải endpoint tồn tại và chưa chốt chữ ký RPC. Thành viên phải bổ sung tên/chữ ký/error code vào tài liệu cùng migration triển khai.
+Các mục dưới đây là trách nhiệm/đặc tả baseline tại thời điểm viết; không phải
+inventory endpoint hiện hành và không phủ định các RPC đã có ở bảng runtime đầu
+tài liệu. Chữ ký/error code mới chỉ có hiệu lực khi migration tương ứng đã tồn
+tại và có deployment evidence.
 
 | Chủ sở hữu | Hợp đồng bắt buộc |
 |---|---|
@@ -137,13 +198,13 @@ Mọi action thay đổi tồn/tiền/trạng thái phải kiểm tra identity, 
 
 `private.current_app_role()` chỉ là helper RLS đọc vai trò của session, không phải RPC app. Trigger đăng ký không sử dụng `user_metadata.role` để quyết định quyền.
 
-## Orders/Notifications owned design revision1.2 — chưa triển khai
+## Orders/Notifications owned design revision1.2 — phần thiết kế còn proposed
 
 Owner Bảo đã ủy quyền chốt kỹ thuật phạm vi MH07/08/09/17. [Main Specification](technical_specification_mh07_mh08_mh09_mh17.md), [Data/API normative](technical_specification_mh07_mh08_mh09_mh17_data_api.md), [Final Decisions](Final_Technical_Decisions.md), [Cross Contracts](Cross_Module_Integration_Contracts.md) và [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](FINAL_REPORT_MH07_MH08_MH09_MH17.md). Owned shapes/RPC/receipt/metadata/query/UI design OWNER DECIDED — PROPOSED IMPLEMENTATION; không ghi tables/RPC mới là existing, không thay enum hay grants hiện tại. FullUUID/no humanordercode, snapshotplaceholder, safeCustomerprojection không mở rawtasks/events RLS; main4role routes proposed centralrouter. CIN01–09 external contractoffers NOT ACCEPTED/NOT IMPLEMENTED; recommendedtask2samecustody/inspection cần ownerDelivery/Inventory xác nhận. Businesslost/partialclosure/transferafterpickup/7dayedge chưa quyết. Nội dung baseline của module khác giữ nguyên; currentowned definitions ở revision1.2, schema/runtime baseline vẫn three existingmigrations.
 
 ## I1 Auth/session bridge — implementation ngày 27/10/2026
 
-**Ghi chú tích hợp 07/11/2026:** Phần I1 dưới đây được bảo toàn như mô tả lịch sử của implementation cũ. Các lớp `AuthSessionViewModel` và `auth_session.dart` không có trong source hiện tại; bộ tests I1 local chưa hoàn chỉnh vẫn được giữ riêng, chưa commit. Auth hiện tại thuộc `features/auth`, lấy quyền từ `profiles`; composition production dùng duy nhất `trustedFeatureSessionProvider` với kiểm tra SDK identity/token/expiry, generation và fail-closed khi hồ sơ chưa xác minh. Resume làm mới hồ sơ. MH17 bind adapter Supabase hiện có; target resolver vẫn unavailable. Chưa có Orders adapter hoặc migration hiện thực OP-O01–08; không dùng raw UPDATE thay hợp đồng giao dịch.
+**Ghi chú tích hợp 07/11/2026:** Phần I1 dưới đây được bảo toàn như mô tả lịch sử của implementation cũ. Các lớp `AuthSessionViewModel` và `auth_session.dart` không có trong source hiện tại; bộ tests I1 local chưa hoàn chỉnh vẫn được giữ riêng, chưa commit. Auth hiện tại thuộc `features/auth`, lấy quyền từ `profiles`; composition production dùng duy nhất `trustedFeatureSessionProvider` với kiểm tra SDK identity/token/expiry, generation và fail-closed khi hồ sơ chưa xác minh. Resume làm mới hồ sơ. MH17 đã bind adapter Supabase hiện có; target resolver vẫn unavailable. Orders hiện có `OrderRepository`/`SupabaseOrderRepository` và các RPC source tương ứng, nhưng migration 35–38 vẫn phải phân biệt source-only với cloud deployment; không dùng raw UPDATE thay hợp đồng giao dịch.
 
 User đã giao triển khai phần Auth/session của I1. Section này cập nhật riêng client bridge; không coi toàn bộ CIN-01/protected command storage hoặc các external CIN khác là accepted/implemented. Audit 26/10/2026 giữ nguyên như historical snapshot.
 
@@ -155,14 +216,18 @@ User đã giao triển khai phần Auth/session của I1. Section này cập nh�
 - Stream error fail-closed và có retry/recheck; stream kết thúc bất ngờ giữ denied đến khi provider được tạo lại với nguồn stream hợp lệ. Dispose hủy subscription/timers; read futures đã chạy có thể hoàn tất nhưng không được publish sau timeout/session change/dispose.
 - AuthSessionException không giữ/in lỗi transport, token, credentials hoặc PII. VM.signOut() trả bool để caller xử lý kết quả remote; remote failure không khôi phục quyền local.
 
-Source implementation + mocked SDK/provider/widget tests đã có; authenticated runtime, deployed profiles/RLS/session restore trên thiết bị **NOT VERIFIED** vì chưa có QA account/staging được phê duyệt. Không chạy migration, không tạo tài khoản; chưa MH01/MH02, I2 data repositories, I3 router hoặc durable pending command store.
+Source implementation + mocked SDK/provider/widget tests đã có; authenticated runtime, deployed profiles/RLS/session restore trên thiết bị **NOT VERIFIED** vì chưa có QA account/staging được phê duyệt. Không chạy migration, không tạo tài khoản; MH01/MH02 và I3 router vẫn ngoài handoff I1. Orders data repository và durable pending command store hiện đã có trong các đường dẫn ở bảng runtime đầu tài liệu; không gán chúng cho implementation I1 cũ.
 
-Chi tiết API, generation và verification: [I1 handoff](features/auth/I1_AUTH_SESSION_HANDOFF.md).
+Chi tiết contract hiện hành: [`auth_repository.dart`](../lib/features/auth/domain/repositories/auth_repository.dart)
+và [`supabase_auth_repository.dart`](../lib/features/auth/data/repositories/supabase_auth_repository.dart).
+Handoff I1 lịch sử được nhắc trong changelog nhưng không còn là một file trong repository.
 
-## P00.2 — Đề xuất API giao nhận/COD và tích hợp (23/10/2026)
+## P00.2 — Đề xuất API giao nhận/COD và tích hợp (23/10/2026, snapshot lịch sử)
 
-**Toàn bộ tên RPC, DTO, error code và chữ ký dưới đây là đề xuất, chưa triển
-khai, chưa được các owner duyệt.** Đối chiếu ba migration `20261006034251`,
+**Toàn bộ tên RPC, DTO, error code và chữ ký dưới đây là đề xuất ở thời điểm
+23/10; không đọc đoạn này như inventory runtime hiện tại. Một số RPC sau đó đã
+được tạo trong migration và được nêu ở bảng đầu tài liệu. Chưa triển
+khai, chưa được các owner duyệt trong phase P00.2.** Đối chiếu ba migration `20261006034251`,
 `20261006034259`, `20261006040019` trong `supabase/migrations`, provider client
 và router hiện tại; không truy vấn cloud trong phase này. Chỉ helper/trigger
 private có trong migration, không có RPC giao nhận/COD public. Không suy ra
@@ -259,7 +324,7 @@ Mọi dòng đều **pending approval** của owner ghi ở cột cuối; mã D 
 | `receive_customer_return(task_id:uuid,items:receipt_items)` | Manager MH15; pickup in_transit hoặc redelivery manager_action_required theo D9; có hàng thực tế | `ReceiptResult`; P6 T returned_to_store/R under_inspection hoặc R6b R giữ chờ manager; không restock/hoàn tiền | ITEMS_MISMATCH, CUSTODY_UNRESOLVED; Sơn wrapper + Minh Đức D2/D8/D9/S2 |
 | `inspect_failed_delivery_return(order_id:uuid,items:inspection_items,reason:text)` | Manager MH09; receipt đã có, chưa inspection; đối chiếu quantity received; lượng đạt/hỏng/mất hợp lệ | `OrderResult`; O11b, inventory ledger + lượng đạt restock một lần, O undeliverable_returned; không thay COD | ITEMS_MISMATCH, DEPENDENCY_NOT_READY; Bảo + Văn Đức D4/D5; không tạo API inspection returns song song của Sơn |
 | `cancel_delivery_task(task_id:uuid,reason:text)` | Manager; chỉ pending/assigned chưa custody/start và order/return cho phép hủy theo owner | `TaskResult`; T cancelled/cancel_reason/completed_at; không ghi attempt; O/return không tự đoán, wrapper owner xác định trong cùng transaction | STATE_CONFLICT, CUSTODY_UNRESOLVED; Bảo/Sơn D1/D8/D9; chưa chốt return cancellation thì chặn |
-| `confirm_cod_received(p_order_id:uuid,p_received_amount_vnd:bigint,p_request_id:uuid)` — triển khai P06.3, xem contract cuối file | Chỉ manager server; COD collected sạch; thực nhận=expected=collected; không bù refund | Response ledger P06.3; khóa order/COD; handed_over_at=received_at server, event/notification holder một lần | AMOUNT_MISMATCH, STATE_CONFLICT, IDEMPOTENCY_CONFLICT; người dùng chốt receipt D7/S3, không claim Bảo duyệt; chưa xác minh deploy cloud |
+| `confirm_cod_received(p_order_id:uuid,p_received_amount_vnd:bigint,p_request_id:uuid)` — triển khai P06.3, xem contract cuối file | Chỉ manager server; COD collected sạch; thực nhận=expected=collected; không bù refund | Response ledger P06.3; khóa order/COD; handed_over_at=received_at server, event/notification holder một lần | AMOUNT_MISMATCH, STATE_CONFLICT, IDEMPOTENCY_CONFLICT; người dùng chốt receipt D7/S3, không claim Bảo duyệt; “chưa xác minh deploy” chỉ là trạng thái proposal 23/10, xem handoff/live acceptance mới hơn |
 
 `receipt_items` đề xuất: `{item_ref:uuid,received_quantity:bigint}`;
 `inspection_items`: `{item_ref:uuid,sellable_quantity:bigint,damaged_quantity:bigint,
@@ -409,10 +474,11 @@ khách nếu đó là snapshot đã chốt; không tự đổi nghĩa destinatio
 cửa hàng theo status. Nếu cần hai đầu hành trình phải chốt schema riêng S1.
 
 Các dependency S1 (snapshot), S2 (custody/event/receipt/idempotency), S3 (COD),
-S4 (history/version/quyền) mô tả trong database.md đều **chưa triển khai**.
-Chưa có xác nhận owner, báo cáo gốc v3.0 và file đính kèm còn thiếu như P00.1.
-P00.2 bàn giao đặc tả để review; tích hợp live bị chặn, không tạo fixture
-hay interface runtime khi phase chỉ yêu cầu tài liệu.
+S4 (history/version/quyền) ở đoạn này là **trạng thái review của P00.2**. Một
+phần primitive sau đó đã được triển khai (xem bảng runtime và các migration),
+nhưng không nên dùng đoạn proposal này để kết luận toàn bộ dependency đã live.
+P00.2 bàn giao đặc tả để review; các giới hạn chưa được migration/production
+evidence vẫn giữ nguyên.
 
 Tham khảo kỹ thuật đã kiểm tra khi viết đặc tả: [Supabase Database Functions](https://supabase.com/docs/guides/database/functions).
 Ưu tiên invoker; baseline không cho client ghi nghiệp vụ nên phải thiết kế
@@ -1340,7 +1406,7 @@ Những phần ngoài scope không được báo đã hoàn tất hoặc đượ
 Native fixture đã dừng bằng `pg_ctl -D <workspace>/supabase/.temp/p011_native_data stop -m fast`
 và nhận `server stopped`; giữ database cô lập, không xóa/reset dữ liệu.
 
-## P04.1 — Accept/start outbound: dependency gate, chưa triển khai live
+## P04.1 — Accept/start outbound: dependency gate (snapshot trước production)
 
 Ngày 24/10/2026 người dùng xác nhận primitive xuất kho của Văn Đức và RPC hủy
 đơn của Bảo **chưa có**. Audit bảy migration hiện tại không tìm thấy public
@@ -1467,7 +1533,7 @@ supabase/tests/run_outbound_commands_demo.ps1, docs/demos/p041_outbound_demo.md;
 runner và bốn contract docs được bổ sung tuần tự, giữ diff phase trước.
 Không thêm production migration/API/RLS/UI; P04.1 live vẫn bị chặn.
 
-## P04.2 — Accept/start action interfaces, live BLOCKED (25/10/2026)
+## P04.2 — Accept/start action interfaces, live BLOCKED (snapshot trước production, 25/10/2026)
 
 Đã kiểm tra lại: chưa có accept_delivery_task/start_delivery_task trong bảy
 migration; P04.1 chỉ demo SQL cô lập. Không nối p041_demo vào Flutter và không
@@ -1499,7 +1565,7 @@ request ID durable qua teardown/restart hoặc MH10 write integration đã có.
 Không schema/migration/API/RLS/client/theme/router/dependency runtime bị sửa.
 P04.2 live vẫn BLOCKED, chưa hoàn tất; không tự bật nút từ thành công test.
 
-## P05.1 — Completion contract fixture, live BLOCKED (25/10/2026)
+## P05.1 — Completion contract fixture, live BLOCKED (snapshot trước production, 25/10/2026)
 
 Đã đối chiếu bảy migrations, plan và contract hiện tại: chưa có public RPC
 complete_outbound_delivery; P04.1 accept/start/custody/dispatch live chưa có,
@@ -1563,11 +1629,12 @@ Không migration/API/RLS/dependency mới. Các test cache dùng FutureProviders
 fixture, không là wiring MH10/COD production. Live BLOCKED bởi P05.1/P04.1,
 ledger/version và D7; không báo P05.2 hoàn tất từ success của scripted fixture.
 
-## P06.1 — Role-scoped COD list API (25/10/2026)
+## P06.1 — Role-scoped COD list API (25/10/2026, snapshot trước live acceptance)
 
 Phần này thay thế read COD đề xuất P00.2 và direct-table adapter P01.2 khi
 migration P06.1 đã được áp dụng. Đây là triển khai đọc độc lập với completion
-P05.1 còn thiếu, không là bằng chứng đã có RPC thu/nhận tiền hoặc deploy cloud.
+P05.1 còn thiếu ở snapshot này; không dùng câu đó để phủ định các kết quả live
+được ghi ở mục P06.1–P06.4 bên dưới.
 [Handoff/validation P06.1](demos/p061_cod_list_api.md).
 
 `list_cod_collections(p_shipper_id uuid=null, p_order_id uuid=null,
@@ -1600,7 +1667,7 @@ cùng RPC để duyệt trang. Không fallback về đọc trực tiếp hay dat
 chưa deploy/lỗi; access session epoch và typed failures giữ nguyên. Không đổi
 MH12 UI, shared router/client/theme/dependencies hoặc API nhận COD.
 
-## P06.2 — Shipper COD presentation
+## P06.2 — Shipper COD presentation (snapshot trước live acceptance)
 
 ShipperCodViewModel gọi queryCollections P06.1 với shipperId=session.userId,
 optional orderId và statuses=[collected] hoặc [received]. Không dùng
@@ -1612,10 +1679,11 @@ Role presentation đọc qua OperationalReadAccess server profile; manager giữ
 outlet. ViewModel xử lý epochs/generation/tab/load-more, clear dữ liệu cũ ở
 refresh/auth errors, không fallback demo. Foreground 30s/resume/manual đọc mới
 không request_id. Hook refreshCodReadsAfterConfirmedWrite invalidate backing
-legacy cache và shipper provider, chưa có write live call site do dependencies
-P05.1/receipt còn thiếu. [Giới hạn/validation P06.2](demos/p062_shipper_cod_ui.md).
+legacy cache và shipper provider; câu “chưa có write live call site do
+dependencies P05.1/receipt còn thiếu” chỉ là giới hạn ở snapshot này.
+[Giới hạn/validation P06.2](demos/p062_shipper_cod_ui.md).
 
-## P06.3 — Confirm COD received (25/10/2026)
+## P06.3 — Confirm COD received (25/10/2026, snapshot trước live acceptance)
 
 Người dùng chốt trong lượt P06.3: notify chỉ shipper giữ COD; manager nhận đủ
 ghi handed_over_at=received_at giờ server; ledger receipt riêng; khóa order →
@@ -1623,7 +1691,10 @@ COD và chỉ một receipt/order. Quyết định này thay phần D7/S3/S2 cò
 receipt**, không là phê duyệt của Bảo/Sơn/Văn Đức hoặc của các write khác.
 
 RPC `confirm_cod_received(p_order_id uuid,p_received_amount_vnd bigint,
-p_request_id uuid)` triển khai bằng migration P06.3; chưa xác minh apply cloud.
+p_request_id uuid)` triển khai bằng migration P06.3. Câu “chưa xác minh apply
+cloud” trong bản ghi phase này đã được thay bởi kết quả live acceptance ở mục
+P06.1–P06.4 bên dưới; vẫn xem [`database.md`](database.md) để phân biệt source
+và deployment provenance.
 Caller phải manager từ profiles, không nhận actor/recipient/time/order total.
 Amount là lời xác nhận thực nhận của manager, phải đúng toàn bộ expected=
 collected, không sửa expected theo client, không offset refund. Không thêm
@@ -1671,7 +1742,7 @@ Scope/filter/pending data thuộc session/role; dialog và late response bị v�
 hiệu hóa khi đổi epoch. Không fallback direct table/demo nếu P06.1/P06.3 chưa
 deploy. [File/checks/giới hạn P06.4](demos/p064_manager_cod_ui.md).
 
-## P07.1 — Outbound failure dependency boundary (26/10/2026)
+## P07.1 — Outbound failure dependency boundary (snapshot trước production, 26/10/2026)
 
 Audit chín migration: chưa có public `fail_delivery_task`, accept/start hoặc
 `complete_outbound_delivery`. P04.1/P05.1 chỉ fixture cô lập; không dùng dữ
@@ -1694,7 +1765,7 @@ custody/dispatch P04.1 và D3 lần hai; success/failure cần cùng khóa và l
 [Manifest, contract mục tiêu, kiểm tra và blockers](demos/p071_outbound_failure_boundary.md).
 P07.1 **chưa hoàn tất / live BLOCKED**; dependency fixture không trả success
 và không thay thế acceptance tests của RPC thật.
-## P07.2 — Manager retry/reassignment/custody: live BLOCKED (26/10/2026)
+## P07.2 — Manager retry/reassignment/custody: live BLOCKED (snapshot trước production, 26/10/2026)
 
 Đã audit chín migration và contracts: `assign_delivery_task` P03.3 có thật,
 chỉ outbound đầu tiên và đổi trước nhận hàng, chặn count>0/lịch sử attempt/
@@ -1716,7 +1787,7 @@ D5 xử lý task 2 đã tạo nhưng chưa start; ledger/version/custody và D7 
 
 [Manifest, contract mục tiêu và kiểm tra P07.2](demos/p072_outbound_retry_boundary.md).
 Không migration/RPC public/RLS/UI/router mới; P07.2 **chưa hoàn tất**.
-## P07.4 — Store handover/incident dependency boundary (26/10/2026)
+## P07.4 — Store handover/incident dependency boundary (snapshot trước production, 26/10/2026)
 
 Chín migration hiện có chưa có report_store_handover/report_delivery_incident.
 Actual enum incident là damaged/lost/other; lưu trong business_events, không
@@ -1740,7 +1811,7 @@ all managers hoặc coi assignment là physical custody.
 
 [Manifest, contract mục tiêu, lệnh/kết quả và blockers P07.4](demos/p074_delivery_reporting_boundary.md).
 Không migration/public API/grant/RLS/UI mới; P07.4 **live BLOCKED, chưa hoàn tất**.
-## P07.3 — Failed delivery dialog harness, live BLOCKED (26/10/2026)
+## P07.3 — Failed delivery dialog harness, live BLOCKED (snapshot trước production, 26/10/2026)
 
 Kiểm tra lại: MH11 production chỉ có nút báo thất bại disabled; chưa có dialog
 hoạt động hoặc fail_delivery_task production. P07.1 chỉ temporary interface
@@ -2023,3 +2094,178 @@ cùng giao dịch tạo đơn. Dòng hết số lượng được xóa. Món ngo
 thêm dư vẫn ở trong giỏ. Đơn thất bại giữ nguyên giỏ. Gửi lại cùng yêu cầu
 trả về đơn cũ và chỉ trừ giỏ một lần. Khi nhận hoặc khôi phục biên nhận,
 ứng dụng tải lại giỏ từ máy chủ.
+
+## Catalog và customer navigation — 08/11/2026
+
+`CatalogQuery` bổ sung `sort` (`nameAscending`, `nameDescending`, `newest`)
+và `inStockOnly`. Adapter áp dụng sắp xếp/bộ lọc tại server trước offset/limit;
+còn hàng nghĩa là tồn khả dụng > 0 của biến thể active. Không đổi contract
+giá, đơn hàng, snapshot hoặc reservation. Production Orders dùng
+`SupabaseOrderRepository` nối RPC/DTO v1.2 hiện có, không tạo API song song.
+Chi tiết tại [bản chỉnh catalog](van_duc_catalog_redesign_20261108.md).
+
+## MH05 — lựa chọn màu/cỡ (08/11/2026)
+
+Giữ nguyên ID biến thể và API giỏ hàng/đặt hàng. `ProductVariant.attributes`
+dùng `color`, `size` (chuỗi tùy chọn), `color_hex` (`#RRGGBB`, chỉ hiển thị
+swatch). Ảnh chính xác của phối màu dùng `image_path`, gallery dùng
+`image_paths` (mảng chuỗi); chấp nhận HTTPS hoặc object path trong bucket
+private `product-images`, qua provider ký URL chung. Getter bỏ qua metadata
+ảnh sai định dạng, loại trùng và trả gallery bất biến. MH03 giữ nguyên map
+attributes khi sửa biến thể; không tự tạo thuộc tính màu/ảnh.
+
+MH05 chọn màu trước rồi chọn cỡ; giữ cỡ đang chọn nếu màu mới có cỡ đó.
+Cỡ hết hàng vẫn xem được giá nhưng số lượng bằng 0 và không thêm giỏ.
+Biến thể thiếu `color` vẫn có đường chọn riêng. Chỉ gửi UUID biến thể đang
+chọn cùng số lượng tới `CartViewModel.addItem`; thêm giỏ không giữ tồn.
+Khóa lệnh chưa rõ kết quả, lỗi và kiểm tra phiên dùng nguyên luồng giỏ hiện có.
+
+Ảnh cấp sản phẩm chỉ là ảnh mẫu khi chưa có ảnh riêng cho màu đang chọn;
+UI ghi rõ điều này, không dùng ảnh mẫu để khẳng định màu thực tế. Bộ bổ sung
+4 màu là dữ liệu demo, không phải danh mục màu thương mại của nhà sản xuất.
+
+## MH06 → MH16 — đặt các dòng đã chọn (08/11/2026)
+
+`CartSelectionViewModel` quản lý lựa chọn cục bộ: mặc định chọn mọi dòng,
+bỏ chọn/chọn tất cả không ghi Supabase hoặc giữ tồn. Lựa chọn được giữ qua
+làm mới cùng tài khoản, bỏ ID đã xóa, reset khi `CartState.userId` thay đổi
+hoặc màn hình được hủy. Không đổi tổng số lượng của giỏ dùng cho badge.
+Khóa chỉnh lựa chọn/số lượng/xóa khi mutation đang chạy hoặc chưa rõ kết quả.
+
+MH06 truyền UUID đã chọn qua
+`/customer/checkout?variant=<uuid1>&variant=<uuid2>`; route inject một tập
+ID bất biến vào `selectedCheckoutVariantIdsProvider`, scope riêng cho trang
+đặt hàng. `checkoutProvider` lấy các dòng từ cart mới nhất, tính tiền và gọi
+`place_order` với đúng các dòng này. ID lạ/đã mất, lựa chọn rỗng tường minh
+báo lỗi yêu cầu quay lại giỏ; không tự chuyển thành toàn bộ giỏ. Route không
+có tham số giữ tương thích luồng đặt toàn bộ giỏ hiện có.
+
+Yêu cầu đang chờ trong secure store luôn được khôi phục trước khi kiểm tra
+lựa chọn route. Lookup/retry giữ nguyên request ID, UUID và số lượng đã lưu,
+kể cả giỏ đã bị trừ hoặc người dùng mở route có lựa chọn khác. Sau một từ
+chối chắc chắn không commit, yêu cầu mới quay về lựa chọn của route hiện tại.
+Không thêm trường persistence, RPC hoặc tham số `place_order` mới.
+
+Server tiếp tục giữ tồn nguyên tử, tạo snapshot đơn và chỉ trừ số lượng đã
+mua khỏi các dòng tương ứng trong giỏ. Dòng bỏ chọn giữ nguyên. Phí COD Hà
+Nội 30.000 đồng được cộng tại MH16; MH06 hiển thị tiền hàng, ghi rõ chưa gồm
+phí. Không áp dụng voucher hoặc miễn phí vận chuyển trong ảnh tham khảo.
+
+## MH16 — lưu yêu cầu Android và biên nhận (09/11/2026)
+
+`SecurePendingPlacementStore` dùng Android `resetOnError: false` và
+`migrateWithBackup: true`, giữ nguyên key theo tài khoản và mã hóa native.
+Sau ghi phải đọc lại đúng JSON request trước khi gửi `place_order`. Không
+fallback sang plaintext hoặc tự xóa journal lỗi. `localStorageUnavailable`
+là lỗi client mới, không phải mã lỗi RPC; phân biệt plugin chưa nạp với lỗi
+native và không đưa native exception/payload/địa chỉ vào UI hay log.
+
+Store lỗi trước RPC được coi là chưa gửi đơn; ViewModel giữ thông báo hướng
+dẫn của store, không gọi RPC và không xóa journal nếu chưa có `_pending`
+đã gửi. Lỗi đọc yêu cầu cũ không chứng minh rollback; phải khôi phục/lookup
+trước khi gửi đơn mới. Không thay đổi fingerprint, secure-store key, chữ ký
+RPC hoặc schema biên nhận.
+
+Màn thành công chỉ nhận `PlacementResult` đã đối chiếu chủ sở hữu, request,
+người nhận, địa chỉ/tọa độ và tập biến thể/số lượng. Hiện sản phẩm/giá từ
+OrderItem snapshot, tổng/phí/trạng thái/giờ từ Order server; không đọc catalog
+mới để thay lịch sử đơn. Sao chép UUID đầy đủ, mở danh sách đơn và trở lại
+giỏ. Xem [chẩn đoán và kiểm chứng](van_duc_checkout_completion_20261109.md).
+
+## MH05 — ảnh asset theo màu (09/11/2026, nhánh legacy/local)
+
+`attributes.image_path/image_paths` vẫn hỗ trợ URI dạng
+`asset:assets/images/<file>.png` (hoặc jpg/jpeg/webp). `catalogAssetPath`
+chỉ nhận đường dẫn chuẩn bên trong `assets/images/`, không authority,
+query/fragment, encoding, backslash hoặc traversal. Repository vẫn kiểm tra
+role và phiên tài khoản; URI asset không gọi Storage hay ký URL. Widget ảnh
+dùng `Image.asset`; HTTPS/private path giữ xử lý hiện có và lỗi ảnh không
+âm thầm thay bằng ảnh khác màu. Metadata `image_source=ai_color_preview`
+kích hoạt chú thích AI tại MH05. `image_color` khớp `color`; cùng màu khác cỡ
+dùng cùng ảnh. Không đổi repository/RPC đặt hàng hoặc snapshot đơn cũ.
+Xem [dữ liệu và kiểm chứng](van_duc_color_images_20261109.md). Seed Storage
+hiện hành dùng object path `demo/stride-colors-20261109/...` trong bucket
+private `product-images`; `asset:assets/images/...` ở mục này chỉ mô tả nhánh
+asset được client hỗ trợ cho dữ liệu legacy/preview, không phải giá trị seed
+Storage mới.
+
+## MH16 — bản đồ chọn địa chỉ (09/11/2026)
+
+Preview và picker dùng chung `CheckoutLocationMap` qua
+`FlutterMapTileProvider` → `mapTileSourceProvider`; không tạo HTTP client,
+URL provider hoặc cache riêng trong checkout. Adapter không dispose nguồn
+Riverpod dùng chung; khóa ảnh gồm identity nguồn, URI và generation của lần
+thử lại. Có callback cả khi image-cache hit, lỗi ảnh đi qua TileLayer.
+
+`hasSelection`/`hasInitialSelection` phân biệt tâm bản đồ ban đầu với vị trí
+khách đã chọn. Chỉ xác nhận khi khách chọn/nhập tọa độ hợp lệ; tọa độ nhập
+di chuyển viewport cùng ghim. Loading/lỗi không cho chọn trên nền trống;
+thử lại tải mới và không tự thay địa chỉ. Không thay hợp đồng `place_order`,
+phí COD, điều kiện Hà Nội, bảo vệ request đang chờ hoặc snapshot đơn.
+`CheckoutMapPreview.onPicked` cho chọn ngay trên bản đồ nhỏ khi checkout
+chưa khóa. Nhấn đúp bị tắt để single tap cập nhật ghim trước khi xác nhận;
+kéo và pinch zoom vẫn hoạt động. Callback sau dialog kiểm tra mounted.
+Xem [chẩn đoán và cách chạy](van_duc_checkout_address_20261109.md).
+
+## MH16 — địa chỉ trước bản đồ (09/11/2026)
+
+Luồng hiện tại thay bản đồ nhỏ bằng tìm đường/khu vực → chọn gợi ý → nhập
+số nhà/ngõ → xác nhận địa chỉ. `AddressSearchRepository` và ViewModel riêng
+đọc Photon, không đổi `place_order`. Chi tiết/nhãn tối đa 500 ký tự và tọa
+độ chỉ được đưa vào draft đặt hàng sau xác nhận. Sửa query xóa điểm cũ;
+sửa toàn bộ địa chỉ thủ công cũng phải chọn lại điểm. Editor được giữ qua
+recheck cùng tài khoản nhưng snapshot pending mới luôn được ưu tiên nguyên
+bản. Bản đồ chỉnh vị trí là dialog toàn màn hình trong protected Navigator,
+ghim cố định ở center, chỉ xác nhận khi tile dưới ghim đã decode.
+Xem [hợp đồng, cách dùng và kiểm chứng](van_duc_address_first_checkout_20261109.md).
+
+## Bộ ảnh demo chuyển sang Storage riêng
+
+Theo yêu cầu không đưa 52 file ảnh màu vào Git, manifest hiện dùng private
+object paths `demo/stride-colors-20261109/<file>` trong `product-images`.
+Repository ký URL bằng quyền hiện có; UI không lưu URL ký sẵn. `local_source`
+trong manifest chỉ là đầu vào script upload, không được ghi vào attributes.
+SQL chỉ đổi metadata sau khi kiểm tra đủ 52 object thật; giữ nguyên giá/tồn
+và snapshot đơn. Xem [quy trình upload và trạng thái](storage_color_images_20261109.md).
+
+## Đồng bộ MH07 sau checkout
+
+Sau khi placement/lookup committed đã xác minh receipt và phiên còn hiện
+hành, chỉ EpochCache có `canRead` và `scope.userId` đúng khách đặt mới bị
+invalidate prefix `orders/`/`notifications/`. Danh sách tiếp tục refetch RPC
+chuẩn; không dùng receipt thay aggregate. `OrderItemImage` ưu tiên đường
+ảnh trong attributes snapshot, sau đó `OrderItem.productImageUrl` đã lưu
+cùng đơn. Card MH07, dòng chi tiết và receipt dùng cùng quy tắc. Không join
+dữ liệu catalog để thay lịch sử đơn.
+Xem [chẩn đoán và kiểm chứng](van_duc_customer_orders_sync_20261109.md).
+
+## Ảnh sản phẩm đã lưu cùng đơn — 09/11/2026
+
+Item JSON của danh sách/chi tiết đơn và placement/lookup/replay bổ sung
+`product_image_url` nullable từ chính `order_items.product_image_url` hiện
+có. `OrderItemDto` chấp nhận response cũ không có trường này; metadata ảnh
+sai được bỏ qua, không làm hỏng toàn bộ đơn. Ảnh màu trong attributes có
+độ ưu tiên cao hơn ảnh cấp sản phẩm; ảnh chung chỉ được mô tả là ảnh mẫu.
+Nếu ảnh màu đã khai báo nhưng tải thất bại, UI giữ trạng thái lỗi ảnh thay
+vì âm thầm đổi sang màu khác. Xem [kiểm chứng API và UI](order_snapshot_images_20261109.md).
+
+## MH07 → MH13 — `can_open_return_creation` (09/11/2026)
+
+Migration `20261109124501_orders_return_creation_capability.sql` thêm
+`private.orders_return_creation_open(p_order_id uuid) returns boolean`
+(SECURITY INVOKER, chạy dưới RLS của người gọi, chỉ `authenticated` được gọi).
+Kết quả được gộp vào `capabilities.can_open_return_creation` của
+`get_order_details` và `private.orders_read_summary` (danh sách MH07/MH08).
+`private.orders_write_capabilities` giữ nguyên.
+
+`true` chỉ khi: người gọi là customer sở hữu đơn, đơn `delivered`,
+`clock_timestamp() <= delivered_at + 7 ngày`, và đơn chưa có return đang hoạt
+động (cùng danh sách trạng thái với `submit_return_request`). Manager luôn
+nhận `false`. Cờ này chỉ mở nút ở MH07; `submit_return_request` vẫn kiểm tra
+lại toàn bộ khi gửi.
+
+Commit `99b4247` ghi đã áp lên project `bqoyfytmrtvjwrpshuhh` ngày 09/11/2026 bằng
+`supabase db query --linked -f` và ghi lịch sử bằng
+`supabase migration repair --status applied 20261109124501` (không dùng
+`db push` vì lịch sử remote có 6 version chưa có trong repo). Kiểm thử cục bộ:
+`supabase/tests/orders_return_creation_capability.sql`.

@@ -20,6 +20,79 @@ class ProductVariant {
 
   bool get isInStock => availableQuantity > 0;
 
+  /// Optional catalog attributes; older variants can still use only [label].
+  String? get color => _textAttribute('color');
+  String? get size => _textAttribute('size');
+
+  /// Six-digit RGB swatch, independent of the product photograph.
+  String? get colorHex {
+    final value = _textAttribute('color_hex');
+    return value != null && RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(value)
+        ? value
+        : null;
+  }
+
+  /// Image of this exact colorway, not a recolored product-level photograph.
+  String? get imagePath => _imagePath(attributes['image_path']);
+
+  /// Ordered, unique gallery paths, with the primary image first if present.
+  List<String> get imagePaths {
+    final paths = <String>{};
+    final primary = imagePath;
+    if (primary != null) paths.add(primary);
+    final gallery = attributes['image_paths'];
+    if (gallery is List) {
+      for (final raw in gallery) {
+        final path = _imagePath(raw);
+        if (path != null) paths.add(path);
+      }
+    }
+    return List.unmodifiable(paths);
+  }
+
+  String? _textAttribute(String key) {
+    final value = attributes[key];
+    return value is String && value.trim().isNotEmpty ? value.trim() : null;
+  }
+
+  static String? _imagePath(Object? raw) {
+    if (raw is! String) return null;
+    final path = raw.trim();
+    if (path.isEmpty || path.contains(RegExp(r'[\x00-\x1f\x7f]'))) {
+      return null;
+    }
+    final uri = Uri.tryParse(path);
+    if (uri == null) return null;
+    if (uri.hasScheme) {
+      if (uri.scheme == 'asset') {
+        return catalogAssetPath(path) == null ? null : path;
+      }
+      return uri.scheme == 'https' &&
+              uri.host.isNotEmpty &&
+              uri.userInfo.isEmpty
+          ? path
+          : null;
+    }
+    // Storage object path, resolved by the shared signed-URL provider.
+    String decoded;
+    try {
+      decoded = Uri.decodeComponent(path);
+    } on FormatException {
+      return null;
+    }
+    if (uri.hasAuthority ||
+        uri.hasQuery ||
+        uri.hasFragment ||
+        path.startsWith('/') ||
+        path.contains('\\') ||
+        decoded
+            .split('/')
+            .any((segment) => segment == '.' || segment == '..')) {
+      return null;
+    }
+    return path;
+  }
+
   @override
   bool operator ==(Object other) {
     return other is ProductVariant &&
@@ -42,6 +115,20 @@ class ProductVariant {
     priceVnd,
     availableQuantity,
   );
+}
+
+/// Resolves only explicitly bundled catalog images, without URI decoding.
+///
+/// Keeping this grammar shared by mapping, adapters and rendering prevents an
+/// encoded traversal or a remote authority from reaching an asset loader.
+String? catalogAssetPath(String value) {
+  final match = RegExp(
+    r'^asset:assets/images/(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*\.(?:png|jpg|jpeg|webp)$',
+  ).firstMatch(value);
+  if (match == null || match.end != value.length) {
+    return null;
+  }
+  return value.substring('asset:'.length);
 }
 
 bool _jsonEquals(Object? left, Object? right) {
