@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../../core/state/foundation_providers.dart';
 import '../../../cart/domain/models/cart_failure.dart';
 import '../../../cart/domain/models/cart_item.dart';
 import '../../../cart/presentation/view_models/cart_providers.dart';
@@ -414,6 +415,13 @@ class CheckoutViewModel extends AsyncNotifier<CheckoutState> {
     _pending = null;
     await _clearPendingQuietly(userId, epoch);
     if (!_current(epoch)) throw const _SupersededCheckout();
+    // Lists/counters must refetch their canonical server aggregates, including
+    // when this success was recovered from a pending placement journal.
+    final cache = ref.read(epochCacheProvider);
+    if (cache.canRead && cache.scope.userId == userId) {
+      cache.invalidatePrefix('orders/');
+      cache.invalidatePrefix('notifications/');
+    }
     return CheckoutState(items: items, result: result, userId: userId);
   }
 

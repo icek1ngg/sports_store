@@ -2152,3 +2152,13 @@ Repository ký URL bằng quyền hiện có; UI không lưu URL ký sẵn. `loc
 trong manifest chỉ là đầu vào script upload, không được ghi vào attributes.
 SQL chỉ đổi metadata sau khi kiểm tra đủ 52 object thật; giữ nguyên giá/tồn
 và snapshot đơn. Xem [quy trình upload và trạng thái](storage_color_images_20261109.md).
+
+## Đồng bộ MH07 sau checkout
+
+Sau khi placement/lookup committed đã xác minh receipt và phiên còn hiện
+hành, chỉ EpochCache có `canRead` và `scope.userId` đúng khách đặt mới bị
+invalidate prefix `orders/`/`notifications/`. Danh sách tiếp tục refetch RPC
+chuẩn; không dùng receipt thay aggregate. `OrderItemImage` chỉ lấy đường
+ảnh từ attributes snapshot qua chuẩn hóa hiện có, dùng chung cho card MH07
+và dòng chi tiết. Không join dữ liệu catalog để thay lịch sử đơn.
+Xem [chẩn đoán và kiểm chứng](van_duc_customer_orders_sync_20261109.md).
