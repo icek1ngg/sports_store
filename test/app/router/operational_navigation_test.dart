@@ -259,7 +259,7 @@ void main() {
     unawaited(router.push('/notifications'));
     await _pumpUntil(
       tester,
-      () => _hasKey('mh17-integration-unavailable'),
+      () => _hasKey('mh17-production-screen'),
       description: 'notifications before pop',
     );
     final before = reads;
@@ -272,7 +272,7 @@ void main() {
     unawaited(router.push('/notifications'));
     await _pumpUntil(
       tester,
-      () => _hasKey('mh17-integration-unavailable'),
+      () => _hasKey('mh17-production-screen'),
       description: 'notifications before revocation',
     );
     allowed = false;
@@ -770,7 +770,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('open-notifications')));
     await _pumpUntil(
       tester,
-      () => _hasKey('mh17-integration-unavailable'),
+      () => _hasKey('mh17-production-screen'),
       description: 'default MH17 slot',
     );
     expect(router.state.uri.path, '/notifications');
@@ -804,7 +804,7 @@ void main() {
       () => _hasKey('notification-fixture'),
       description: 'notification fixture',
     );
-    expect(_hasKey('mh17-integration-unavailable'), isFalse);
+    expect(_hasKey('mh17-production-screen'), isFalse);
     expect(router.state.uri.path, '/notifications');
   });
 

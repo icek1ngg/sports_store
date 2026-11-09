@@ -44,7 +44,10 @@ class StableOrderCommand {
         'reason must contain at most 1000 Unicode scalar values.',
       );
     }
-    return normalized;
+    if (normalized?.contains('\u0000') ?? false) {
+      throw InvalidDomainArgumentException('reason cannot contain NUL.');
+    }
+    return requiresReason ? normalized : null;
   }
 
   Map<String, Object?> toRpcParams() => {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sports_store/app/router/app_router.dart';
+import 'package:sports_store/app/integration/production_feature_composition.dart';
 import 'package:sports_store/app/sports_store_app.dart';
 import 'package:sports_store/core/supabase/supabase_providers.dart';
 import 'package:sports_store/core/state/foundation_providers.dart';
@@ -10,6 +11,7 @@ import 'package:sports_store/features/catalog/presentation/pages/product_managem
 import 'package:sports_store/features/chat/presentation/pages/conversation_list_screen.dart';
 import 'package:sports_store/features/deliveries/presentation/pages/delivery_task_list_page.dart';
 import 'package:sports_store/features/orders/presentation/pages/manager_orders_page.dart';
+import 'package:sports_store/features/orders/presentation/pages/manager_order_details_page.dart';
 import 'package:sports_store/features/orders/presentation/view_models/order_providers.dart';
 
 import '../../features/support/operational_supabase_fixture.dart';
@@ -33,6 +35,12 @@ void main() {
     var roleReads = 0;
     final client = (await tester.runAsync(
       () => fixtureClient((request) async {
+        if (request.url.path.endsWith('/rpc/get_manager_orders')) {
+          return jsonResponse(request, {
+            'code': 'PGRST202',
+            'message': 'Orders aggregate not deployed in this fixture.',
+          }, status: 404);
+        }
         if (request.url.path.endsWith('/profiles')) {
           if (request.url.queryParameters['select'] == 'role') {
             roleReads++;
@@ -59,22 +67,28 @@ void main() {
     ))!;
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [supabaseClientProvider.overrideWithValue(client)],
+        overrides: [
+          ...productionFeatureOverrides,
+          supabaseClientProvider.overrideWithValue(client),
+        ],
         child: const SportsStoreApp(),
       ),
     );
     await until(
       tester,
       () => find
-          .text('Dịch vụ quản lý đơn hàng chưa được tích hợp.')
+          .text('Thao tác hiện chưa khả dụng. Vui lòng thử lại sau.')
           .evaluate()
           .isNotEmpty,
     );
     await tester.pumpAndSettle();
-    expect(profileReads, 2);
+    // MH08 revalidates the profile once on entry after the revoked-role check.
+    expect(profileReads, 3);
+    final settledProfileReads = profileReads;
     final settledRoleReads = roleReads;
     await tester.pump(const Duration(seconds: 1));
     expect(roleReads, settledRoleReads);
+    expect(profileReads, settledProfileReads);
     expect(find.byType(DeliveryTaskListPage), findsNothing);
     await tester.pumpWidget(const SizedBox());
     await tester.runAsync(client.dispose);
@@ -83,7 +97,10 @@ void main() {
   testWidgets(
     'root Auth bridge loads injected MH08 and manager can return from COD',
     (tester) async {
-      final orders = OrderListFixtureRepository(managerPage: listFixturePage());
+      final orders = OrderListFixtureRepository(
+        managerPage: listFixturePage(),
+        details: listFixtureDetails(),
+      );
       final client = (await tester.runAsync(
         () => fixtureClient((request) async {
           if (request.url.path.endsWith('/profiles')) {
@@ -146,6 +163,23 @@ void main() {
       );
       expect(container.read(featureSessionScopeProvider).userId, manager);
       expect(container.read(featureSessionScopeProvider).role, 'manager');
+      final router = container.read(appRouterProvider);
+      tester
+          .widget<ManagerOrdersPage>(find.byType(ManagerOrdersPage))
+          .onOpenOrder!(listFixtureOrderId);
+      await until(
+        tester,
+        () => find.byType(ManagerOrderDetailsPage).evaluate().isNotEmpty,
+      );
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/manager/orders/$listFixtureOrderId');
+      expect(find.byType(ManagerOrderDetailsPage), findsOneWidget);
+      router.pop();
+      await until(
+        tester,
+        () => find.byType(ManagerOrdersPage).evaluate().isNotEmpty,
+      );
+      expect(router.state.uri.path, '/manager/orders');
       final originalScope = container.read(featureSessionScopeProvider);
       await tester.tap(find.text('COD'));
       await until(
@@ -186,6 +220,12 @@ void main() {
       final client = (await tester.runAsync(
         () => fixtureClient((request) async {
           calls.add(request.url.path);
+          if (request.url.path.endsWith('/rpc/get_manager_orders')) {
+            return jsonResponse(request, {
+              'code': 'PGRST202',
+              'message': 'Orders aggregate not deployed in this fixture.',
+            }, status: 404);
+          }
           if (request.url.path.endsWith('/profiles')) {
             if (request.url.queryParameters['select'] == 'role') {
               return jsonResponse(request, {'role': 'manager'});
@@ -213,14 +253,17 @@ void main() {
       ))!;
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [supabaseClientProvider.overrideWithValue(client)],
+          overrides: [
+            ...productionFeatureOverrides,
+            supabaseClientProvider.overrideWithValue(client),
+          ],
           child: const SportsStoreApp(),
         ),
       );
       await until(
         tester,
         () => find
-            .text('Dịch vụ quản lý đơn hàng chưa được tích hợp.')
+            .text('Thao tác hiện chưa khả dụng. Vui lòng thử lại sau.')
             .evaluate()
             .isNotEmpty,
       );
@@ -295,7 +338,10 @@ void main() {
       ))!;
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [supabaseClientProvider.overrideWithValue(client)],
+          overrides: [
+            ...productionFeatureOverrides,
+            supabaseClientProvider.overrideWithValue(client),
+          ],
           child: const SportsStoreApp(),
         ),
       );
@@ -360,7 +406,10 @@ void main() {
     ))!;
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [supabaseClientProvider.overrideWithValue(client)],
+        overrides: [
+          ...productionFeatureOverrides,
+          supabaseClientProvider.overrideWithValue(client),
+        ],
         child: const SportsStoreApp(),
       ),
     );
@@ -410,7 +459,10 @@ void main() {
     ))!;
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [supabaseClientProvider.overrideWithValue(client)],
+        overrides: [
+          ...productionFeatureOverrides,
+          supabaseClientProvider.overrideWithValue(client),
+        ],
         child: const SportsStoreApp(),
       ),
     );

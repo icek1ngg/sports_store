@@ -8,6 +8,7 @@ import '../../data/email_confirmation_callback.dart';
 import '../../domain/models/app_profile.dart';
 import '../../domain/models/email_confirmation_result.dart';
 import '../../domain/repositories/auth_repository.dart';
+import 'trusted_feature_session.dart';
 
 export '../../domain/models/app_profile.dart';
 
@@ -48,45 +49,6 @@ final trustedFeatureSessionProvider =
     NotifierProvider<TrustedFeatureSession, SessionScope>(
       TrustedFeatureSession.new,
     );
-
-class TrustedFeatureSession extends Notifier<SessionScope> {
-  int _generation = 0;
-
-  @override
-  SessionScope build() {
-    final generation = ++_generation;
-    final session = ref.watch(authSessionProvider);
-    final profile = ref.watch(currentProfileProvider);
-    if (session.isLoading || session.hasError) {
-      return SessionScope(
-        userId: null,
-        role: null,
-        generation: generation,
-        roleResolved: false,
-      );
-    }
-    final identity = session.asData?.value;
-    if (identity?.signedIn != true) {
-      return SessionScope(userId: null, role: null, generation: generation);
-    }
-    final value = profile.asData?.value;
-    if (profile.isLoading ||
-        profile.hasError ||
-        value?.id != identity!.userId) {
-      return SessionScope(
-        userId: identity!.userId,
-        role: null,
-        generation: generation,
-        roleResolved: false,
-      );
-    }
-    return SessionScope(
-      userId: value!.id,
-      role: value.role.name,
-      generation: generation,
-    );
-  }
-}
 
 String homeRouteForRole(AppRole role) => switch (role) {
   AppRole.customer => '/customer/products',

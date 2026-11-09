@@ -1604,7 +1604,7 @@ Independent syntheticfixtures; matching requests use thisrequestUUID, no applied
 - [ ] Group business lost/partial closure/transfer-after-pickup và return cutoff resolved khi muốn bật nhánh liên quan; baseline disables safely.
 - [ ] SDK/error/concurrent SQL/security/NFR/device tests run; docs validation không runtime PASS.
 
-Nguồn: [Final Technical Decisions](Final_Technical_Decisions.md); [Cross Module Contracts](Cross_Module_Integration_Contracts.md); [Readiness1.2](Implementation_Readiness_v1.2.md). Historical revision1.1 không còn normative ở sections đã thay. All new storage/RPC/schema names PROPOSED IMPLEMENTATION, không existing table/API.
+Nguồn: [Final Technical Decisions](Final_Technical_Decisions.md); [Cross Module Contracts](Cross_Module_Integration_Contracts.md); [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](FINAL_REPORT_MH07_MH08_MH09_MH17.md). Historical revision1.1 không còn normative ở sections đã thay. All new storage/RPC/schema names PROPOSED IMPLEMENTATION, không existing table/API.
 
 ## 11. Notification paging/read adapter — OWNER DECIDED
 

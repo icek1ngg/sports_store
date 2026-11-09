@@ -96,6 +96,12 @@ class _ProductListPageState extends ConsumerState<ProductListPage> {
           title: const Text('STRIDE  /  SẢN PHẨM'),
           actions: [
             IconButton(
+              key: const ValueKey('catalog-open-account'),
+              onPressed: () => context.push('/chat'),
+              tooltip: 'Tài khoản và hỗ trợ',
+              icon: const Icon(Icons.account_circle_outlined),
+            ),
+            IconButton(
               key: const ValueKey('catalog-open-cart'),
               onPressed: () => context.push('/customer/cart'),
               tooltip: 'Giỏ hàng',

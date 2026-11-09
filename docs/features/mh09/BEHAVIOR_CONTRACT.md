@@ -143,7 +143,7 @@ Detail read không tự mark notification read. Không chỉnh route/callback ta
 1. Current gate reset subtree theo SessionScope, cache clear/bỏ late reads theo epoch/lifecycle; giữ nguyên.
 2. Dialog capture submittedScope, observe cache/source invalidation, clear reason khi scope đổi; close privacy-safe.
 3. 03A2 tái hiện inactive còn mounted → ancestor lookup exception. MH09-local active/generation owner chặn trước ref/ancestor access.
-   Same-frame/reparent/unmount/rapid route/null-callback/late async probes PASS; [INTEGRATION_03A2](INTEGRATION_03A2.md) giữ red→green evidence.
+   Same-frame/reparent/unmount/rapid route/null-callback/late async probes PASS; [Báo cáo tổng kết; evidence lịch sử đã lưu ngoài repository](../../FINAL_REPORT_MH07_MH08_MH09_MH17.md) giữ red→green evidence.
 4. Shared `acceptHistoricalReceipt` đọc ref trước mounted check; chưa gọi từ dialog hiện tại, ghi dependency ngoài UI scope.
 5. Current dialog capture submittedScope/sourceCache/orderId/ticket, recheck same cache/scope/fresh canonical operation; _owns trước ref read.
    Root ProviderScope không đổi; shared dialog tự dispose listener/controller; invalid owner trảfalse, không suppress errors.

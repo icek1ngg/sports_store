@@ -3,10 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app/sports_store_app.dart';
+import 'app/integration/production_feature_composition.dart';
 import 'app/localization/app_localization.dart';
 import 'core/config/auth_startup_options.dart';
 import 'core/config/load_supabase_config.dart';
-import 'core/state/foundation_providers.dart';
 import 'features/auth/presentation/view_models/auth_providers.dart';
 import 'features/auth/data/email_confirmation_callback.dart';
 
@@ -26,6 +26,7 @@ Future<void> main() async {
     runApp(
       ProviderScope(
         overrides: [
+          ...productionFeatureOverrides,
           if (confirmingEmail)
             initialEmailConfirmationProvider.overrideWithValue(
               EmailConfirmationCallback.resolveAfterSdkInitialization(
@@ -33,11 +34,8 @@ Future<void> main() async {
                 Supabase.instance.client.auth.currentSession,
               ),
             ),
-          featureSessionScopeProvider.overrideWith(
-            (ref) => ref.watch(trustedFeatureSessionProvider),
-          ),
         ],
-        child: const SportsStoreApp(),
+        child: const FeatureSessionLifecycle(child: SportsStoreApp()),
       ),
     );
   } catch (error) {
